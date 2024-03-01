@@ -1,0 +1,14 @@
+[package]
+name = "webrat"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+
+
+bevy = { version = "0.13.0",  default-features = true}
+ratatui = { version = "0.26.1",  default-features = false }
+bevy_ratatui = { version = "0.1.2"}
+once_cell = { version = "1.19.0"}
+rand = {version = "0.8.5", default-features = false , features = ["getrandom"]}
+
