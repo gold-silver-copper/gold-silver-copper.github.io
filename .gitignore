@@ -1,1 +1,4 @@
 /target
+out/webrat.js
+out/webrat_bg.wasm
+Cargo.lock
