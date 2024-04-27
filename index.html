@@ -1,19 +1,131 @@
-<!DOCTYPE html><html><head><meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<!doctype html>
+<html>
+    <head>
+        <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
 
-    <!-- Disable zooming: -->
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+        <!-- Disable zooming: -->
+        <meta
+            name="viewport"
+            content="width=device-width, initial-scale=1.0, user-scalable=no"
+        />
 
-    
         <!-- change this to your project name -->
-        <title>gold silver copper</title>
+        <title>hello world</title>
 
         <!-- config for our rust wasm binary. go to https://trunkrs.dev/assets/#rust for more customization -->
-        <script type="module">import init from '/colors-3b43a50e883ad317.js';init('/colors-3b43a50e883ad317_bg.wasm');</script>
+        <script type="module">
+            import init from "/barchart.js";
+            init("/barchart_bg.wasm");
+        </script>
+        <script type="module">
+            import init from "/gauge.js";
+            init("/gauge_bg.wasm");
+        </script>
+        <script type="module">
+            import init from "/demo2.js";
+            init("/demo2_bg.wasm");
+        </script>
+        <script type="module">
+            import init from "/demo.js";
+            init("/demo_bg.wasm");
+        </script>
+        <script type="module">
+            import init from "/block.js";
+            init("/block_bg.wasm");
+        </script>
+        <script type="module">
+            import init from "/calendar.js";
+            init("/calendar_bg.wasm");
+        </script>
+        <script type="module">
+            import init from "/canvas.js";
+            init("/canvas_bg.wasm");
+        </script>
+        <script type="module">
+            import init from "/chart.js";
+            init("/chart_bg.wasm");
+        </script>
+        <script type="module">
+            import init from "/colors_rgb.js";
+            init("/colors_rgb_bg.wasm");
+        </script>
+        <script type="module">
+            import init from "/colors.js";
+            init("/colors_bg.wasm");
+        </script>
+        <script type="module">
+            import init from "/constraint_explorer.js";
+            init("/constraint_explorer_bg.wasm");
+        </script>
+        <script type="module">
+            import init from "/constraints.js";
+            init("/constraints_bg.wasm");
+        </script>
+        <script type="module">
+            import init from "/flex.js";
+            init("/flex_bg.wasm");
+        </script>
+        <script type="module">
+            import init from "/gauge.js";
+            init("/gauge_bg.wasm");
+        </script>
+        <script type="module">
+            import init from "/hello_world.js";
+            init("/hello_world_bg.wasm");
+        </script>
+        <script type="module">
+            import init from "/layout.js";
+            init("/layout_bg.wasm");
+        </script>
+        <script type="module">
+            import init from "/list.js";
+            init("/list_bg.wasm");
+        </script>
+        <script type="module">
+            import init from "/modifiers.js";
+            init("/modifiers_bg.wasm");
+        </script>
+        <script type="module">
+            import init from "/paragraph.js";
+            init("/paragraph_bg.wasm");
+        </script>
+        <script type="module">
+            import init from "/popup.js";
+            init("/popup_bg.wasm");
+        </script>
+        <script type="module">
+            import init from "/ratatui_logo.js";
+            init("/ratatui_logo_bg.wasm");
+        </script>
+        <script type="module">
+            import init from "/scrollbar.js";
+            init("/scrollbar_bg.wasm");
+        </script>
+        <script type="module">
+            import init from "/sparkline.js";
+            init("/sparkline_bg.wasm");
+        </script>
+        <script type="module">
+            import init from "/table.js";
+            init("/table_bg.wasm");
+        </script>
+        <script type="module">
+            import init from "/tabs.js";
+            init("/tabs_bg.wasm");
+        </script>
         <!-- this is the base url relative to which other urls will be constructed. trunk will insert this from the public-url option -->
-        <base href="/">
+        <base href="/" />
 
-        <meta name="theme-color" media="(prefers-color-scheme: light)" content="white">
-        <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#404040">
+        <meta
+            name="theme-color"
+            media="(prefers-color-scheme: light)"
+            content="white"
+        />
+        <meta
+            name="theme-color"
+            media="(prefers-color-scheme: dark)"
+            content="#404040"
+        />
 
         <style>
             html {
@@ -25,6 +137,22 @@
                 /* Light mode background color for what is not covered by the egui canvas,
             or where the egui canvas is translucent. */
                 background: #909090;
+            }
+            #sidebar {
+                padding: 5px;
+                width: 100px; /* Adjust width of the sidebar */
+                background-color: #f0f0f0; /* Light background for the sidebar */
+                position: relative;
+                display: static;
+            }
+            .ccc {
+                position: relative;
+                left: 0px;
+                top: 0px;
+                display: flex;
+                width: 90%;
+                height: 99%;
+                flex-grow: 1; /* Take up remaining space */
             }
 
             @media (prefers-color-scheme: dark) {
@@ -43,87 +171,173 @@
                 padding: 0 !important;
                 height: 100%;
                 width: 100%;
+                display: flex; /* Use flexbox to lay out sidebar and canvas area */
             }
 
             /* Position canvas in center-top: */
             canvas {
-                margin-right: auto;
-                margin-left: auto;
+                margin-right: 0px;
+                margin-left: 0px;
                 display: block;
-                position: absolute;
+                position: static;
                 top: 0%;
-                left: 50%;
-                transform: translate(-50%, 0%);
+                left: 0%;
+                justify-content: right; /* Center canvas horizontally */
+                align-items: right; /* Center canvas vertically */
             }
+            .hidden {
+                position: fixed;
 
-            .centered {
-                margin-right: auto;
-                margin-left: auto;
                 display: block;
-                position: absolute;
-                top: 50%;
-                left: 50%;
-                transform: translate(-50%, -50%);
-                color: #f0f0f0;
-                font-size: 24px;
-                font-family: Ubuntu-Light, Helvetica, sans-serif;
-                text-align: center;
-            }
+                width: 900px;
+                height: 900px;
 
-            /* ---------------------------------------------- */
-            /* Loading animation from https://loading.io/css/ */
-            .lds-dual-ring {
-                display: inline-block;
-                width: 24px;
-                height: 24px;
-            }
-
-            .lds-dual-ring:after {
-                content: " ";
-                display: block;
-                width: 24px;
-                height: 24px;
-                margin: 0px;
-                border-radius: 50%;
-                border: 3px solid #fff;
-                border-color: #fff transparent #fff transparent;
-                animation: lds-dual-ring 1.2s linear infinite;
-            }
-
-            @keyframes lds-dual-ring {
-                0% {
-                    transform: rotate(0deg);
-                }
-
-                100% {
-                    transform: rotate(360deg);
-                }
+                transform: translate(100%, 100%);
             }
         </style>
-    
-<link rel="preload" href="/colors-3b43a50e883ad317_bg.wasm" as="fetch" type="application/wasm" crossorigin="">
-<link rel="modulepreload" href="/colors-3b43a50e883ad317.js"></head>
+    </head>
+    <script>
+        function hideDivsExcept(showDivId) {
+            // Get all div elements
+            var divs = document.querySelectorAll("div");
+            // Loop through all div elements
+            for (var i = 0; i < divs.length; i++) {
+                // Check if it's not the div to show
+                if (divs[i].id === "sidebar") {
+                } else if (divs[i].id !== showDivId) {
+                    // Hide the div
+                    divs[i].classList.add("hidden");
+                    divs[i].classList.remove("ccc");
+                } else {
+                    // Ensure the div to show is visible
+                    divs[i].classList.remove("hidden");
+                    divs[i].classList.add("ccc");
+                }
+            }
+        }
+    </script>
 
     <body>
-        <!-- The WASM code will resize the canvas dynamically -->
-        <!-- the id is hardcoded in main.rs . so, make sure both match. -->
-        <canvas id="the_canvas_id"></canvas>
+        <div id="sidebar">
+            <a
+                href="https://github.com/gold-silver-copper/ratatui_egui_wasm"
+                style="font-size: 24px"
+                >Github</a
+            >
 
-        <!--Register Service Worker. this will cache the wasm / js scripts for offline use (for PWA functionality). -->
-        <!-- Force refresh (Ctrl + F5) to load the latest files instead of cached files  -->
-        <script>
-            // We disable caching during development so that we always view the latest version.
-            if (
-                "serviceWorker" in navigator &&
-                window.location.hash !== "#dev"
-            ) {
-                window.addEventListener("load", function () {
-                    navigator.serviceWorker.register("sw.js");
-                });
-            }
-        </script>
-    
+            <span></span>
 
+            <button onclick="hideDivsExcept('demo2d')">demo2</button>
+            <button onclick="hideDivsExcept('demod')">demo</button>
+            <button onclick="hideDivsExcept('canvasd')">canvas</button>
+            <button onclick="hideDivsExcept('barchartd')">barchart</button>
+            <button onclick="hideDivsExcept('blockd')">block</button>
+            <button onclick="hideDivsExcept('gauged')">gauge</button>
+            <button onclick="hideDivsExcept('calendard')">calendar</button>
+            <button onclick="hideDivsExcept('chartd')">chart</button>
+            <button onclick="hideDivsExcept('colors_rgbd')">colors_rgb</button>
+            <button onclick="hideDivsExcept('colorsd')">colors</button>
+            <button onclick="hideDivsExcept('constraint_explorerd')">
+                constraint_explorer
+            </button>
+            <button onclick="hideDivsExcept('constraintsd')">
+                constraints
+            </button>
+            <button onclick="hideDivsExcept('flexd')">flex</button>
+            <button onclick="hideDivsExcept('hello_worldd')">
+                hello_world
+            </button>
+            <button onclick="hideDivsExcept('layoutd')">layout</button>
+            <button onclick="hideDivsExcept('listd')">list</button>
+            <button onclick="hideDivsExcept('modifiersd')">modifiers</button>
+            <button onclick="hideDivsExcept('paragraphd')">paragraph</button>
+            <button onclick="hideDivsExcept('popupd')">popup</button>
+            <button onclick="hideDivsExcept('ratatui_logod')">
+                ratatui_logo
+            </button>
+            <button onclick="hideDivsExcept('scrollbard')">scrollbar</button>
+            <button onclick="hideDivsExcept('sparklined')">sparkline</button>
+            <button onclick="hideDivsExcept('tabled')">table</button>
+            <button onclick="hideDivsExcept('tabsd')">tabs</button>
 
+            <a style="font-size: 24px">Gold</a>
+            <a style="font-size: 24px">Silver</a>
+            <a style="font-size: 24px">Copper</a>
+        </div>
+        <div id="demo2d" class="ccc">
+            <canvas id="demo2"></canvas>
+        </div>
+        <div id="demod" class="hidden">
+            <canvas id="demo"></canvas>
+        </div>
+        <div id="blockd" class="hidden">
+            <canvas id="block"></canvas>
+        </div>
+        <div id="canvasd" class="hidden">
+            <canvas id="canvas"></canvas>
+        </div>
+        <div id="calendard" class="hidden">
+            <canvas id="calendar"></canvas>
+        </div>
+        <div id="chartd" class="hidden">
+            <canvas id="chart"></canvas>
+        </div>
+        <div id="colors_rgbd" class="hidden">
+            <canvas id="colors_rgb"></canvas>
+        </div>
+        <div id="colorsd" class="hidden">
+            <canvas id="colors"></canvas>
+        </div>
 
-</body></html><!-- Powered by egui: https://github.com/emilk/egui/ -->
+        <div id="barchartd" class="hidden">
+            <canvas id="barchart"></canvas>
+        </div>
+        <div id="gauged" class="hidden">
+            <canvas id="gauge"></canvas>
+        </div>
+        <div id="constraint_explorerd" class="hidden">
+            <canvas id="constraint_explorer"></canvas>
+        </div>
+        <div id="constraintsd" class="hidden">
+            <canvas id="constraints"></canvas>
+        </div>
+        <div id="flexd" class="hidden">
+            <canvas id="flex"></canvas>
+        </div>
+        <div id="hello_worldd" class="hidden">
+            <canvas id="the_canvas_id"></canvas>
+        </div>
+        <div id="layoutd" class="hidden">
+            <canvas id="layout"></canvas>
+        </div>
+        <div id="listd" class="hidden">
+            <canvas id="list"></canvas>
+        </div>
+        <div id="modifiersd" class="hidden">
+            <canvas id="modifiers"></canvas>
+        </div>
+        <div id="paragraphd" class="hidden">
+            <canvas id="paragraph"></canvas>
+        </div>
+        <div id="popupd" class="hidden">
+            <canvas id="popup"></canvas>
+        </div>
+        <div id="ratatui_logod" class="hidden">
+            <canvas id="ratatui_logo"></canvas>
+        </div>
+        <div id="scrollbard" class="hidden">
+            <canvas id="scrollbar"></canvas>
+        </div>
+        <div id="sparklined" class="hidden">
+            <canvas id="sparkline"></canvas>
+        </div>
+        <div id="tabled" class="hidden">
+            <canvas id="table"></canvas>
+        </div>
+        <div id="tabsd" class="hidden">
+            <canvas id="tabs"></canvas>
+        </div>
+    </body>
+</html>
+<!-- The WASM code will resize the canvas dynamically -->
+<!-- the id is hardcoded in main.rs . so, make sure both match. -->
