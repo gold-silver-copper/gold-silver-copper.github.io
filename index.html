@@ -13,14 +13,8 @@
         <title>hello world</title>
 
         <!-- config for our rust wasm binary. go to https://trunkrs.dev/assets/#rust for more customization -->
-        <script type="module">
-            import init from "/barchart.js";
-            init("/barchart_bg.wasm");
-        </script>
-        <script type="module">
-            import init from "/gauge.js";
-            init("/gauge_bg.wasm");
-        </script>
+      
+     
         <script type="module">
             import init from "/demo2.js";
             init("/demo2_bg.wasm");
@@ -33,10 +27,7 @@
             import init from "/block.js";
             init("/block_bg.wasm");
         </script>
-        <script type="module">
-            import init from "/calendar.js";
-            init("/calendar_bg.wasm");
-        </script>
+    
         <script type="module">
             import init from "/canvas.js";
             init("/canvas_bg.wasm");
@@ -49,10 +40,7 @@
             import init from "/colors_rgb.js";
             init("/colors_rgb_bg.wasm");
         </script>
-        <script type="module">
-            import init from "/colors.js";
-            init("/colors_bg.wasm");
-        </script>
+      
         <script type="module">
             import init from "/constraint_explorer.js";
             init("/constraint_explorer_bg.wasm");
@@ -65,10 +53,7 @@
             import init from "/flex.js";
             init("/flex_bg.wasm");
         </script>
-        <script type="module">
-            import init from "/gauge.js";
-            init("/gauge_bg.wasm");
-        </script>
+  
         <script type="module">
             import init from "/hello_world.js";
             init("/hello_world_bg.wasm");
@@ -85,22 +70,10 @@
             import init from "/modifiers.js";
             init("/modifiers_bg.wasm");
         </script>
-        <script type="module">
-            import init from "/paragraph.js";
-            init("/paragraph_bg.wasm");
-        </script>
-        <script type="module">
-            import init from "/popup.js";
-            init("/popup_bg.wasm");
-        </script>
-        <script type="module">
-            import init from "/ratatui_logo.js";
-            init("/ratatui_logo_bg.wasm");
-        </script>
-        <script type="module">
-            import init from "/scrollbar.js";
-            init("/scrollbar_bg.wasm");
-        </script>
+     
+     
+    
+     
         <script type="module">
             import init from "/sparkline.js";
             init("/sparkline_bg.wasm");
@@ -229,7 +202,7 @@
             >
             <span></span>
             <span></span>
-            <a style="font-size: 12px">Firefox Only for now</a>
+        
             <a style="font-size: 12px">Fullscreen for best experience</a>
 
             <span></span>
@@ -237,13 +210,13 @@
             <button onclick="hideDivsExcept('demo2d')">demo2</button>
             <button onclick="hideDivsExcept('demod')">demo</button>
             <button onclick="hideDivsExcept('canvasd')">canvas</button>
-            <button onclick="hideDivsExcept('barchartd')">barchart</button>
+        
             <button onclick="hideDivsExcept('blockd')">block</button>
-            <button onclick="hideDivsExcept('gauged')">gauge</button>
-            <button onclick="hideDivsExcept('calendard')">calendar</button>
+         
+          
             <button onclick="hideDivsExcept('chartd')">chart</button>
             <button onclick="hideDivsExcept('colors_rgbd')">colors_rgb</button>
-            <button onclick="hideDivsExcept('colorsd')">colors</button>
+      
             <button onclick="hideDivsExcept('constraint_explorerd')">
                 constraint_explorer
             </button>
@@ -257,12 +230,10 @@
             <button onclick="hideDivsExcept('layoutd')">layout</button>
             <button onclick="hideDivsExcept('listd')">list</button>
             <button onclick="hideDivsExcept('modifiersd')">modifiers</button>
-            <button onclick="hideDivsExcept('paragraphd')">paragraph</button>
-            <button onclick="hideDivsExcept('popupd')">popup</button>
-            <button onclick="hideDivsExcept('ratatui_logod')">
-                ratatui_logo
-            </button>
-            <button onclick="hideDivsExcept('scrollbard')">scrollbar</button>
+         
+           
+       
+       
             <button onclick="hideDivsExcept('sparklined')">sparkline</button>
             <button onclick="hideDivsExcept('tabled')">table</button>
             <button onclick="hideDivsExcept('tabsd')">tabs</button>
@@ -283,25 +254,17 @@
         <div id="canvasd" class="hidden">
             <canvas id="canvas"></canvas>
         </div>
-        <div id="calendard" class="hidden">
-            <canvas id="calendar"></canvas>
-        </div>
+     
         <div id="chartd" class="hidden">
             <canvas id="chart"></canvas>
         </div>
         <div id="colors_rgbd" class="hidden">
             <canvas id="colors_rgb"></canvas>
         </div>
-        <div id="colorsd" class="hidden">
-            <canvas id="colors"></canvas>
-        </div>
+      
 
-        <div id="barchartd" class="hidden">
-            <canvas id="barchart"></canvas>
-        </div>
-        <div id="gauged" class="hidden">
-            <canvas id="gauge"></canvas>
-        </div>
+      
+   
         <div id="constraint_explorerd" class="hidden">
             <canvas id="constraint_explorer"></canvas>
         </div>
@@ -323,18 +286,10 @@
         <div id="modifiersd" class="hidden">
             <canvas id="modifiers"></canvas>
         </div>
-        <div id="paragraphd" class="hidden">
-            <canvas id="paragraph"></canvas>
-        </div>
-        <div id="popupd" class="hidden">
-            <canvas id="popup"></canvas>
-        </div>
-        <div id="ratatui_logod" class="hidden">
-            <canvas id="ratatui_logo"></canvas>
-        </div>
-        <div id="scrollbard" class="hidden">
-            <canvas id="scrollbar"></canvas>
-        </div>
+    
+   
+     
+      
         <div id="sparklined" class="hidden">
             <canvas id="sparkline"></canvas>
         </div>
