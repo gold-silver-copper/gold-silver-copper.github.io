@@ -54,10 +54,7 @@
             init("/flex_bg.wasm");
         </script>
   
-        <script type="module">
-            import init from "/hello_world.js";
-            init("/hello_world_bg.wasm");
-        </script>
+      
         <script type="module">
             import init from "/layout.js";
             init("/layout_bg.wasm");
@@ -82,10 +79,7 @@
             import init from "/table.js";
             init("/table_bg.wasm");
         </script>
-        <script type="module">
-            import init from "/tabs.js";
-            init("/tabs_bg.wasm");
-        </script>
+       
         <!-- this is the base url relative to which other urls will be constructed. trunk will insert this from the public-url option -->
         <base href="/" />
 
@@ -226,9 +220,7 @@
                 constraints
             </button>
             <button onclick="hideDivsExcept('flexd')">flex</button>
-            <button onclick="hideDivsExcept('hello_worldd')">
-                hello_world
-            </button>
+       
             <button onclick="hideDivsExcept('layoutd')">layout</button>
             <button onclick="hideDivsExcept('listd')">list</button>
             <button onclick="hideDivsExcept('modifiersd')">modifiers</button>
@@ -238,7 +230,7 @@
        
             <button onclick="hideDivsExcept('sparklined')">sparkline</button>
             <button onclick="hideDivsExcept('tabled')">table</button>
-            <button onclick="hideDivsExcept('tabsd')">tabs</button>
+           
             <br> </br>
 
             <a style="font-size: 24px">Gold</a>
@@ -277,9 +269,7 @@
         <div id="flexd" class="hidden">
             <canvas id="flex"></canvas>
         </div>
-        <div id="hello_worldd" class="hidden">
-            <canvas id="the_canvas_id"></canvas>
-        </div>
+   
         <div id="layoutd" class="hidden">
             <canvas id="layout"></canvas>
         </div>
@@ -299,9 +289,7 @@
         <div id="tabled" class="hidden">
             <canvas id="table"></canvas>
         </div>
-        <div id="tabsd" class="hidden">
-            <canvas id="tabs"></canvas>
-        </div>
+     
     </body>
 </html>
 <!-- The WASM code will resize the canvas dynamically -->
