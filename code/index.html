@@ -38,6 +38,7 @@
         // Zone detection: track touch start position relative to screen
         var touchZone = 'content'; // 'tabs' or 'content'
         var tabZoneThreshold = 0.12; // top 12% of screen is tab zone
+        var replInputZoneThreshold = 0.75; // bottom 25% of screen is REPL input zone
 
         // Prevent context menu on long press for native feel
         document.addEventListener('contextmenu', function(e) {
@@ -45,9 +46,9 @@
         });
 
         // Helper: detect if touch is in the tab bar zone (top portion of screen)
-        function getTouchZone(screenY) {
+        function getTouchZone(clientY) {
           var winH = window.innerHeight || document.documentElement.clientHeight || 600;
-          return (screenY / winH) < tabZoneThreshold ? 'tabs' : 'content';
+          return (clientY / winH) < tabZoneThreshold ? 'tabs' : 'content';
         }
 
         document.addEventListener('touchstart', function(e) {
@@ -166,37 +167,44 @@
         // REPL virtual keyboard support: focus hidden input on tap to open keyboard
         // Expose a global function that Rust can call to focus/blur the hidden input
         var replInput = null;
+        var replInputInitialized = false;
+        function initReplInput() {
+          if (replInputInitialized) return;
+          replInput = document.getElementById('repl-keyboard-input');
+          if (!replInput) return;
+          replInputInitialized = true;
+          // Forward input events as key events (added once)
+          replInput.addEventListener('input', function(e) {
+            var data = e.data;
+            if (data) {
+              for (var i = 0; i < data.length; i++) {
+                document.dispatchEvent(new KeyboardEvent('keydown', {
+                  key: data[i], bubbles: true
+                }));
+              }
+            }
+            replInput.value = '';
+          });
+          replInput.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter' || e.key === 'Backspace') {
+              document.dispatchEvent(new KeyboardEvent('keydown', {
+                key: e.key, bubbles: true
+              }));
+              e.preventDefault();
+            }
+          });
+        }
         window._focusReplInput = function() {
-          if (!replInput) replInput = document.getElementById('repl-keyboard-input');
+          initReplInput();
           if (replInput) {
             replInput.style.top = '0';
             replInput.style.left = '0';
             replInput.style.pointerEvents = 'auto';
             replInput.focus();
-            // Forward input events as key events
-            replInput.addEventListener('input', function(e) {
-              var data = e.data;
-              if (data) {
-                for (var i = 0; i < data.length; i++) {
-                  document.dispatchEvent(new KeyboardEvent('keydown', {
-                    key: data[i], bubbles: true
-                  }));
-                }
-              }
-              replInput.value = '';
-            });
-            replInput.addEventListener('keydown', function(e) {
-              if (e.key === 'Enter' || e.key === 'Backspace') {
-                document.dispatchEvent(new KeyboardEvent('keydown', {
-                  key: e.key, bubbles: true
-                }));
-                e.preventDefault();
-              }
-            });
           }
         };
         window._blurReplInput = function() {
-          if (!replInput) replInput = document.getElementById('repl-keyboard-input');
+          initReplInput();
           if (replInput) {
             replInput.blur();
             replInput.style.top = '-9999px';
@@ -209,8 +217,7 @@
         // focus the hidden input to bring up virtual keyboard
         document.addEventListener('click', function(e) {
           var winH = window.innerHeight || 600;
-          // Bottom 25% of screen is the REPL input zone
-          if (e.clientY > winH * 0.75) {
+          if (e.clientY > winH * replInputZoneThreshold) {
             // Check if the REPL tab might be active by seeing if hidden input should focus
             if (window._replTabActive) {
               window._focusReplInput();
