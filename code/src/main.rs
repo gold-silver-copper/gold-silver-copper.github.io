@@ -44,6 +44,32 @@ const ABOUT: &str = "\
 >_ gold.silver.copper — Software developer • Rust enthusiast • Language designer\n\
 Interests: programming languages, NLP, AI, game dev, web dev.";
 
+const LISP_INFO: &str = "\
+Lisp is one of the oldest and most influential programming languages.\n\
+Its uniform syntax (S-expressions) and homoiconicity make it uniquely\n\
+suited to metaprogramming and language research. Code is data, data\n\
+is code — enabling macros, DSLs, and self-modifying programs.";
+
+const VAU_INFO: &str = "\
+Vau calculus extends the lambda calculus with first-class operatives\n\
+(fexprs). Unlike macros, operatives receive their arguments\n\
+unevaluated and can inspect the caller's environment. This makes\n\
+them strictly more powerful — subsuming both functions and macros\n\
+in a single, elegant primitive.";
+
+const RUST_INFO: &str = "\
+Rust is a systems programming language focused on safety, speed,\n\
+and concurrency. Grift is written in pure Rust with no_std,\n\
+no_alloc — it compiles to WebAssembly and runs on bare metal.\n\
+This entire website is Rust, rendered as a terminal UI via WASM.";
+
+const GSC_INFO: &str = "\
+gold.silver.copper is a software developer passionate about\n\
+programming languages and systems programming. Grift is their\n\
+minimalistic Lisp built on vau calculus — featuring arena\n\
+allocation, tail-call optimization, and mark-and-sweep GC,\n\
+all in safe Rust with zero unsafe code.";
+
 const LINKS: &[(&str, &str)] = &[
     (
         "GitHub (gold-silver-copper)",
@@ -395,7 +421,7 @@ impl App {
 
     fn handle_key_event(&mut self, key: KeyEvent) {
         match self.page {
-            Page::Home | Page::Repl => self.handle_repl_event(key),
+            Page::Repl => self.handle_repl_event(key),
             Page::Docs => self.handle_docs_event(key),
             Page::Blog => self.handle_blog_event(key),
             _ => {}
@@ -663,8 +689,9 @@ impl App {
         self.grid_rows = full_area.height;
 
         // Center the main content with margins to show animated background border
-        let h_margin = (full_area.width / 8).max(2);
-        let v_margin = (full_area.height / 12).max(1);
+        // Use smaller margins on narrow screens (phones) for better usability
+        let h_margin = if full_area.width < 60 { 1 } else { (full_area.width / 10).max(2) };
+        let v_margin = if full_area.height < 30 { 0 } else { (full_area.height / 16).max(1) };
 
         let [_, center_v, _] = Layout::vertical([
             Constraint::Length(v_margin),
@@ -908,7 +935,7 @@ impl App {
             .border_type(BorderType::Rounded)
             .border_style(Color::Rgb(55, 60, 70))
             .title_bottom(
-                Line::from("│ click tabs to navigate │")
+                Line::from("│ swipe or click tabs to navigate │")
                     .alignment(Alignment::Right)
                     .style(Style::default().fg(Color::Rgb(55, 60, 70))),
             );
@@ -916,51 +943,177 @@ impl App {
         let inner = block.inner(area);
         frame.render_widget(block, area);
 
+        let is_narrow = inner.width < 50;
         let banner_height = BANNER.lines().count() as u16;
-        let desc_lines = DESCRIPTION.lines().count() as u16;
-        let about_lines = ABOUT.lines().count() as u16;
 
-        let [banner_area, desc_area, repl_area, about_area] = Layout::vertical([
-            Constraint::Length(banner_height),
-            Constraint::Length(desc_lines + 2),
-            Constraint::Min(5),
-            Constraint::Length(about_lines + 2),
-        ])
-        .areas(inner);
+        if is_narrow {
+            // Vertical layout for phones — skip banner, show all info sections stacked
+            let [about_area, lisp_area, vau_area, rust_area, gsc_area] = Layout::vertical([
+                Constraint::Length(4),
+                Constraint::Length(6),
+                Constraint::Length(7),
+                Constraint::Length(6),
+                Constraint::Min(5),
+            ])
+            .areas(inner);
 
-        // Banner — silver with subtle bright glow
-        let banner = Paragraph::new(BANNER)
-            .alignment(Alignment::Center)
-            .style(Style::default().fg(Color::Rgb(200, 200, 210)).bold());
-        frame.render_widget(banner, banner_area);
-        self.banner_area = banner_area;
+            // About section
+            let about = Paragraph::new(ABOUT)
+                .wrap(Wrap { trim: false })
+                .style(Style::default().fg(Color::Rgb(140, 145, 155)))
+                .block(
+                    Block::bordered()
+                        .border_type(BorderType::Rounded)
+                        .border_style(Color::Rgb(40, 44, 52))
+                        .title(" About ".bold().fg(Color::Rgb(200, 200, 210))),
+                );
+            frame.render_widget(about, about_area);
 
-        // Grift description — main focus
-        let desc = Paragraph::new(DESCRIPTION)
-            .wrap(Wrap { trim: false })
-            .style(Style::default().fg(Color::Rgb(170, 175, 185)))
-            .block(
-                Block::bordered()
-                    .border_type(BorderType::Rounded)
-                    .border_style(Color::Rgb(40, 44, 52))
-                    .title(" Grift ".bold().fg(Color::Rgb(184, 115, 51))),
-            );
-        frame.render_widget(desc, desc_area);
+            // Lisp info
+            let lisp = Paragraph::new(LISP_INFO)
+                .wrap(Wrap { trim: false })
+                .style(Style::default().fg(Color::Rgb(170, 175, 185)))
+                .block(
+                    Block::bordered()
+                        .border_type(BorderType::Rounded)
+                        .border_style(Color::Rgb(40, 44, 52))
+                        .title(" Lisp ".bold().fg(Color::Rgb(207, 181, 59))),
+                );
+            frame.render_widget(lisp, lisp_area);
 
-        // Minimal REPL embedded in middle
-        self.render_mini_repl(frame, repl_area);
+            // Vau calculus info
+            let vau = Paragraph::new(VAU_INFO)
+                .wrap(Wrap { trim: false })
+                .style(Style::default().fg(Color::Rgb(170, 175, 185)))
+                .block(
+                    Block::bordered()
+                        .border_type(BorderType::Rounded)
+                        .border_style(Color::Rgb(40, 44, 52))
+                        .title(" Vau Calculus ".bold().fg(Color::Rgb(184, 115, 51))),
+                );
+            frame.render_widget(vau, vau_area);
 
-        // Short personal section at bottom
-        let about = Paragraph::new(ABOUT)
-            .wrap(Wrap { trim: false })
-            .style(Style::default().fg(Color::Rgb(140, 145, 155)))
-            .block(
-                Block::bordered()
-                    .border_type(BorderType::Rounded)
-                    .border_style(Color::Rgb(40, 44, 52))
-                    .title(" About ".bold().fg(Color::Rgb(200, 200, 210))),
-            );
-        frame.render_widget(about, about_area);
+            // Rust info
+            let rust = Paragraph::new(RUST_INFO)
+                .wrap(Wrap { trim: false })
+                .style(Style::default().fg(Color::Rgb(170, 175, 185)))
+                .block(
+                    Block::bordered()
+                        .border_type(BorderType::Rounded)
+                        .border_style(Color::Rgb(40, 44, 52))
+                        .title(" Rust ".bold().fg(Color::Rgb(222, 165, 132))),
+                );
+            frame.render_widget(rust, rust_area);
+
+            // gold.silver.copper info
+            let gsc = Paragraph::new(GSC_INFO)
+                .wrap(Wrap { trim: false })
+                .style(Style::default().fg(Color::Rgb(170, 175, 185)))
+                .block(
+                    Block::bordered()
+                        .border_type(BorderType::Rounded)
+                        .border_style(Color::Rgb(40, 44, 52))
+                        .title(" gold.silver.copper ".bold().fg(Color::Rgb(207, 181, 59))),
+                );
+            frame.render_widget(gsc, gsc_area);
+        } else {
+            // Wide layout — banner + description + two-column info grid
+            let desc_lines = DESCRIPTION.lines().count() as u16;
+
+            let [banner_area, desc_area, info_area, about_area] = Layout::vertical([
+                Constraint::Length(banner_height),
+                Constraint::Length(desc_lines + 2),
+                Constraint::Min(6),
+                Constraint::Length(4),
+            ])
+            .areas(inner);
+
+            // Banner
+            let banner = Paragraph::new(BANNER)
+                .alignment(Alignment::Center)
+                .style(Style::default().fg(Color::Rgb(200, 200, 210)).bold());
+            frame.render_widget(banner, banner_area);
+            self.banner_area = banner_area;
+
+            // Grift description
+            let desc = Paragraph::new(DESCRIPTION)
+                .wrap(Wrap { trim: false })
+                .style(Style::default().fg(Color::Rgb(170, 175, 185)))
+                .block(
+                    Block::bordered()
+                        .border_type(BorderType::Rounded)
+                        .border_style(Color::Rgb(40, 44, 52))
+                        .title(" Grift ".bold().fg(Color::Rgb(184, 115, 51))),
+                );
+            frame.render_widget(desc, desc_area);
+
+            // Two-column info grid
+            let [left_col, right_col] =
+                Layout::horizontal([Constraint::Percentage(50), Constraint::Percentage(50)])
+                    .areas(info_area);
+            let [lisp_area, vau_area] =
+                Layout::vertical([Constraint::Percentage(50), Constraint::Percentage(50)])
+                    .areas(left_col);
+            let [rust_area, gsc_area] =
+                Layout::vertical([Constraint::Percentage(50), Constraint::Percentage(50)])
+                    .areas(right_col);
+
+            let lisp = Paragraph::new(LISP_INFO)
+                .wrap(Wrap { trim: false })
+                .style(Style::default().fg(Color::Rgb(170, 175, 185)))
+                .block(
+                    Block::bordered()
+                        .border_type(BorderType::Rounded)
+                        .border_style(Color::Rgb(40, 44, 52))
+                        .title(" Lisp ".bold().fg(Color::Rgb(207, 181, 59))),
+                );
+            frame.render_widget(lisp, lisp_area);
+
+            let vau = Paragraph::new(VAU_INFO)
+                .wrap(Wrap { trim: false })
+                .style(Style::default().fg(Color::Rgb(170, 175, 185)))
+                .block(
+                    Block::bordered()
+                        .border_type(BorderType::Rounded)
+                        .border_style(Color::Rgb(40, 44, 52))
+                        .title(" Vau Calculus ".bold().fg(Color::Rgb(184, 115, 51))),
+                );
+            frame.render_widget(vau, vau_area);
+
+            let rust = Paragraph::new(RUST_INFO)
+                .wrap(Wrap { trim: false })
+                .style(Style::default().fg(Color::Rgb(170, 175, 185)))
+                .block(
+                    Block::bordered()
+                        .border_type(BorderType::Rounded)
+                        .border_style(Color::Rgb(40, 44, 52))
+                        .title(" Rust ".bold().fg(Color::Rgb(222, 165, 132))),
+                );
+            frame.render_widget(rust, rust_area);
+
+            let gsc = Paragraph::new(GSC_INFO)
+                .wrap(Wrap { trim: false })
+                .style(Style::default().fg(Color::Rgb(170, 175, 185)))
+                .block(
+                    Block::bordered()
+                        .border_type(BorderType::Rounded)
+                        .border_style(Color::Rgb(40, 44, 52))
+                        .title(" gold.silver.copper ".bold().fg(Color::Rgb(207, 181, 59))),
+                );
+            frame.render_widget(gsc, gsc_area);
+
+            // About section at bottom
+            let about = Paragraph::new(ABOUT)
+                .wrap(Wrap { trim: false })
+                .style(Style::default().fg(Color::Rgb(140, 145, 155)))
+                .block(
+                    Block::bordered()
+                        .border_type(BorderType::Rounded)
+                        .border_style(Color::Rgb(40, 44, 52))
+                        .title(" About ".bold().fg(Color::Rgb(200, 200, 210))),
+                );
+            frame.render_widget(about, about_area);
+        }
     }
 
     fn render_repl(&self, frame: &mut Frame, area: Rect) {
@@ -1036,63 +1189,6 @@ impl App {
 
         // Blinking block cursor
         self.render_blinking_cursor(frame, input_area.x + 1 + 3 + self.repl_cursor as u16, input_area.y + 1, input_area.right() - 1);
-    }
-
-    fn render_mini_repl(&self, frame: &mut Frame, area: Rect) {
-        let block = Block::bordered()
-            .border_type(BorderType::Rounded)
-            .border_style(Color::Rgb(40, 44, 52))
-            .title(" Try Grift ".bold().fg(Color::Rgb(184, 115, 51)))
-            .title_bottom(
-                Line::from("│ type an expression and press Enter │")
-                    .alignment(Alignment::Center)
-                    .style(Style::default().fg(Color::Rgb(55, 60, 70))),
-            );
-
-        let inner = block.inner(area);
-        frame.render_widget(block, area);
-
-        let [history_area, input_area] =
-            Layout::vertical([Constraint::Min(1), Constraint::Length(1)]).areas(inner);
-
-        // Show last few history lines
-        let mut history_lines: Vec<Line> = Vec::new();
-        if self.repl_history.is_empty() {
-            history_lines.push(Line::from(
-                "  Try: (+ 1 2), (list 1 2 3), (define! x 42)"
-                    .fg(Color::Rgb(100, 105, 115)),
-            ));
-        } else {
-            for (input, output) in self.repl_history.iter().rev().take(3).rev() {
-                history_lines.push(Line::from(vec![
-                    Span::styled(
-                    "Λ> ",
-                        Style::default().fg(Color::Rgb(184, 115, 51)).bold(),
-                    ),
-                    Span::styled(input.as_str(), Style::default().fg(Color::Rgb(200, 200, 210))),
-                ]));
-                history_lines.push(Line::from(vec![Span::styled(
-                    format!("  => {output}"),
-                    Style::default().fg(Color::Rgb(160, 165, 175)),
-                )]));
-            }
-        }
-
-        let visible_height = history_area.height as usize;
-        let total_lines = history_lines.len();
-        let skip = total_lines.saturating_sub(visible_height);
-
-        let history = Paragraph::new(Text::from(history_lines)).scroll((skip as u16, 0));
-        frame.render_widget(history, history_area);
-
-        // Input line
-        let input_display = format!("Λ> {}", self.repl_input);
-        let input = Paragraph::new(input_display.as_str())
-            .style(Style::default().fg(Color::Rgb(200, 200, 210)));
-        frame.render_widget(input, input_area);
-
-        // Blinking block cursor
-        self.render_blinking_cursor(frame, input_area.x + 3 + self.repl_cursor as u16, input_area.y, input_area.right());
     }
 
     fn render_blinking_cursor(&self, frame: &mut Frame, cursor_x: u16, cursor_y: u16, max_x: u16) {
@@ -1300,7 +1396,7 @@ impl App {
             .border_style(Color::Rgb(55, 60, 70))
             .title(" Blog ".bold().fg(Color::Rgb(200, 200, 210)))
             .title_bottom(
-                Line::from("│ click a post to read │")
+                Line::from("│ click a post or swipe │")
                     .alignment(Alignment::Center)
                     .style(Style::default().fg(Color::Rgb(55, 60, 70))),
             );
@@ -1308,93 +1404,169 @@ impl App {
         let inner = block.inner(area);
         frame.render_widget(block, area);
 
-        let [list_area, content_area] =
-            Layout::horizontal([Constraint::Length(35), Constraint::Min(1)]).areas(inner);
+        let is_narrow = inner.width < 50;
 
-        // Blog list - track clickable areas
-        let list_block = Block::bordered()
-            .border_type(BorderType::Rounded)
-            .border_style(Color::Rgb(40, 44, 52))
-            .title(" Posts ".fg(Color::Rgb(200, 200, 210)));
+        if is_narrow {
+            // Vertical layout for phones — list on top, content below
+            let [list_area, content_area] =
+                Layout::vertical([Constraint::Length((BLOG_ENTRIES.len() as u16 * 2) + 2), Constraint::Min(1)]).areas(inner);
 
-        let list_inner = list_block.inner(list_area);
+            // Blog list
+            let list_block = Block::bordered()
+                .border_type(BorderType::Rounded)
+                .border_style(Color::Rgb(40, 44, 52))
+                .title(" Posts ".fg(Color::Rgb(200, 200, 210)));
 
-        // Compute item areas first so hover state is available during rendering
-        self.blog_item_areas.clear();
-        for i in 0..BLOG_ENTRIES.len() {
-            let item_y = list_inner.y + (i as u16 * 2);
-            if item_y + 2 <= list_inner.bottom() {
-                self.blog_item_areas.push(Rect::new(
-                    list_inner.x,
-                    item_y,
-                    list_inner.width,
-                    2,
-                ));
-            }
-        }
+            let list_inner = list_block.inner(list_area);
 
-        let items: Vec<ListItem> = BLOG_ENTRIES
-            .iter()
-            .enumerate()
-            .map(|(i, (title, date, _))| {
-                let hovered = self
-                    .blog_item_areas
-                    .get(i)
-                    .is_some_and(|r| self.is_hovered(*r));
-                let style = if i == self.blog_index {
-                    Style::default().fg(Color::Rgb(230, 232, 240)).bold()
-                } else if hovered {
-                    Style::default().fg(Color::Rgb(200, 200, 210))
-                } else {
-                    Style::default().fg(Color::Rgb(140, 145, 155))
-                };
-                let marker = if i == self.blog_index {
-                    "> "
-                } else if hovered {
-                    "~ "
-                } else {
-                    "  "
-                };
-                ListItem::new(vec![
-                    Line::from(format!("{marker}{title}")).style(style),
-                    Line::from(format!("  {date}"))
-                        .style(Style::default().fg(Color::Rgb(75, 80, 90))),
-                ])
-            })
-            .collect();
-
-        let list = List::new(items).block(list_block);
-        frame.render_widget(list, list_area);
-
-        // Blog content
-        if let Some((title, date, content)) = BLOG_ENTRIES.get(self.blog_index) {
-            let mut lines = vec![
-                Line::styled(
-                    *title,
-                    Style::default().fg(Color::Rgb(220, 225, 235)).bold(),
-                ),
-                Line::styled(*date, Style::default().fg(Color::Rgb(75, 80, 90))),
-                Line::styled(
-                    "─".repeat(content_area.width.saturating_sub(4) as usize),
-                    Style::default().fg(Color::Rgb(40, 44, 52)),
-                ),
-                Line::from(""),
-            ];
-            for line in content.lines() {
-                lines.push(Line::styled(
-                    line,
-                    Style::default().fg(Color::Rgb(170, 175, 185)),
-                ));
+            self.blog_item_areas.clear();
+            for i in 0..BLOG_ENTRIES.len() {
+                let item_y = list_inner.y + (i as u16 * 2);
+                if item_y + 2 <= list_inner.bottom() {
+                    self.blog_item_areas.push(Rect::new(
+                        list_inner.x,
+                        item_y,
+                        list_inner.width,
+                        2,
+                    ));
+                }
             }
 
-            let blog = Paragraph::new(Text::from(lines))
-                .wrap(Wrap { trim: false })
-                .block(
-                    Block::bordered()
-                        .border_type(BorderType::Rounded)
-                        .border_style(Color::Rgb(40, 44, 52)),
-                );
-            frame.render_widget(blog, content_area);
+            let items: Vec<ListItem> = BLOG_ENTRIES
+                .iter()
+                .enumerate()
+                .map(|(i, (title, date, _))| {
+                    let hovered = self
+                        .blog_item_areas
+                        .get(i)
+                        .is_some_and(|r| self.is_hovered(*r));
+                    let style = if i == self.blog_index {
+                        Style::default().fg(Color::Rgb(230, 232, 240)).bold()
+                    } else if hovered {
+                        Style::default().fg(Color::Rgb(200, 200, 210))
+                    } else {
+                        Style::default().fg(Color::Rgb(140, 145, 155))
+                    };
+                    let marker = if i == self.blog_index { "> " } else if hovered { "~ " } else { "  " };
+                    ListItem::new(vec![
+                        Line::from(format!("{marker}{title}")).style(style),
+                        Line::from(format!("  {date}"))
+                            .style(Style::default().fg(Color::Rgb(75, 80, 90))),
+                    ])
+                })
+                .collect();
+
+            let list = List::new(items).block(list_block);
+            frame.render_widget(list, list_area);
+
+            // Blog content
+            if let Some((title, date, content)) = BLOG_ENTRIES.get(self.blog_index) {
+                let mut lines = vec![
+                    Line::styled(*title, Style::default().fg(Color::Rgb(220, 225, 235)).bold()),
+                    Line::styled(*date, Style::default().fg(Color::Rgb(75, 80, 90))),
+                    Line::from(""),
+                ];
+                for line in content.lines() {
+                    lines.push(Line::styled(line, Style::default().fg(Color::Rgb(170, 175, 185))));
+                }
+                let blog = Paragraph::new(Text::from(lines))
+                    .wrap(Wrap { trim: false })
+                    .block(
+                        Block::bordered()
+                            .border_type(BorderType::Rounded)
+                            .border_style(Color::Rgb(40, 44, 52)),
+                    );
+                frame.render_widget(blog, content_area);
+            }
+        } else {
+            // Wide layout — side-by-side
+            let [list_area, content_area] =
+                Layout::horizontal([Constraint::Length(35), Constraint::Min(1)]).areas(inner);
+
+            // Blog list - track clickable areas
+            let list_block = Block::bordered()
+                .border_type(BorderType::Rounded)
+                .border_style(Color::Rgb(40, 44, 52))
+                .title(" Posts ".fg(Color::Rgb(200, 200, 210)));
+
+            let list_inner = list_block.inner(list_area);
+
+            self.blog_item_areas.clear();
+            for i in 0..BLOG_ENTRIES.len() {
+                let item_y = list_inner.y + (i as u16 * 2);
+                if item_y + 2 <= list_inner.bottom() {
+                    self.blog_item_areas.push(Rect::new(
+                        list_inner.x,
+                        item_y,
+                        list_inner.width,
+                        2,
+                    ));
+                }
+            }
+
+            let items: Vec<ListItem> = BLOG_ENTRIES
+                .iter()
+                .enumerate()
+                .map(|(i, (title, date, _))| {
+                    let hovered = self
+                        .blog_item_areas
+                        .get(i)
+                        .is_some_and(|r| self.is_hovered(*r));
+                    let style = if i == self.blog_index {
+                        Style::default().fg(Color::Rgb(230, 232, 240)).bold()
+                    } else if hovered {
+                        Style::default().fg(Color::Rgb(200, 200, 210))
+                    } else {
+                        Style::default().fg(Color::Rgb(140, 145, 155))
+                    };
+                    let marker = if i == self.blog_index {
+                        "> "
+                    } else if hovered {
+                        "~ "
+                    } else {
+                        "  "
+                    };
+                    ListItem::new(vec![
+                        Line::from(format!("{marker}{title}")).style(style),
+                        Line::from(format!("  {date}"))
+                            .style(Style::default().fg(Color::Rgb(75, 80, 90))),
+                    ])
+                })
+                .collect();
+
+            let list = List::new(items).block(list_block);
+            frame.render_widget(list, list_area);
+
+            // Blog content
+            if let Some((title, date, content)) = BLOG_ENTRIES.get(self.blog_index) {
+                let mut lines = vec![
+                    Line::styled(
+                        *title,
+                        Style::default().fg(Color::Rgb(220, 225, 235)).bold(),
+                    ),
+                    Line::styled(*date, Style::default().fg(Color::Rgb(75, 80, 90))),
+                    Line::styled(
+                        "─".repeat(content_area.width.saturating_sub(4) as usize),
+                        Style::default().fg(Color::Rgb(40, 44, 52)),
+                    ),
+                    Line::from(""),
+                ];
+                for line in content.lines() {
+                    lines.push(Line::styled(
+                        line,
+                        Style::default().fg(Color::Rgb(170, 175, 185)),
+                    ));
+                }
+
+                let blog = Paragraph::new(Text::from(lines))
+                    .wrap(Wrap { trim: false })
+                    .block(
+                        Block::bordered()
+                            .border_type(BorderType::Rounded)
+                            .border_style(Color::Rgb(40, 44, 52)),
+                    );
+                frame.render_widget(blog, content_area);
+            }
         }
     }
 
