@@ -20,6 +20,11 @@ const MAX_TRAIL_LENGTH: usize = 30;
 const TRAIL_FADE_RATE: u8 = 8;
 const CURSOR_BLINK_RATE: u64 = 60;
 
+// Responsive layout breakpoints (in terminal grid columns/rows)
+const NARROW_WIDTH_THRESHOLD: u16 = 50;
+const NARROW_MARGIN_THRESHOLD: u16 = 60;
+const SHORT_MARGIN_THRESHOLD: u16 = 30;
+
 const BANNER: &str = r#"
   ██████╗ ██████╗ ██╗███████╗████████╗   ██████╗ ███████╗
  ██╔════╝ ██╔══██╗██║██╔════╝╚══██╔══╝   ██╔══██╗██╔════╝
@@ -690,8 +695,8 @@ impl App {
 
         // Center the main content with margins to show animated background border
         // Use smaller margins on narrow screens (phones) for better usability
-        let h_margin = if full_area.width < 60 { 1 } else { (full_area.width / 10).max(2) };
-        let v_margin = if full_area.height < 30 { 0 } else { (full_area.height / 16).max(1) };
+        let h_margin = if full_area.width < NARROW_MARGIN_THRESHOLD { 1 } else { (full_area.width / 10).max(2) };
+        let v_margin = if full_area.height < SHORT_MARGIN_THRESHOLD { 0 } else { (full_area.height / 16).max(1) };
 
         let [_, center_v, _] = Layout::vertical([
             Constraint::Length(v_margin),
@@ -943,7 +948,7 @@ impl App {
         let inner = block.inner(area);
         frame.render_widget(block, area);
 
-        let is_narrow = inner.width < 50;
+        let is_narrow = inner.width < NARROW_WIDTH_THRESHOLD;
         let banner_height = BANNER.lines().count() as u16;
 
         if is_narrow {
@@ -1404,7 +1409,7 @@ impl App {
         let inner = block.inner(area);
         frame.render_widget(block, area);
 
-        let is_narrow = inner.width < 50;
+        let is_narrow = inner.width < NARROW_WIDTH_THRESHOLD;
 
         if is_narrow {
             // Vertical layout for phones — list on top, content below
