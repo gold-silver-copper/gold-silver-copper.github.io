@@ -14,6 +14,7 @@ Built entirely with [Ratzilla](https://github.com/ratatui/ratzilla) + [TachyonFX
 - **TachyonFX effects** — Procedural background animation and page transition effects
 - **Clickable navigation** — All tabs, links, and buttons are clickable
 
+
 ## Building
 
 ```bash
