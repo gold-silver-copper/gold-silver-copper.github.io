@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta
       name="viewport"
-      content="width=device-width, initial-scale=1.0, user-scalable=no"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
     />
     <link
       rel="stylesheet"
@@ -13,5 +13,34 @@
     <title>GRIFT.RS – Personal Website & Grift Demo</title>
     <link data-trunk rel="css" href="assets/style.css" />
   </head>
-  <body></body>
+  <body>
+    <script>
+      // Swipe gesture support for mobile navigation
+      (function() {
+        var touchStartX = 0;
+        var touchStartY = 0;
+        var minSwipeDistance = 50;
+
+        document.addEventListener('touchstart', function(e) {
+          touchStartX = e.changedTouches[0].screenX;
+          touchStartY = e.changedTouches[0].screenY;
+        }, { passive: true });
+
+        document.addEventListener('touchend', function(e) {
+          var dx = e.changedTouches[0].screenX - touchStartX;
+          var dy = e.changedTouches[0].screenY - touchStartY;
+
+          if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > minSwipeDistance) {
+            // Horizontal swipe — dispatch arrow key for tab/page navigation
+            var key = dx > 0 ? 'ArrowLeft' : 'ArrowRight';
+            document.dispatchEvent(new KeyboardEvent('keydown', { key: key, bubbles: true }));
+          } else if (Math.abs(dy) > Math.abs(dx) && Math.abs(dy) > minSwipeDistance) {
+            // Vertical swipe — dispatch arrow key for scrolling
+            var key = dy > 0 ? 'ArrowUp' : 'ArrowDown';
+            document.dispatchEvent(new KeyboardEvent('keydown', { key: key, bubbles: true }));
+          }
+        }, { passive: true });
+      })();
+    </script>
+  </body>
 </html>
