@@ -52,10 +52,17 @@
         }, { passive: true });
 
         // Mousewheel support — scroll content with wheel
+        var ratzillaCanvas = null;
         document.addEventListener('wheel', function(e) {
-          var key = e.deltaY > 0 ? 'ArrowDown' : 'ArrowUp';
-          document.dispatchEvent(new KeyboardEvent('keydown', { key: key, bubbles: true }));
-          e.preventDefault();
+          // Only intercept wheel events on the ratzilla canvas
+          if (!ratzillaCanvas) {
+            ratzillaCanvas = document.querySelector('canvas') || document.querySelector('.ratzilla');
+          }
+          if (ratzillaCanvas && ratzillaCanvas.contains(e.target)) {
+            var key = e.deltaY > 0 ? 'ArrowDown' : 'ArrowUp';
+            document.dispatchEvent(new KeyboardEvent('keydown', { key: key, bubbles: true }));
+            e.preventDefault();
+          }
         }, { passive: false });
       })();
     </script>
