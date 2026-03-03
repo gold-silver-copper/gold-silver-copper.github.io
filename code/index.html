@@ -18,29 +18,47 @@
     <link data-trunk rel="css" href="assets/style.css" />
   </head>
   <body>
+    <!-- Hidden input for mobile virtual keyboard (REPL) -->
+    <input id="repl-keyboard-input" type="text"
+      style="position:fixed;opacity:0;width:1px;height:1px;top:-9999px;left:-9999px;pointer-events:none;"
+      autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
+      inputmode="text" enterkeyhint="done" />
     <script>
-      // Mobile interaction support: swipe gestures, mousewheel, momentum scrolling
+      // Mobile interaction support: swipe gestures, mousewheel, momentum scrolling, zone-aware scrolling
       (function() {
         var touchStartX = 0;
         var touchStartY = 0;
         var touchLastY = 0;
+        var touchLastX = 0;
         var touchLastTime = 0;
         var velocityY = 0;
         var minSwipeDistance = 40;
         var touchScrollThreshold = 20;
         var momentumId = null;
+        // Zone detection: track touch start position relative to screen
+        var touchZone = 'content'; // 'tabs' or 'content'
+        var tabZoneThreshold = 0.12; // top 12% of screen is tab zone
 
         // Prevent context menu on long press for native feel
         document.addEventListener('contextmenu', function(e) {
           e.preventDefault();
         });
 
+        // Helper: detect if touch is in the tab bar zone (top portion of screen)
+        function getTouchZone(screenY) {
+          var winH = window.innerHeight || document.documentElement.clientHeight || 600;
+          return (screenY / winH) < tabZoneThreshold ? 'tabs' : 'content';
+        }
+
         document.addEventListener('touchstart', function(e) {
           touchStartX = e.changedTouches[0].screenX;
           touchStartY = e.changedTouches[0].screenY;
           touchLastY = touchStartY;
+          touchLastX = touchStartX;
           touchLastTime = Date.now();
           velocityY = 0;
+          // Determine which zone the touch started in
+          touchZone = getTouchZone(e.changedTouches[0].clientY);
           // Cancel any running momentum scroll
           if (momentumId) {
             clearTimeout(momentumId);
@@ -48,22 +66,35 @@
           }
         }, { passive: true });
 
-        // Continuous vertical scroll during touch-move with velocity tracking
+        // Continuous scroll during touch-move with velocity tracking and zone awareness
         document.addEventListener('touchmove', function(e) {
           var currentY = e.changedTouches[0].screenY;
+          var currentX = e.changedTouches[0].screenX;
           var now = Date.now();
           var dt = now - touchLastTime;
           var deltaY = currentY - touchLastY;
+          var deltaX = currentX - touchLastX;
 
           if (dt > 0) {
             velocityY = deltaY / dt;
           }
 
-          if (Math.abs(deltaY) > touchScrollThreshold) {
-            var key = deltaY > 0 ? 'ArrowUp' : 'ArrowDown';
-            document.dispatchEvent(new KeyboardEvent('keydown', { key: key, bubbles: true }));
-            touchLastY = currentY;
-            touchLastTime = now;
+          if (touchZone === 'tabs') {
+            // In tab zone: horizontal movement scrolls tabs
+            if (Math.abs(deltaX) > touchScrollThreshold) {
+              var key = deltaX > 0 ? 'ArrowLeft' : 'ArrowRight';
+              document.dispatchEvent(new KeyboardEvent('keydown', { key: key, bubbles: true }));
+              touchLastX = currentX;
+              touchLastTime = now;
+            }
+          } else {
+            // In content zone: vertical movement scrolls content
+            if (Math.abs(deltaY) > touchScrollThreshold) {
+              var key = deltaY > 0 ? 'ArrowUp' : 'ArrowDown';
+              document.dispatchEvent(new KeyboardEvent('keydown', { key: key, bubbles: true }));
+              touchLastY = currentY;
+              touchLastTime = now;
+            }
           }
         }, { passive: true });
 
@@ -71,8 +102,14 @@
           var dx = e.changedTouches[0].screenX - touchStartX;
           var dy = e.changedTouches[0].screenY - touchStartY;
 
+          if (touchZone === 'tabs') {
+            // Tab zone: horizontal swipes scroll tabs (already handled in touchmove)
+            // No momentum for tab scrolling
+            return;
+          }
+
           if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > minSwipeDistance) {
-            // Horizontal swipe — dispatch arrow key for tab/page navigation
+            // Horizontal swipe in content zone — dispatch arrow key for navigation
             var key = dx > 0 ? 'ArrowLeft' : 'ArrowRight';
             document.dispatchEvent(new KeyboardEvent('keydown', { key: key, bubbles: true }));
           } else if (Math.abs(velocityY) > 0.3) {
@@ -125,6 +162,62 @@
           }
           lastTap = now;
         }, { passive: false });
+
+        // REPL virtual keyboard support: focus hidden input on tap to open keyboard
+        // Expose a global function that Rust can call to focus/blur the hidden input
+        var replInput = null;
+        window._focusReplInput = function() {
+          if (!replInput) replInput = document.getElementById('repl-keyboard-input');
+          if (replInput) {
+            replInput.style.top = '0';
+            replInput.style.left = '0';
+            replInput.style.pointerEvents = 'auto';
+            replInput.focus();
+            // Forward input events as key events
+            replInput.addEventListener('input', function(e) {
+              var data = e.data;
+              if (data) {
+                for (var i = 0; i < data.length; i++) {
+                  document.dispatchEvent(new KeyboardEvent('keydown', {
+                    key: data[i], bubbles: true
+                  }));
+                }
+              }
+              replInput.value = '';
+            });
+            replInput.addEventListener('keydown', function(e) {
+              if (e.key === 'Enter' || e.key === 'Backspace') {
+                document.dispatchEvent(new KeyboardEvent('keydown', {
+                  key: e.key, bubbles: true
+                }));
+                e.preventDefault();
+              }
+            });
+          }
+        };
+        window._blurReplInput = function() {
+          if (!replInput) replInput = document.getElementById('repl-keyboard-input');
+          if (replInput) {
+            replInput.blur();
+            replInput.style.top = '-9999px';
+            replInput.style.left = '-9999px';
+            replInput.style.pointerEvents = 'none';
+          }
+        };
+
+        // Tap-to-focus: when user taps in the lower portion of the screen while on REPL,
+        // focus the hidden input to bring up virtual keyboard
+        document.addEventListener('click', function(e) {
+          var winH = window.innerHeight || 600;
+          // Bottom 25% of screen is the REPL input zone
+          if (e.clientY > winH * 0.75) {
+            // Check if the REPL tab might be active by seeing if hidden input should focus
+            if (window._replTabActive) {
+              window._focusReplInput();
+            }
+          }
+        });
+        window._replTabActive = false;
       })();
     </script>
   </body>

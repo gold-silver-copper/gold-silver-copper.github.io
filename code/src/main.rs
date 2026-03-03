@@ -500,6 +500,12 @@ impl App {
             self.tab_glow_effect = None;
             self.blog_scroll = 0;
             self.trigger_transition();
+            // Focus/blur hidden input for REPL virtual keyboard
+            if page == Page::Repl {
+                let _ = web_sys::js_sys::eval("window._replTabActive=true;window._focusReplInput&&window._focusReplInput()");
+            } else {
+                let _ = web_sys::js_sys::eval("window._replTabActive=false;window._blurReplInput&&window._blurReplInput()");
+            }
         }
     }
 
