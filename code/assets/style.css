@@ -3,15 +3,18 @@ body {
   padding: 0;
   width: 100%;
   height: 100vh;
+  height: 100dvh;
   overflow: hidden;
   background-color: #08090e;
   touch-action: manipulation;
+  -webkit-text-size-adjust: 100%;
 }
 
 canvas {
   display: block;
   width: 100%;
   height: 100vh;
+  height: 100dvh;
   touch-action: manipulation;
 }
 
@@ -19,5 +22,18 @@ canvas {
   display: block;
   width: 100%;
   height: 100vh;
+  height: 100dvh;
   touch-action: manipulation;
+}
+
+@media (max-width: 768px) {
+  canvas, .ratzilla {
+    font-size: 12px;
+  }
+}
+
+@media (max-width: 480px) {
+  canvas, .ratzilla {
+    font-size: 10px;
+  }
 }
