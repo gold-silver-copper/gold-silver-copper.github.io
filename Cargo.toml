@@ -1,0 +1,13 @@
+[package]
+name = "grift-site"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+ratzilla = "0.3.0"
+grift = { git = "https://github.com/skyfskyf/grift", default-features = false }
+console_error_panic_hook = "0.1.7"
+tachyonfx = { version = "0.25.0", features = ["wasm"] }
+web-time = "1.1"
+web-sys = { version = "0.3", features = ["Window"] }
