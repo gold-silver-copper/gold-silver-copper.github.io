@@ -1,6 +1,10 @@
 <!DOCTYPE html><html lang="en"><head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="theme-color" content="#08090e">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="mobile-web-app-capable" content="yes">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/firacode/6.2.0/fira_code.min.css">
     <title>GRIFT.RS – Personal Website &amp; Grift Demo</title>
     <link rel="stylesheet" href="/./style-f21e1f6eecc150fc.css">
@@ -9,28 +13,51 @@
 <link rel="modulepreload" href="/./grift-site-65d5060626d89864.js"></head>
   <body>
     <script>
-      // Mobile interaction support: swipe gestures, mousewheel, continuous touch-scroll
+      // Mobile interaction support: swipe gestures, mousewheel, momentum scrolling
       (function() {
         var touchStartX = 0;
         var touchStartY = 0;
         var touchLastY = 0;
-        var minSwipeDistance = 50;
-        var touchScrollThreshold = 30;
+        var touchLastTime = 0;
+        var velocityY = 0;
+        var minSwipeDistance = 40;
+        var touchScrollThreshold = 20;
+        var momentumId = null;
+
+        // Prevent context menu on long press for native feel
+        document.addEventListener('contextmenu', function(e) {
+          e.preventDefault();
+        });
 
         document.addEventListener('touchstart', function(e) {
           touchStartX = e.changedTouches[0].screenX;
           touchStartY = e.changedTouches[0].screenY;
           touchLastY = touchStartY;
+          touchLastTime = Date.now();
+          velocityY = 0;
+          // Cancel any running momentum scroll
+          if (momentumId) {
+            cancelAnimationFrame(momentumId);
+            momentumId = null;
+          }
         }, { passive: true });
 
-        // Continuous vertical scroll during touch-move
+        // Continuous vertical scroll during touch-move with velocity tracking
         document.addEventListener('touchmove', function(e) {
           var currentY = e.changedTouches[0].screenY;
+          var now = Date.now();
+          var dt = now - touchLastTime;
           var deltaY = currentY - touchLastY;
+
+          if (dt > 0) {
+            velocityY = deltaY / dt;
+          }
+
           if (Math.abs(deltaY) > touchScrollThreshold) {
             var key = deltaY > 0 ? 'ArrowUp' : 'ArrowDown';
             document.dispatchEvent(new KeyboardEvent('keydown', { key: key, bubbles: true }));
             touchLastY = currentY;
+            touchLastTime = now;
           }
         }, { passive: true });
 
@@ -42,6 +69,31 @@
             // Horizontal swipe — dispatch arrow key for tab/page navigation
             var key = dx > 0 ? 'ArrowLeft' : 'ArrowRight';
             document.dispatchEvent(new KeyboardEvent('keydown', { key: key, bubbles: true }));
+          } else if (Math.abs(velocityY) > 0.3) {
+            // Momentum scrolling — continue scrolling with deceleration
+            var v = velocityY;
+            var friction = 0.92;
+            // Throttle momentum dispatches to ~15fps for smooth feel
+            var throttledStep = function() {
+              v *= friction;
+              if (Math.abs(v) < 0.05) {
+                momentumId = null;
+                return;
+              }
+              var key = v > 0 ? 'ArrowUp' : 'ArrowDown';
+              document.dispatchEvent(new KeyboardEvent('keydown', { key: key, bubbles: true }));
+              momentumId = setTimeout(throttledStep, 66);
+            };
+            throttledStep();
+          }
+        }, { passive: true });
+
+        // Handle touch cancel (e.g. notification interrupts)
+        document.addEventListener('touchcancel', function() {
+          velocityY = 0;
+          if (momentumId) {
+            cancelAnimationFrame(momentumId);
+            momentumId = null;
           }
         }, { passive: true });
 
@@ -57,6 +109,16 @@
             document.dispatchEvent(new KeyboardEvent('keydown', { key: key, bubbles: true }));
             e.preventDefault();
           }
+        }, { passive: false });
+
+        // Prevent double-tap zoom on iOS
+        var lastTap = 0;
+        document.addEventListener('touchend', function(e) {
+          var now = Date.now();
+          if (now - lastTap < 300) {
+            e.preventDefault();
+          }
+          lastTap = now;
         }, { passive: false });
       })();
     </script>

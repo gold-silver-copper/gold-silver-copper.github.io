@@ -22,6 +22,7 @@ const CURSOR_BLINK_RATE: u64 = 60;
 
 // Responsive layout breakpoints (in terminal grid columns/rows)
 const NARROW_WIDTH_THRESHOLD: u16 = 50;
+const VERY_NARROW_WIDTH_THRESHOLD: u16 = 35;
 const NARROW_MARGIN_THRESHOLD: u16 = 60;
 const SHORT_MARGIN_THRESHOLD: u16 = 30;
 
@@ -777,12 +778,14 @@ impl App {
             ScrollTarget::Links => &mut self.links_scroll,
             ScrollTarget::Showcase => &mut self.showcase_scroll,
         };
+        // Scroll by 2 lines on narrow screens for faster navigation
+        let step = if self.grid_cols < NARROW_WIDTH_THRESHOLD { 2 } else { 1 };
         match key.code {
             KeyCode::Up => {
-                *scroll = scroll.saturating_sub(1);
+                *scroll = scroll.saturating_sub(step);
             }
             KeyCode::Down => {
-                *scroll += 1;
+                *scroll += step;
             }
             _ => {}
         }
@@ -827,7 +830,13 @@ impl App {
 
         // Center the main content with margins to show animated background border
         // Use smaller margins on narrow screens (phones) for better usability
-        let h_margin = if full_area.width < NARROW_MARGIN_THRESHOLD { 1 } else { (full_area.width / 10).max(2) };
+        let h_margin = if full_area.width <= VERY_NARROW_WIDTH_THRESHOLD {
+            0
+        } else if full_area.width < NARROW_MARGIN_THRESHOLD {
+            1
+        } else {
+            (full_area.width / 10).max(2)
+        };
         let v_margin = if full_area.height < SHORT_MARGIN_THRESHOLD { 0 } else { (full_area.height / 16).max(1) };
 
         let [_, center_v, _] = Layout::vertical([
@@ -1006,10 +1015,12 @@ impl App {
     fn render_tabs(&mut self, frame: &mut Frame, area: Rect) {
         self.tab_area = area;
 
+        let is_narrow = area.width < NARROW_WIDTH_THRESHOLD;
+
         // Compute individual tab click areas from the Tabs widget layout.
-        // Each tab renders as: padding(1) + " title " + padding(1), with " │ " dividers.
-        let divider_width: u16 = 3;
-        let tab_padding: u16 = 2;
+        // Use narrower dividers and less padding on mobile for compact layout.
+        let divider_width: u16 = if is_narrow { 1 } else { 3 };
+        let tab_padding: u16 = if is_narrow { 0 } else { 2 };
         let inner_x = area.x + 1;
         let tab_row = area.y + 1;
         self.tab_rects.clear();
@@ -1039,13 +1050,21 @@ impl App {
                 } else {
                     Style::default().fg(fg)
                 };
-                Line::from(vec![
-                    Span::styled(" ", Style::default()),
-                    Span::styled(p.title(), style),
-                    Span::styled(" ", Style::default()),
-                ])
+                if is_narrow {
+                    Line::from(vec![
+                        Span::styled(p.title(), style),
+                    ])
+                } else {
+                    Line::from(vec![
+                        Span::styled(" ", Style::default()),
+                        Span::styled(p.title(), style),
+                        Span::styled(" ", Style::default()),
+                    ])
+                }
             })
             .collect();
+
+        let divider_str = if is_narrow { "│" } else { " │ " };
 
         let tabs = Tabs::new(titles)
             .block(
@@ -1063,17 +1082,23 @@ impl App {
                     .bold()
                     .add_modifier(Modifier::REVERSED),
             )
-            .divider(" │ ");
+            .divider(divider_str);
 
         frame.render_widget(tabs, area);
     }
 
     fn render_home(&mut self, frame: &mut Frame, area: Rect) {
+        let is_narrow = area.width < NARROW_WIDTH_THRESHOLD + 4;
+        let bottom_hint = if is_narrow {
+            "│ swipe ↕ ↔ │"
+        } else {
+            "│ swipe/scroll to explore • tap tabs to navigate │"
+        };
         let block = Block::bordered()
             .border_type(BorderType::Rounded)
             .border_style(Color::Rgb(55, 60, 70))
             .title_bottom(
-                Line::from("│ swipe/scroll to explore • tap tabs to navigate │")
+                Line::from(bottom_hint)
                     .alignment(Alignment::Right)
                     .style(Style::default().fg(Color::Rgb(55, 60, 70))),
             );
@@ -1244,12 +1269,14 @@ impl App {
     }
 
     fn render_repl(&self, frame: &mut Frame, area: Rect) {
+        let is_narrow_area = area.width < NARROW_WIDTH_THRESHOLD + 4;
+        let bottom_hint = if is_narrow_area { "│ type + Enter │" } else { "│ Type expressions and press Enter to evaluate │" };
         let block = Block::bordered()
             .border_type(BorderType::Rounded)
             .border_style(Color::Rgb(55, 60, 70))
             .title(" Grift REPL ".bold().fg(Color::Rgb(184, 115, 51)))
             .title_bottom(
-                Line::from("│ Type expressions and press Enter to evaluate │")
+                Line::from(bottom_hint)
                     .alignment(Alignment::Center)
                     .style(Style::default().fg(Color::Rgb(55, 60, 70))),
             );
@@ -1518,12 +1545,14 @@ impl App {
     }
 
     fn render_blog(&mut self, frame: &mut Frame, area: Rect) {
+        let is_narrow_area = area.width < NARROW_WIDTH_THRESHOLD + 4;
+        let bottom_hint = if is_narrow_area { "│ tap or swipe │" } else { "│ click a post or swipe │" };
         let block = Block::bordered()
             .border_type(BorderType::Rounded)
             .border_style(Color::Rgb(55, 60, 70))
             .title(" Blog ".bold().fg(Color::Rgb(200, 200, 210)))
             .title_bottom(
-                Line::from("│ click a post or swipe │")
+                Line::from(bottom_hint)
                     .alignment(Alignment::Center)
                     .style(Style::default().fg(Color::Rgb(55, 60, 70))),
             );
@@ -1698,12 +1727,14 @@ impl App {
     }
 
     fn render_links(&mut self, frame: &mut Frame, area: Rect) {
+        let is_narrow_area = area.width < NARROW_WIDTH_THRESHOLD + 4;
+        let bottom_hint = if is_narrow_area { "│ tap to open │" } else { "│ click a link to open │" };
         let block = Block::bordered()
             .border_type(BorderType::Rounded)
             .border_style(Color::Rgb(55, 60, 70))
             .title(" Links ".bold().fg(Color::Rgb(200, 200, 210)))
             .title_bottom(
-                Line::from("│ click a link to open │")
+                Line::from(bottom_hint)
                     .alignment(Alignment::Center)
                     .style(Style::default().fg(Color::Rgb(55, 60, 70))),
             );
@@ -1845,10 +1876,12 @@ impl App {
     }
 
     fn render_scroll_arrows(&mut self, frame: &mut Frame, nav_bar: Rect, scroll: usize, max_scroll: usize) {
+        // Use wider arrow buttons on narrow screens for easier tapping
+        let arrow_width = if nav_bar.width < NARROW_WIDTH_THRESHOLD { 10 } else { 8 };
         let [up_area, info_area, down_area] = Layout::horizontal([
-            Constraint::Length(8),
+            Constraint::Length(arrow_width),
             Constraint::Min(1),
-            Constraint::Length(8),
+            Constraint::Length(arrow_width),
         ])
         .areas(nav_bar);
 
@@ -1911,12 +1944,14 @@ impl App {
     }
 
     fn render_showcase(&mut self, frame: &mut Frame, area: Rect) {
+        let is_narrow_area = area.width < NARROW_WIDTH_THRESHOLD + 4;
+        let bottom_hint = if is_narrow_area { "│ swipe ↕ │" } else { "│ swipe or scroll to explore │" };
         let block = Block::bordered()
             .border_type(BorderType::Rounded)
             .border_style(Color::Rgb(55, 60, 70))
             .title(" Mobile Showcase ".bold().fg(Color::Rgb(207, 181, 59)))
             .title_bottom(
-                Line::from("│ swipe or scroll to explore │")
+                Line::from(bottom_hint)
                     .alignment(Alignment::Center)
                     .style(Style::default().fg(Color::Rgb(55, 60, 70))),
             );
