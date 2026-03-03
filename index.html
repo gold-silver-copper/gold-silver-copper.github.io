@@ -3,36 +3,39 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/firacode/6.2.0/fira_code.min.css">
     <title>GRIFT.RS – Personal Website &amp; Grift Demo</title>
-    <link rel="stylesheet" href="/./style-85007cf67d889911.css">
+    <link rel="stylesheet" href="/./style-f21e1f6eecc150fc.css">
   
-<link rel="preload" href="/./grift-site-b6b20e813eae19b2_bg.wasm" as="fetch" type="application/wasm" crossorigin="">
-<link rel="modulepreload" href="/./grift-site-b6b20e813eae19b2.js"></head>
+<link rel="preload" href="/./grift-site-65d5060626d89864_bg.wasm" as="fetch" type="application/wasm" crossorigin="">
+<link rel="modulepreload" href="/./grift-site-65d5060626d89864.js"></head>
   <body>
+    <script>
+      // Swipe gesture support for mobile navigation
+      (function() {
+        var touchStartX = 0;
+        var touchStartY = 0;
+        var minSwipeDistance = 50;
 
-<script type="module">import init from '/./grift-site-b6b20e813eae19b2.js';init('/./grift-site-b6b20e813eae19b2_bg.wasm');</script>
-<script>
-// Swipe gesture support for mobile navigation
-(function() {
-  var touchStartX = 0;
-  var touchStartY = 0;
-  var minSwipeDistance = 50;
+        document.addEventListener('touchstart', function(e) {
+          touchStartX = e.changedTouches[0].screenX;
+          touchStartY = e.changedTouches[0].screenY;
+        }, { passive: true });
 
-  document.addEventListener('touchstart', function(e) {
-    touchStartX = e.changedTouches[0].screenX;
-    touchStartY = e.changedTouches[0].screenY;
-  }, { passive: true });
+        document.addEventListener('touchend', function(e) {
+          var dx = e.changedTouches[0].screenX - touchStartX;
+          var dy = e.changedTouches[0].screenY - touchStartY;
 
-  document.addEventListener('touchend', function(e) {
-    var dx = e.changedTouches[0].screenX - touchStartX;
-    var dy = e.changedTouches[0].screenY - touchStartY;
+          if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > minSwipeDistance) {
+            // Horizontal swipe — dispatch arrow key for tab/page navigation
+            var key = dx > 0 ? 'ArrowLeft' : 'ArrowRight';
+            document.dispatchEvent(new KeyboardEvent('keydown', { key: key, bubbles: true }));
+          } else if (Math.abs(dy) > Math.abs(dx) && Math.abs(dy) > minSwipeDistance) {
+            // Vertical swipe — dispatch arrow key for scrolling
+            var key = dy > 0 ? 'ArrowUp' : 'ArrowDown';
+            document.dispatchEvent(new KeyboardEvent('keydown', { key: key, bubbles: true }));
+          }
+        }, { passive: true });
+      })();
+    </script>
+  
 
-    if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > minSwipeDistance) {
-      var key = dx > 0 ? 'ArrowLeft' : 'ArrowRight';
-      document.dispatchEvent(new KeyboardEvent('keydown', { key: key, bubbles: true }));
-    } else if (Math.abs(dy) > Math.abs(dx) && Math.abs(dy) > minSwipeDistance) {
-      var key = dy > 0 ? 'ArrowUp' : 'ArrowDown';
-      document.dispatchEvent(new KeyboardEvent('keydown', { key: key, bubbles: true }));
-    }
-  }, { passive: true });
-})();
-</script></body></html>
+<script type="module">import init from '/./grift-site-65d5060626d89864.js';init('/./grift-site-65d5060626d89864_bg.wasm');</script></body></html>
