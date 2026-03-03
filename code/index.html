@@ -15,15 +15,29 @@
   </head>
   <body>
     <script>
-      // Swipe gesture support for mobile navigation
+      // Mobile interaction support: swipe gestures, mousewheel, continuous touch-scroll
       (function() {
         var touchStartX = 0;
         var touchStartY = 0;
+        var touchLastY = 0;
         var minSwipeDistance = 50;
+        var touchScrollThreshold = 30;
 
         document.addEventListener('touchstart', function(e) {
           touchStartX = e.changedTouches[0].screenX;
           touchStartY = e.changedTouches[0].screenY;
+          touchLastY = touchStartY;
+        }, { passive: true });
+
+        // Continuous vertical scroll during touch-move
+        document.addEventListener('touchmove', function(e) {
+          var currentY = e.changedTouches[0].screenY;
+          var deltaY = currentY - touchLastY;
+          if (Math.abs(deltaY) > touchScrollThreshold) {
+            var key = deltaY > 0 ? 'ArrowUp' : 'ArrowDown';
+            document.dispatchEvent(new KeyboardEvent('keydown', { key: key, bubbles: true }));
+            touchLastY = currentY;
+          }
         }, { passive: true });
 
         document.addEventListener('touchend', function(e) {
@@ -34,12 +48,15 @@
             // Horizontal swipe — dispatch arrow key for tab/page navigation
             var key = dx > 0 ? 'ArrowLeft' : 'ArrowRight';
             document.dispatchEvent(new KeyboardEvent('keydown', { key: key, bubbles: true }));
-          } else if (Math.abs(dy) > Math.abs(dx) && Math.abs(dy) > minSwipeDistance) {
-            // Vertical swipe — dispatch arrow key for scrolling
-            var key = dy > 0 ? 'ArrowUp' : 'ArrowDown';
-            document.dispatchEvent(new KeyboardEvent('keydown', { key: key, bubbles: true }));
           }
         }, { passive: true });
+
+        // Mousewheel support — scroll content with wheel
+        document.addEventListener('wheel', function(e) {
+          var key = e.deltaY > 0 ? 'ArrowDown' : 'ArrowUp';
+          document.dispatchEvent(new KeyboardEvent('keydown', { key: key, bubbles: true }));
+          e.preventDefault();
+        }, { passive: false });
       })();
     </script>
   </body>
