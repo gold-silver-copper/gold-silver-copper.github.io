@@ -1,28 +1,12 @@
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1.0, user-scalable=no"
-    />
-    <link
-      rel="stylesheet"
-      href="https://cdnjs.cloudflare.com/ajax/libs/firacode/6.2.0/fira_code.min.css"
-    />
-    <title>GRIFT.RS – Personal Website & Grift Demo</title>
-    <link rel="stylesheet" href="./style-85007cf67d889911.css" integrity="sha384-RrMBWC+HlrHB8DrJ7jVESDMixYrtPsNWqWbWHW1mlxfA6lYc+eo94AEWYM9OWBQN"/>
-  <link rel="modulepreload" href="./grift-site-4ef3a6e6f4bff2b1.js" crossorigin="anonymous" integrity="sha384-t6Ua4Sg/Or38QvmOXXM+v6K6Np2DUTq5drsd8QjVsXc5E/7pgSIaRW1MIF9SbfQa"><link rel="preload" href="./grift-site-4ef3a6e6f4bff2b1_bg.wasm" crossorigin="anonymous" integrity="sha384-LFLiJpeqeOrrASyyryPtAbPcyUiSB18AKwi7FRVLdQ34ao+BBqwB6gEwNgb0PeZ5" as="fetch" type="application/wasm"></head>
+<!DOCTYPE html><html lang="en"><head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/firacode/6.2.0/fira_code.min.css">
+    <title>GRIFT.RS – Personal Website &amp; Grift Demo</title>
+    <link rel="stylesheet" href="/./style-85007cf67d889911.css">
+  
+<link rel="preload" href="/./grift-site-b6b20e813eae19b2_bg.wasm" as="fetch" type="application/wasm" crossorigin="">
+<link rel="modulepreload" href="/./grift-site-b6b20e813eae19b2.js"></head>
   <body>
-<script type="module">
-import init, * as bindings from './grift-site-4ef3a6e6f4bff2b1.js';
-const wasm = await init({ module_or_path: './grift-site-4ef3a6e6f4bff2b1_bg.wasm' });
 
-
-window.wasmBindings = bindings;
-
-
-dispatchEvent(new CustomEvent("TrunkApplicationStarted", {detail: {wasm}}));
-
-</script></body>
-</html>
+<script type="module">import init from '/./grift-site-b6b20e813eae19b2.js';init('/./grift-site-b6b20e813eae19b2_bg.wasm');</script></body></html>
