@@ -43,7 +43,7 @@
           velocityY = 0;
           // Cancel any running momentum scroll
           if (momentumId) {
-            cancelAnimationFrame(momentumId);
+            clearTimeout(momentumId);
             momentumId = null;
           }
         }, { passive: true });
@@ -97,7 +97,7 @@
         document.addEventListener('touchcancel', function() {
           velocityY = 0;
           if (momentumId) {
-            cancelAnimationFrame(momentumId);
+            clearTimeout(momentumId);
             momentumId = null;
           }
         }, { passive: true });
