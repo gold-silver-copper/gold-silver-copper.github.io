@@ -37,26 +37,62 @@ Environments, continuations, operatives, and combiners are all first-class value
 const IMPL_INFO: &str = "\
 Written in pure Rust: arena-allocated with const-generic capacity, tail-call optimized, mark-and-sweep GC, zero unsafe code. Runs on bare-metal embedded targets and compiles to WebAssembly. This entire site is a Rust TUI rendered to canvas via WASM. The arena allocator uses a fixed-size array with const generics so the capacity is determined at compile time with no runtime overhead.";
 
-const LINKS: &[(&str, &str)] = &[
+const LINKS: &[(&str, &str, &str)] = &[
     (
         "GitHub (gold-silver-copper)",
         "https://github.com/gold-silver-copper",
+        "Main GitHub profile — hosts open-source Rust and Lisp projects including grift and this website.",
     ),
-    ("GitHub (grift)", "https://github.com/skyfskyf/grift"),
+    (
+        "GitHub (grift)",
+        "https://github.com/skyfskyf/grift",
+        "The Grift language repository — a no_std, no_alloc Kernel-style Lisp that powers this site's REPL.",
+    ),
     (
         "GitHub (grift-site)",
         "https://github.com/skyfskyf/grift-site",
+        "Source code for this very website — a terminal UI compiled to WASM and rendered to canvas.",
     ),
-    ("Ratzilla – Terminal web apps with Rust + WASM", "https://github.com/ratatui/ratzilla"),
-    ("Ratatui – Terminal UI framework", "https://github.com/ratatui/ratatui"),
-    ("TachyonFX – Shader-like effects for TUIs", "https://github.com/ratatui/tachyonfx"),
-    ("WebAssembly", "https://webassembly.org"),
-    ("Rust Programming Language", "https://www.rust-lang.org"),
-    ("crates.io – Rust Package Registry", "https://crates.io"),
-    ("Trunk – WASM bundler for Rust", "https://trunkrs.dev"),
-    ("Kernel Language (vau calculus)", "https://web.cs.wpi.edu/~jshutt/kernel.html"),
-    ("John Shutt – Vau Calculus Thesis", "https://web.cs.wpi.edu/~jshutt/dissertation/etd-090110-124904.pdf"),
-    ("Are We Web Yet? – Rust web ecosystem", "https://www.arewewebyet.org"),
+    (
+        "Ratzilla – Terminal web apps with Rust + WASM",
+        "https://github.com/ratatui/ratzilla",
+        "The framework that renders this terminal UI in your browser via WebGL2 — built on top of ratatui.",
+    ),
+    (
+        "Ratatui – Terminal UI framework",
+        "https://github.com/ratatui/ratatui",
+        "The Rust TUI framework providing all the widgets, layout, and text rendering used throughout this site.",
+    ),
+    (
+        "TachyonFX – Shader-like effects for TUIs",
+        "https://github.com/ratatui/tachyonfx",
+        "Provides the animated transitions, hover effects, and background animations you see across every page.",
+    ),
+    (
+        "WebAssembly",
+        "https://webassembly.org",
+        "The compilation target that makes this Rust application run natively in your browser at near-native speed.",
+    ),
+    (
+        "Rust Programming Language",
+        "https://www.rust-lang.org",
+        "The language this entire site is written in — zero JavaScript frameworks, just safe Rust compiled to WASM.",
+    ),
+    (
+        "crates.io – Rust Package Registry",
+        "https://crates.io",
+        "Where Grift, TachyonFX, and other Rust dependencies used by this project are published.",
+    ),
+    (
+        "Kernel Language (vau calculus)",
+        "https://web.cs.wpi.edu/~jshutt/kernel.html",
+        "The theoretical foundation for Grift — John Shutt's Kernel language where operatives replace macros.",
+    ),
+    (
+        "John Shutt – Vau Calculus Thesis",
+        "https://web.cs.wpi.edu/~jshutt/dissertation/etd-090110-124904.pdf",
+        "The 2010 PhD thesis that introduced vau calculus as a cleaner semantic foundation for Lisp.",
+    ),
 ];
 
 const DOC_BASICS: &str = "\
@@ -202,87 +238,6 @@ Debugging tips:\n\
   2. Inspect environments with get-current-environment\n\
   3. Use begin to sequence debug prints\n\
   4. Break complex expressions into smaller define! steps";
-
-const SHOWCASE_INFO: &str = "\
-Ratzilla & Grift — Mobile Showcase\n\
-──────────────────────────────────\n\
-\n\
-This website is a fully interactive terminal UI running natively in your browser — no app install needed. Everything is rendered via WebAssembly + WebGL2. The same layout works on phones, tablets, and desktops without any distinction.\n\
-\n\
-Interactions\n\
-────────────\n\
-\n\
-  • Swipe LEFT / RIGHT to switch between tabs\n\
-  • Swipe UP / DOWN to scroll content\n\
-  • Tap on tabs, links, and buttons to interact\n\
-  • Pinch-to-zoom is disabled for native feel\n\
-  • Mouse wheel scrolling works everywhere\n\
-  • Keyboard input works on the REPL tab\n\
-  • Paste text with Ctrl+V / Cmd+V in the REPL\n\
-\n\
-Built With\n\
-──────────\n\
-\n\
-  Ratzilla   Terminal web apps with Rust + WASM\n\
-  Ratatui    Terminal UI framework for Rust\n\
-  TachyonFX  Shader-like effects for terminal UIs\n\
-  Grift      Minimalistic Lisp with vau calculus\n\
-\n\
-Why Terminal UI in the Browser?\n\
-──────────────────────────────\n\
-\n\
-Traditional web apps use HTML/CSS/JavaScript to render DOM elements. This site takes a different approach: the entire UI is a Rust application compiled to WASM, rendering a terminal grid to an HTML canvas. There is no DOM manipulation, no CSS layout engine, and no JavaScript framework involved.\n\
-\n\
-  Benefits:\n\
-  • Consistent rendering across all devices and browsers\n\
-  • No CSS layout quirks or browser differences\n\
-  • Rust type safety and performance\n\
-  • Retro terminal aesthetic with modern shader effects\n\
-  • Single codebase for all screen sizes\n\
-\n\
-Unified Layout\n\
-──────────────\n\
-\n\
-There is no separate mobile or desktop layout. The same compact layout adapts to any screen size through terminal grid scaling. Touch gestures, mouse input, and keyboard shortcuts all work simultaneously. Scrollable sections work via swipe, mouse wheel, or arrow buttons.\n\
-\n\
-Mobile Browser Support\n\
-─────────────────────\n\
-\n\
-  • Safari on iOS: fully supported with safe area insets\n\
-  • Chrome on Android: supported with dynamic viewport handling\n\
-  • Firefox Mobile: fully supported\n\
-  • Samsung Internet: fully supported\n\
-  • Landscape and portrait modes both work correctly\n\
-  • Virtual keyboard is handled for the REPL tab\n\
-\n\
-Try the REPL!\n\
-─────────────\n\
-\n\
-Switch to the REPL tab and type Lisp expressions. The on-screen keyboard works — try:\n\
-  (+ 1 2)\n\
-  (list 1 2 3)\n\
-  (define! x 42)\n\
-  (* x x)\n\
-\n\
-The REPL runs a real Lisp interpreter (Grift) compiled to WebAssembly — not a simulation.\n\
-\n\
-Accessibility & Tips\n\
-────────────────────\n\
-\n\
-  • Font: Fira Code is loaded for ligature-rich terminal rendering\n\
-  • Colors: High-contrast palette tested across OLED and LCD screens\n\
-  • No animations block interaction — all effects are non-blocking\n\
-  • Works without JavaScript frameworks or external API calls\n\
-  • Full offline capability once cached by the browser\n\
-\n\
-Performance Notes\n\
-─────────────────\n\
-\n\
-  • WebGL2 rendering at 60fps on modern devices\n\
-  • WASM binary is ~200KB compressed\n\
-  • No garbage collection pauses (arena allocator)\n\
-  • Minimal memory footprint — fixed arena with const generics\n\
-  • Touch event handlers use passive listeners for smooth scrolling";
 
 // ---------------------------------------------------------------------------
 // Expanded Effects DSL Showcase
@@ -1562,13 +1517,14 @@ enum Page {
     Repl,
     Docs,
     Blog,
-    Links,
-    Showcase,
+    About,
     Effects,
+    Clock,
+    Matrix,
 }
 
 impl Page {
-    const ALL: [Page; 7] = [Page::Home, Page::Repl, Page::Docs, Page::Blog, Page::Links, Page::Showcase, Page::Effects];
+    const ALL: [Page; 8] = [Page::Home, Page::Repl, Page::Docs, Page::Blog, Page::About, Page::Effects, Page::Clock, Page::Matrix];
 
     fn title(self) -> &'static str {
         match self {
@@ -1576,9 +1532,10 @@ impl Page {
             Page::Repl => "REPL",
             Page::Docs => "Docs",
             Page::Blog => "Blog",
-            Page::Links => "Links",
-            Page::Showcase => "Mobile",
+            Page::About => "About",
             Page::Effects => "Effects",
+            Page::Clock => "Clock",
+            Page::Matrix => "Matrix",
         }
     }
 
@@ -1590,9 +1547,16 @@ impl Page {
 #[derive(Clone, Copy)]
 enum ScrollTarget {
     Home,
-    Links,
-    Showcase,
+    About,
     Docs,
+}
+
+struct MatrixColumn {
+    head: u16,    // current head row position
+    length: u16,  // trail length
+    speed: u16,   // ticks per step
+    counter: u16, // tick counter
+    chars: Vec<char>, // characters in this column
 }
 
 struct App {
@@ -1610,8 +1574,7 @@ struct App {
     blog_viewing_post: bool,
     // Scroll state for scrollable pages
     home_scroll: usize,
-    links_scroll: usize,
-    showcase_scroll: usize,
+    about_scroll: usize,
     // Scroll arrow button areas
     scroll_up_area: Rect,
     scroll_down_area: Rect,
@@ -1658,6 +1621,9 @@ struct App {
     dsl_effects_scroll: usize,
     dsl_effects_cache: Vec<Option<Effect>>,
     frame_elapsed: Duration,
+    // Matrix rain state
+    matrix_columns: Vec<MatrixColumn>,
+    matrix_initialized: bool,
 }
 
 impl App {
@@ -1675,8 +1641,7 @@ impl App {
             blog_viewing_post: false,
             blog_scroll: 0,
             home_scroll: 0,
-            links_scroll: 0,
-            showcase_scroll: 0,
+            about_scroll: 0,
             scroll_up_area: Rect::default(),
             scroll_down_area: Rect::default(),
             transition_effect: None,
@@ -1708,6 +1673,8 @@ impl App {
             dsl_effects_scroll: 0,
             dsl_effects_cache: Vec::new(),
             frame_elapsed: Duration::from_millis(0),
+            matrix_columns: Vec::new(),
+            matrix_initialized: false,
         }
     }
 
@@ -1734,19 +1701,26 @@ impl App {
                 EffectTimer::from_ms(500, Interpolation::CubicOut),
             ),
             Page::Blog => fx::coalesce(EffectTimer::from_ms(400, Interpolation::SineOut)),
-            Page::Links => fx::sweep_in(
+            Page::About => fx::sweep_in(
                 Motion::UpToDown,
                 8,
                 2,
                 dark,
                 EffectTimer::from_ms(500, Interpolation::QuadOut),
             ),
-            Page::Showcase => fx::fade_from(
-                dark,
-                dark,
-                EffectTimer::from_ms(500, Interpolation::CubicOut),
-            ),
             Page::Effects => fx::coalesce(EffectTimer::from_ms(500, Interpolation::SineOut)),
+            Page::Clock => fx::fade_from(
+                dark,
+                dark,
+                EffectTimer::from_ms(400, Interpolation::CubicOut),
+            ),
+            Page::Matrix => fx::sweep_in(
+                Motion::UpToDown,
+                12,
+                2,
+                dark,
+                EffectTimer::from_ms(600, Interpolation::QuadOut),
+            ),
         };
         self.transition_effect = Some(effect);
     }
@@ -1764,6 +1738,20 @@ impl App {
             } else {
                 let _ = web_sys::js_sys::eval("window._replTabActive=false;window._blurReplInput&&window._blurReplInput()");
             }
+        }
+    }
+
+    fn switch_to_prev_tab(&mut self) {
+        let idx = self.page.index();
+        if idx > 0 {
+            self.switch_page(Page::ALL[idx - 1]);
+        }
+    }
+
+    fn switch_to_next_tab(&mut self) {
+        let idx = self.page.index();
+        if idx + 1 < Page::ALL.len() {
+            self.switch_page(Page::ALL[idx + 1]);
         }
     }
 
@@ -1825,9 +1813,9 @@ impl App {
             Page::Docs => self.handle_scroll_event(key, ScrollTarget::Docs),
             Page::Blog => self.handle_blog_event(key),
             Page::Home => self.handle_scroll_event(key, ScrollTarget::Home),
-            Page::Links => self.handle_scroll_event(key, ScrollTarget::Links),
-            Page::Showcase => self.handle_scroll_event(key, ScrollTarget::Showcase),
+            Page::About => self.handle_scroll_event(key, ScrollTarget::About),
             Page::Effects => self.handle_effects_event(key),
+            Page::Clock | Page::Matrix => self.handle_demo_tab_event(key),
         }
     }
 
@@ -1874,15 +1862,15 @@ impl App {
                 }
             }
 
-            // Check link clicks on Links page
-            if self.page == Page::Links {
+            // Check link clicks on About page
+            if self.page == Page::About {
                 for (i, area) in self.link_areas.iter().enumerate() {
                     if col >= area.x
                         && col < area.right()
                         && row >= area.y
                         && row < area.bottom()
                     {
-                        if let Some((_, url)) = LINKS.get(i) {
+                        if let Some((_, url, _)) = LINKS.get(i) {
                             self.trigger_link_effect(*area);
                             self.trigger_transition();
                             open_url(url);
@@ -2054,8 +2042,7 @@ impl App {
     fn handle_scroll_event(&mut self, key: KeyEvent, target: ScrollTarget) {
         let scroll = match target {
             ScrollTarget::Home => &mut self.home_scroll,
-            ScrollTarget::Links => &mut self.links_scroll,
-            ScrollTarget::Showcase => &mut self.showcase_scroll,
+            ScrollTarget::About => &mut self.about_scroll,
             ScrollTarget::Docs => &mut self.doc_scroll,
         };
         let step = 2;
@@ -2065,6 +2052,12 @@ impl App {
             }
             KeyCode::Down => {
                 *scroll += step;
+            }
+            KeyCode::Left => {
+                self.switch_to_prev_tab();
+            }
+            KeyCode::Right => {
+                self.switch_to_next_tab();
             }
             _ => {}
         }
@@ -2086,6 +2079,18 @@ impl App {
             KeyCode::Right => {
                 // Jump forward by one full page of entries
                 self.dsl_effects_scroll += 20;
+            }
+            _ => {}
+        }
+    }
+
+    fn handle_demo_tab_event(&mut self, key: KeyEvent) {
+        match key.code {
+            KeyCode::Left => {
+                self.switch_to_prev_tab();
+            }
+            KeyCode::Right => {
+                self.switch_to_next_tab();
             }
             _ => {}
         }
@@ -2213,9 +2218,10 @@ impl App {
             Page::Repl => self.render_repl(frame, content_area),
             Page::Docs => self.render_docs(frame, content_area),
             Page::Blog => self.render_blog(frame, content_area),
-            Page::Links => self.render_links(frame, content_area),
-            Page::Showcase => self.render_showcase(frame, content_area),
+            Page::About => self.render_about(frame, content_area),
             Page::Effects => self.render_effects(frame, content_area),
+            Page::Clock => self.render_clock(frame, content_area),
+            Page::Matrix => self.render_matrix(frame, content_area),
         }
 
         // Process transition effects
@@ -2243,7 +2249,7 @@ impl App {
         });
 
         // Link hover effects — triggers when a new link is hovered
-        if self.page == Page::Links {
+        if self.page == Page::About {
             let current_hovered_link = self.link_areas.iter().enumerate()
                 .find(|(_, r)| self.is_hovered(**r))
                 .map(|(i, _)| i);
@@ -2340,8 +2346,8 @@ impl App {
         self.tab_area = area;
 
         // Compute individual tab click areas from the Tabs widget layout.
-        // Compact dividers with no extra padding for unified layout.
         let divider_width: u16 = 1;
+        let pad: u16 = 1; // space on each side of the title
         let inner_x = area.x + 1; // after left border
         let tab_row = area.y + 1;
 
@@ -2352,9 +2358,9 @@ impl App {
             if i > 0 {
                 line_pos += divider_width;
             }
-            let title_len = p.title().len() as u16;
-            tab_offsets.push((line_pos, title_len));
-            line_pos += title_len;
+            let padded_len = p.title().len() as u16 + pad * 2;
+            tab_offsets.push((line_pos, padded_len));
+            line_pos += padded_len;
         }
         let total_line_width = line_pos;
 
@@ -2401,7 +2407,8 @@ impl App {
             } else {
                 Style::default().fg(fg)
             };
-            spans.push(Span::styled(p.title(), style));
+            let padded_title = format!(" {} ", p.title());
+            spans.push(Span::styled(padded_title, style));
         }
 
         let tab_line = Line::from(spans);
@@ -2800,77 +2807,141 @@ impl App {
         frame.render_widget(list, inner);
     }
 
-    fn render_links(&mut self, frame: &mut Frame, area: Rect) {
+    fn render_about(&mut self, frame: &mut Frame, area: Rect) {
+        // Build the About page: bio → grift description → links with descriptions → interesting info
+        let mut lines: Vec<Line> = Vec::new();
+
+        // ── Bio ──
+        lines.push(Line::styled("── gold silver copper ──", Style::default().fg(Color::Rgb(207, 181, 59)).bold()));
+        lines.push(Line::from(""));
+        lines.push(Line::styled(
+            "Software developer building open-source tools in Rust. Interested in programming language design, terminal user interfaces, WebAssembly, and making the web a stranger and more interesting place. Creator of Grift and this terminal-in-a-browser website.",
+            Style::default().fg(Color::Rgb(170, 175, 185)),
+        ));
+        lines.push(Line::from(""));
+
+        // ── Grift ──
+        lines.push(Line::styled("── Grift ──", Style::default().fg(Color::Rgb(184, 115, 51)).bold()));
+        lines.push(Line::from(""));
+        for l in DESCRIPTION.lines() {
+            lines.push(Line::styled(l, Style::default().fg(Color::Rgb(170, 175, 185))));
+        }
+        lines.push(Line::from(""));
+
+        // ── Links ──
+        lines.push(Line::styled("── Links ──", Style::default().fg(Color::Rgb(200, 200, 210)).bold()));
+        lines.push(Line::styled("────────────", Style::default().fg(Color::Rgb(140, 145, 155))));
+
+        // Link lines: each link label is on its own line, followed by a description line
+        // We track the line index where each link label appears for click tracking
+        let links_start_line = lines.len();
+        for (label, _url, desc) in LINKS.iter() {
+            lines.push(Line::styled(format!("  {label}"), Style::default().fg(Color::Rgb(160, 175, 195))));
+            lines.push(Line::styled(format!("    — {desc}"), Style::default().fg(Color::Rgb(110, 115, 125))));
+        }
+        let _links_end_line = lines.len();
+
+        lines.push(Line::from(""));
+
+        // ── Interesting info (merged from showcase) ──
+        lines.push(Line::styled("── This Website ──", Style::default().fg(Color::Rgb(207, 181, 59)).bold()));
+        lines.push(Line::from(""));
+        lines.push(Line::styled(
+            "Everything you see is a Rust terminal UI compiled to WebAssembly and rendered to an HTML canvas via Ratzilla. TachyonFX provides the animated background, page transitions, and hover effects. There is no HTML layout, no CSS styling, and no JavaScript framework — just a Rust application drawing characters to a terminal grid.",
+            Style::default().fg(Color::Rgb(170, 175, 185)),
+        ));
+        lines.push(Line::from(""));
+
+        lines.push(Line::styled("── How It Works ──", Style::default().fg(Color::Rgb(184, 115, 51)).bold()));
+        lines.push(Line::from(""));
+        lines.push(Line::styled(
+            "Traditional web apps use HTML/CSS/JavaScript to render DOM elements. This site takes a different approach: the entire UI is a Rust application compiled to WASM, rendering a terminal grid to an HTML canvas. There is no DOM manipulation, no CSS layout engine, and no JavaScript framework involved.",
+            Style::default().fg(Color::Rgb(170, 175, 185)),
+        ));
+        lines.push(Line::from(""));
+
+        lines.push(Line::styled("── Built With ──", Style::default().fg(Color::Rgb(200, 200, 210)).bold()));
+        lines.push(Line::from(""));
+        lines.push(Line::styled("  • Ratzilla — terminal web apps with Rust + WASM", Style::default().fg(Color::Rgb(170, 175, 185))));
+        lines.push(Line::styled("  • Ratatui — terminal UI framework for Rust", Style::default().fg(Color::Rgb(170, 175, 185))));
+        lines.push(Line::styled("  • TachyonFX — shader-like effects for terminal UIs", Style::default().fg(Color::Rgb(170, 175, 185))));
+        lines.push(Line::styled("  • Grift — minimalistic Lisp with vau calculus", Style::default().fg(Color::Rgb(170, 175, 185))));
+        lines.push(Line::styled("  • WebGL2 rendering at 60fps on modern devices", Style::default().fg(Color::Rgb(170, 175, 185))));
+        lines.push(Line::from(""));
+
+        lines.push(Line::styled("── Interactions ──", Style::default().fg(Color::Rgb(207, 181, 59)).bold()));
+        lines.push(Line::from(""));
+        lines.push(Line::styled("  • Swipe LEFT / RIGHT to switch between tabs", Style::default().fg(Color::Rgb(170, 175, 185))));
+        lines.push(Line::styled("  • Swipe UP / DOWN to scroll content", Style::default().fg(Color::Rgb(170, 175, 185))));
+        lines.push(Line::styled("  • Tap on tabs, links, and buttons to interact", Style::default().fg(Color::Rgb(170, 175, 185))));
+        lines.push(Line::styled("  • Mouse wheel scrolling works everywhere", Style::default().fg(Color::Rgb(170, 175, 185))));
+        lines.push(Line::styled("  • Keyboard input works on the REPL tab", Style::default().fg(Color::Rgb(170, 175, 185))));
+        lines.push(Line::styled("  • Paste text with Ctrl+V / Cmd+V in the REPL", Style::default().fg(Color::Rgb(170, 175, 185))));
+        lines.push(Line::from(""));
+
+        lines.push(Line::styled("── Performance ──", Style::default().fg(Color::Rgb(184, 115, 51)).bold()));
+        lines.push(Line::from(""));
+        lines.push(Line::styled("  • WASM binary is ~200KB compressed", Style::default().fg(Color::Rgb(170, 175, 185))));
+        lines.push(Line::styled("  • No garbage collection pauses (arena allocator)", Style::default().fg(Color::Rgb(170, 175, 185))));
+        lines.push(Line::styled("  • Minimal memory footprint — fixed arena with const generics", Style::default().fg(Color::Rgb(170, 175, 185))));
+        lines.push(Line::styled("  • Single codebase for all screen sizes", Style::default().fg(Color::Rgb(170, 175, 185))));
+        lines.push(Line::styled("  • Full offline capability once cached by the browser", Style::default().fg(Color::Rgb(170, 175, 185))));
+
+        // Use render_scrollable_content which handles the bordered block, scroll, and nav bar
+        let mut scroll = self.about_scroll;
+        self.render_scrollable_content(
+            frame, area, lines, &mut scroll,
+            Some(" About ".bold().fg(Color::Rgb(207, 181, 59)).into()),
+            Some(" gold.silver.copper ".bold().fg(Color::Rgb(184, 115, 51)).into()),
+            "swipe ↕ │ tap links",
+        );
+        self.about_scroll = scroll;
+
+        // Track clickable link areas inside the scrollable view
+        // The scrollable content is rendered inside a double-bordered area
         let block = Block::bordered()
             .border_type(BorderType::Rounded)
-            .border_style(Color::Rgb(55, 60, 70))
-            .title(" Links ".bold().fg(Color::Rgb(200, 200, 210)));
-
+            .border_style(Color::Rgb(55, 60, 70));
         let inner = block.inner(area);
-        frame.render_widget(block, area);
-
-        let [scroll_area, nav_bar] =
+        let [scroll_area, _nav_bar] =
             Layout::vertical([Constraint::Min(1), Constraint::Length(1)]).areas(inner);
-
-        // Build all links + info as one scrollable text
-        let mut lines: Vec<Line> = Vec::new();
-        lines.push(Line::styled("Repositories & Resources", Style::default().fg(Color::Rgb(200, 200, 210)).bold()));
-        lines.push(Line::styled("────────────────────────", Style::default().fg(Color::Rgb(140, 145, 155))));
-
-        for (i, (label, _url)) in LINKS.iter().enumerate() {
-            let hovered = self.link_areas.get(i).is_some_and(|r| self.is_hovered(*r));
-            let style = if hovered {
-                Style::default().fg(Color::Rgb(160, 175, 195)).add_modifier(Modifier::REVERSED)
-            } else {
-                Style::default().fg(Color::Rgb(160, 175, 195))
-            };
-            lines.push(Line::styled(format!("  {label}"), style));
-        }
-
-        lines.push(Line::from(""));
-        lines.push(Line::from(vec![
-            "  gold.silver.copper ".fg(Color::Rgb(207, 181, 59)).bold(),
-            "— Software developer".fg(Color::Rgb(140, 145, 155)),
-        ]));
-        lines.push(Line::from(vec![
-            "  Grift ".fg(Color::Rgb(184, 115, 51)).bold(),
-            "– Lisp with vau calculus".fg(Color::Rgb(140, 145, 155)),
-        ]));
-        lines.push(Line::from(""));
-        lines.push(Line::from("  Terminal UI in your browser.".fg(Color::Rgb(100, 105, 115))));
-        lines.push(Line::from("  Ratzilla + TachyonFX + WASM.".fg(Color::Rgb(100, 105, 115))));
-
-        let visible_height = scroll_area.height.saturating_sub(2) as usize;
-        let content_width = scroll_area.width.saturating_sub(2) as usize;
-        let total_wrapped = Self::wrapped_line_count(&lines, content_width);
-        let max_scroll = total_wrapped.saturating_sub(visible_height);
-        self.links_scroll = self.links_scroll.min(max_scroll);
-
-        // Track clickable link areas in scroll view
-        let links_block = Block::bordered()
+        let content_block = Block::bordered()
             .border_type(BorderType::Rounded)
             .border_style(Color::Rgb(40, 44, 52));
-        let links_inner = links_block.inner(scroll_area);
+        let content_inner = content_block.inner(scroll_area);
 
         self.link_areas.clear();
         for i in 0..LINKS.len() {
-            let line_idx = i + 2; // offset for header lines
-            if line_idx >= self.links_scroll {
-                let visible_row = (line_idx - self.links_scroll) as u16;
-                if visible_row < links_inner.height {
-                    let link_area = Rect::new(links_inner.x, links_inner.y + visible_row, links_inner.width, 1);
+            // Each link takes 2 lines (label + description), starting at links_start_line
+            let line_idx = links_start_line + i * 2;
+            if line_idx >= self.about_scroll {
+                let visible_row = (line_idx - self.about_scroll) as u16;
+                if visible_row < content_inner.height {
+                    let link_area = Rect::new(content_inner.x, content_inner.y + visible_row, content_inner.width, 1);
                     self.link_areas.push(link_area);
                 }
             }
         }
 
-        let content = Paragraph::new(Text::from(lines))
-            .wrap(Wrap { trim: false })
-            .scroll((self.links_scroll as u16, 0))
-            .block(links_block);
-        frame.render_widget(content, scroll_area);
-
-        self.render_scroll_arrows(frame, nav_bar, self.links_scroll, max_scroll, "tap to open");
+        // Apply hover styling to link lines (re-render hovered links with REVERSED style)
+        for (i, link_area) in self.link_areas.iter().enumerate() {
+            if self.is_hovered(*link_area) {
+                if let Some((label, _, _)) = LINKS.get(i) {
+                    let text = format!("  {label}");
+                    let style = Style::default().fg(Color::Rgb(160, 175, 195)).add_modifier(Modifier::REVERSED);
+                    let buf = frame.buffer_mut();
+                    for (k, ch) in text.chars().enumerate() {
+                        let x = link_area.x + k as u16;
+                        if x < link_area.right() {
+                            if let Some(cell) = buf.cell_mut(Position::new(x, link_area.y)) {
+                                cell.set_char(ch);
+                                cell.set_style(style);
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 
     /// Compute total display rows after wrapping lines to the given width.
@@ -3212,63 +3283,239 @@ impl App {
         );
     }
 
-    fn render_showcase(&mut self, frame: &mut Frame, area: Rect) {
-        // Render showcase content with syntax highlighting for headers
-        let lines: Vec<Line> = SHOWCASE_INFO
-            .lines()
-            .map(|line| {
-                if line.contains('─') && !line.starts_with(' ') {
-                    Line::styled(line, Style::default().fg(Color::Rgb(140, 145, 155)))
-                } else if !line.starts_with(' ') && !line.is_empty() {
-                    Line::styled(line, Style::default().fg(Color::Rgb(220, 225, 235)).bold())
-                } else if line.starts_with("  •") {
-                    let parts: Vec<&str> = line.splitn(2, '•').collect();
-                    if parts.len() == 2 {
-                        Line::from(vec![
-                            Span::styled("  •", Style::default().fg(Color::Rgb(207, 181, 59))),
-                            Span::styled(parts[1], Style::default().fg(Color::Rgb(170, 175, 185))),
-                        ])
-                    } else {
-                        Line::styled(line, Style::default().fg(Color::Rgb(170, 175, 185)))
-                    }
-                } else if line.starts_with("  ") && line.contains("   ") {
-                    // Two-column items like "  Ratzilla   Terminal web apps..."
-                    let trimmed = line.trim_start();
-                    if let Some(idx) = trimmed.find("   ") {
-                        let name = &trimmed[..idx];
-                        let desc = trimmed[idx..].trim_start();
-                        Line::from(vec![
-                            Span::styled("  ", Style::default()),
-                            Span::styled(name, Style::default().fg(Color::Rgb(184, 115, 51)).bold()),
-                            Span::styled("  ", Style::default()),
-                            Span::styled(desc, Style::default().fg(Color::Rgb(140, 145, 155))),
-                        ])
-                    } else {
-                        Line::styled(line, Style::default().fg(Color::Rgb(170, 175, 185)))
-                    }
-                } else {
-                    Line::styled(line, Style::default().fg(Color::Rgb(170, 175, 185)))
-                }
-            })
-            .collect();
+    fn render_clock(&self, frame: &mut Frame, area: Rect) {
+        // Get current time from browser via js_sys
+        let date = web_sys::js_sys::Date::new_0();
+        let hours = date.get_hours();
+        let minutes = date.get_minutes();
+        let seconds = date.get_seconds();
 
-        let mut scroll = self.showcase_scroll;
-        self.render_scrollable_content(
-            frame, area, lines, &mut scroll,
-            Some(" Mobile Showcase ".bold().fg(Color::Rgb(207, 181, 59)).into()),
-            Some(" Ratzilla & Grift ".bold().fg(Color::Rgb(184, 115, 51)).into()),
-            "swipe ↕",
+        let time_str = format!("{:02}:{:02}:{:02}", hours, minutes, seconds);
+
+        // Large ASCII digit font (3x5 per digit)
+        const DIGITS: [&[&str; 5]; 10] = [
+            &[" ▄▄ ", "█  █", "█  █", "█  █", " ▀▀ "], // 0
+            &["  █ ", " ██ ", "  █ ", "  █ ", " ▄█▄"], // 1
+            &[" ▄▄ ", "   █", " ▄▄ ", "█   ", " ▀▀▀"], // 2
+            &[" ▄▄ ", "   █", " ▄▄ ", "   █", " ▀▀ "], // 3
+            &["█  █", "█  █", " ▀▀█", "   █", "   ▀"], // 4
+            &[" ▀▀▀", "█   ", " ▀▀ ", "   █", " ▀▀ "], // 5
+            &[" ▄▄ ", "█   ", "█▄▄ ", "█  █", " ▀▀ "], // 6
+            &[" ▀▀▀", "   █", "  █ ", " █  ", " ▀  "], // 7
+            &[" ▄▄ ", "█  █", " ▄▄ ", "█  █", " ▀▀ "], // 8
+            &[" ▄▄ ", "█  █", " ▀▀█", "   █", " ▀▀ "], // 9
+        ];
+        const COLON: [&str; 5] = ["  ", "▄ ", "  ", "▄ ", "  "];
+
+        // Build 5 rows of the big clock display
+        let mut big_lines: Vec<String> = vec![String::new(); 5];
+        for ch in time_str.chars() {
+            if ch == ':' {
+                for (row, line) in big_lines.iter_mut().enumerate() {
+                    line.push_str(COLON[row]);
+                }
+            } else if let Some(d) = ch.to_digit(10) {
+                let glyph = DIGITS[d as usize];
+                for (row, line) in big_lines.iter_mut().enumerate() {
+                    line.push_str(glyph[row]);
+                    line.push(' ');
+                }
+            }
+        }
+
+        let mut lines: Vec<Line> = Vec::new();
+        lines.push(Line::from(""));
+
+        // Color cycle based on bg_tick for a subtle animated effect
+        let hue = (self.bg_tick % 360) as f64;
+        let r = (128.0 + 80.0 * (hue * std::f64::consts::PI / 180.0).sin()) as u8;
+        let g = (128.0 + 80.0 * ((hue + 120.0) * std::f64::consts::PI / 180.0).sin()) as u8;
+        let b = (128.0 + 80.0 * ((hue + 240.0) * std::f64::consts::PI / 180.0).sin()) as u8;
+
+        for big_line in &big_lines {
+            lines.push(Line::styled(
+                big_line.clone(),
+                Style::default().fg(Color::Rgb(r, g, b)).bold(),
+            ));
+        }
+
+        lines.push(Line::from(""));
+
+        // Date display
+        const DAY_NAMES: [&str; 7] = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+        const MONTH_NAMES: [&str; 12] = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
+                           "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+        let day_of_week = date.get_day() as usize;
+        let month = date.get_month() as usize;
+        let day = date.get_date();
+        let year = date.get_full_year();
+
+        let date_str = format!(
+            "{}  {} {} {}",
+            DAY_NAMES.get(day_of_week).unwrap_or(&"???"),
+            MONTH_NAMES.get(month).unwrap_or(&"???"),
+            day,
+            year
         );
-        self.showcase_scroll = scroll;
+        lines.push(Line::styled(
+            date_str,
+            Style::default().fg(Color::Rgb(207, 181, 59)).bold(),
+        ));
+        lines.push(Line::from(""));
+
+        // UTC offset
+        let tz_offset = date.get_timezone_offset();
+        let tz_hours = -(tz_offset as i32) / 60;
+        let tz_mins = ((tz_offset as i32).unsigned_abs()) % 60;
+        let tz_str = format!("UTC {:+}:{:02}", tz_hours, tz_mins);
+        lines.push(Line::styled(
+            tz_str,
+            Style::default().fg(Color::Rgb(140, 145, 155)),
+        ));
+        lines.push(Line::from(""));
+
+        // Unix timestamp
+        let unix_ms = date.get_time() as u64;
+        lines.push(Line::styled(
+            format!("Unix: {}", unix_ms / 1000),
+            Style::default().fg(Color::Rgb(100, 105, 115)),
+        ));
+
+        let text = Text::from(lines);
+        let block = Block::bordered()
+            .border_type(BorderType::Rounded)
+            .border_style(Color::Rgb(55, 60, 70))
+            .title(Line::from(" Clock ").alignment(Alignment::Center))
+            .title_style(Style::default().fg(Color::Rgb(207, 181, 59)).bold());
+
+        let paragraph = Paragraph::new(text)
+            .alignment(Alignment::Center)
+            .block(block);
+
+        frame.render_widget(paragraph, area);
+    }
+
+    fn render_matrix(&mut self, frame: &mut Frame, area: Rect) {
+        const MATRIX_SPECIAL: [char; 10] = ['@', '#', '$', '%', '&', '*', '+', '=', '~', '^'];
+
+        fn matrix_char(seed: u64) -> char {
+            match seed % 3 {
+                0 => (0x30 + (seed.wrapping_mul(7) % 10) as u8) as char, // 0-9
+                1 => (0x41 + (seed.wrapping_mul(11) % 26) as u8) as char, // A-Z
+                _ => MATRIX_SPECIAL[(seed % 10) as usize],
+            }
+        }
+
+        let width = area.width.saturating_sub(2) as usize;
+        let height = area.height.saturating_sub(2) as usize;
+
+        if width == 0 || height == 0 {
+            return;
+        }
+
+        // Initialize or resize matrix columns
+        if !self.matrix_initialized || self.matrix_columns.len() != width {
+            self.matrix_columns.clear();
+            for i in 0..width {
+                let seed = (i as u64).wrapping_mul(2654435761) ^ self.bg_tick;
+                let speed = 1 + (seed % 3) as u16;
+                let length = 4 + (seed.wrapping_mul(7) % 12) as u16;
+                let head = (seed.wrapping_mul(13) % height as u64) as u16;
+                let mut chars = Vec::new();
+                for j in 0..length {
+                    let ch_seed = seed.wrapping_mul(31).wrapping_add(j as u64);
+                    chars.push(matrix_char(ch_seed));
+                }
+                self.matrix_columns.push(MatrixColumn {
+                    head,
+                    length,
+                    speed,
+                    counter: 0,
+                    chars,
+                });
+            }
+            self.matrix_initialized = true;
+        }
+
+        // Update column positions
+        for (i, col) in self.matrix_columns.iter_mut().enumerate() {
+            col.counter += 1;
+            if col.counter >= col.speed {
+                col.counter = 0;
+                col.head += 1;
+                if col.head > height as u16 + col.length {
+                    col.head = 0;
+                    // Regenerate chars for variety
+                    let seed = (i as u64).wrapping_mul(2654435761) ^ self.bg_tick;
+                    col.length = 4 + (seed.wrapping_mul(7) % 12) as u16;
+                    col.speed = 1 + (seed % 3) as u16;
+                    col.chars.clear();
+                    for j in 0..col.length {
+                        let ch_seed = seed.wrapping_mul(31).wrapping_add(j as u64);
+                        col.chars.push(matrix_char(ch_seed));
+                    }
+                }
+            }
+        }
+
+        // Render block border
+        let block = Block::bordered()
+            .border_type(BorderType::Rounded)
+            .border_style(Color::Rgb(55, 60, 70))
+            .title(Line::from(" Matrix Rain ").alignment(Alignment::Center))
+            .title_style(Style::default().fg(Color::Rgb(0, 255, 65)).bold());
+        frame.render_widget(block, area);
+
+        // Render matrix rain into the inner area
+        let inner = Rect::new(area.x + 1, area.y + 1, area.width.saturating_sub(2), area.height.saturating_sub(2));
+        let buf = frame.buffer_mut();
+
+        for (col_idx, col) in self.matrix_columns.iter().enumerate() {
+            if col_idx >= inner.width as usize {
+                break;
+            }
+            let x = inner.x + col_idx as u16;
+            for trail_pos in 0..col.length {
+                let row = col.head as i32 - trail_pos as i32;
+                if row < 0 || row >= inner.height as i32 {
+                    continue;
+                }
+                let y = inner.y + row as u16;
+                let pos = Position::new(x, y);
+                if let Some(cell) = buf.cell_mut(pos) {
+                    let ch = col.chars.get(trail_pos as usize).copied().unwrap_or('0');
+                    cell.set_char(ch);
+                    if trail_pos == 0 {
+                        // Head: bright white-green
+                        cell.set_fg(Color::Rgb(200, 255, 200));
+                        cell.set_bg(Color::Rgb(0, 40, 0));
+                    } else {
+                        // Trail: fade from green to dark green
+                        let fade = 255 - (trail_pos as u16 * 255 / col.length as u16).min(255);
+                        let g = (fade as u8).max(30);
+                        let r = (fade as u8 / 8).min(20);
+                        cell.set_fg(Color::Rgb(r, g, 0));
+                        cell.set_bg(Color::Rgb(0, (g / 12).min(15), 0));
+                    }
+                }
+            }
+        }
     }
 }
 
 fn open_url(url: &str) {
-    // Open in a new background tab using web_sys directly (avoids JS string interpolation)
-    if let Some(window) = web_sys::window() {
-        let _ = window.open_with_url_and_target_and_features(url, "_blank", "noopener");
-        let _ = window.focus();
-    }
+    // Defer opening the URL to avoid RefCell double-borrow.
+    // window.open() can trigger synchronous browser events (focus, blur)
+    // that re-enter draw() while handle_mouse_event() still holds borrow_mut().
+    // Using setTimeout(0) ensures the URL opens after the current borrow is released.
+    let escaped = url
+        .replace('\\', "\\\\")
+        .replace('\'', "\\'")
+        .replace('"', "\\\"")
+        .replace('\n', "\\n")
+        .replace('\r', "\\r");
+    let js = format!("setTimeout(function(){{window.open('{}','_blank','noopener')}},0)", escaped);
+    let _ = web_sys::js_sys::eval(&js);
 }
 
 fn main() -> std::io::Result<()> {
