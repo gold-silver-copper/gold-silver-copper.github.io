@@ -1,4 +1,5 @@
 code/target/
 code/dist/
 dist/
+TerminalVirtualKeyboard/target/
 .DS_Store
