@@ -1,8 +1,14 @@
+html {
+  height: 100%;
+  height: 100dvh;
+  overflow: hidden;
+}
+
 body {
   margin: 0;
   padding: 0;
   width: 100%;
-  height: 100vh;
+  height: 100%;
   height: 100dvh;
   overflow: hidden;
   background-color: #08090e;
@@ -22,7 +28,7 @@ body {
 canvas {
   display: block;
   width: 100%;
-  height: 100vh;
+  height: 100%;
   height: 100dvh;
   touch-action: none;
   padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
@@ -32,11 +38,39 @@ canvas {
 .ratzilla {
   display: block;
   width: 100%;
-  height: 100vh;
+  height: 100%;
   height: 100dvh;
   touch-action: none;
   padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
   box-sizing: border-box;
+}
+
+/* Hidden REPL keyboard input - off-screen but focusable */
+#repl-keyboard-input {
+  position: fixed;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+  top: -9999px;
+  left: -9999px;
+  pointer-events: none;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: transparent;
+  caret-color: transparent;
+}
+
+/* Hide scrollbars globally */
+::-webkit-scrollbar {
+  display: none;
+}
+
+/* Standalone/fullscreen mode: maximize screen real estate */
+@media (display-mode: standalone), (display-mode: fullscreen) {
+  body {
+    padding: 0;
+  }
 }
 
 @media (max-width: 768px) {
