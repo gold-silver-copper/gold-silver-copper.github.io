@@ -491,7 +491,7 @@ struct App {
     // Effects showcase state
     effects_index: usize,
     effects_list: Vec<Effect>,
-    effects_cycle_tick: u64,
+    effects_cycle_elapsed: std::time::Duration,
     frame_elapsed: Duration,
 }
 
@@ -542,7 +542,7 @@ impl App {
             last_hovered_link: None,
             effects_index: 0,
             effects_list: Vec::new(),
-            effects_cycle_tick: 0,
+            effects_cycle_elapsed: std::time::Duration::ZERO,
             frame_elapsed: Duration::from_millis(0),
         }
     }
@@ -915,11 +915,11 @@ impl App {
                 } else {
                     self.effects_index = len - 1;
                 }
-                self.effects_cycle_tick = 0;
+                self.effects_cycle_elapsed = std::time::Duration::ZERO;
             }
             KeyCode::Right | KeyCode::Down => {
                 self.effects_index = (self.effects_index + 1) % len;
-                self.effects_cycle_tick = 0;
+                self.effects_cycle_elapsed = std::time::Duration::ZERO;
             }
             _ => {}
         }
@@ -1929,10 +1929,11 @@ impl App {
             }
         }
 
-        // Auto-cycle every ~10 seconds (600 ticks at ~60fps)
-        self.effects_cycle_tick += 1;
-        if self.effects_cycle_tick >= 600 {
-            self.effects_cycle_tick = 0;
+        // Auto-cycle every ~10 seconds using accumulated real time
+        let frame_std = std::time::Duration::from_millis(self.frame_elapsed.as_millis() as u64);
+        self.effects_cycle_elapsed += frame_std;
+        if self.effects_cycle_elapsed >= std::time::Duration::from_secs(10) {
+            self.effects_cycle_elapsed = std::time::Duration::ZERO;
             self.effects_index = (self.effects_index + 1) % EFFECT_SHOWCASE.len();
         }
 
@@ -1949,7 +1950,7 @@ impl App {
         // Layout: center the 3-row effect container vertically
         let v_center = inner.height / 2;
         let container_y = inner.y + v_center.saturating_sub(1);
-        // Ensure container fits within inner area
+        // Clamp so the 3-row container + 1-row nav bar below fit within inner area
         let container_y = container_y.min(inner.bottom().saturating_sub(4));
         let container = Rect::new(
             inner.x + 2,
