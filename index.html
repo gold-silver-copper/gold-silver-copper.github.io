@@ -43,6 +43,7 @@
       // ═══════════════════════════════════════════════════════════════════
 
       // Disable WebGL2 anti-aliasing before ratzilla creates its context
+      // and force NEAREST texture filtering to prevent blurry text on mobile
       (function() {
         var orig = HTMLCanvasElement.prototype.getContext;
         HTMLCanvasElement.prototype.getContext = function(type, attrs) {
@@ -50,7 +51,20 @@
             attrs = Object.assign({}, attrs || {});
             attrs.antialias = false;
           }
-          return orig.call(this, type, attrs);
+          var ctx = orig.call(this, type, attrs);
+          // Force nearest-neighbor texture filtering on WebGL contexts
+          if (ctx && (type === 'webgl2' || type === 'webgl')) {
+            var origTexImage2D = ctx.texImage2D.bind(ctx);
+            var origTexParam = ctx.texParameteri.bind(ctx);
+            // Monkey-patch texImage2D to force NEAREST filtering after each texture upload
+            ctx.texImage2D = function() {
+              var result = origTexImage2D.apply(this, arguments);
+              origTexParam(ctx.TEXTURE_2D, ctx.TEXTURE_MIN_FILTER, ctx.NEAREST);
+              origTexParam(ctx.TEXTURE_2D, ctx.TEXTURE_MAG_FILTER, ctx.NEAREST);
+              return result;
+            };
+          }
+          return ctx;
         };
       })();
 
@@ -257,7 +271,9 @@
           if (c) {
             c.style.width  = s.w + 'px';
             c.style.height = s.h + 'px';
-            var dpr = window.devicePixelRatio || 1;
+            // Use ceiling of DPR to ensure integer backing store dimensions
+            // Fractional DPR causes subpixel rendering and blur on mobile
+            var dpr = Math.ceil(window.devicePixelRatio || 1);
             c.width  = Math.round(s.w * dpr);
             c.height = Math.round(s.h * dpr);
           }
