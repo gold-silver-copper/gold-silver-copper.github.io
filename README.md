@@ -47,3 +47,4 @@ trunk build --release
 | Navigate docs | Click ◄ Prev / Next ► buttons or use ←/→ keys |
 | Navigate blog | Click a post in the sidebar or use ↑/↓ keys |
 | Open links | Click any link on the Links page |
+
