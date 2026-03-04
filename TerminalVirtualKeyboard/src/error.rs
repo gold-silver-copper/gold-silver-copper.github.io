@@ -7,7 +7,7 @@ pub enum ParserError {
     IOError(#[from] std::io::Error),
     #[error("{0}")]
     Err(String),
-    #[error("IO error: {0}")]
+    #[error("Parse error: {0}")]
     ParseIntError(#[from] ParseIntError),
 }
 

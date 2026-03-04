@@ -97,7 +97,7 @@ impl Parser {
                 let name = ident.value.clone();
                 match env.get(name.as_str()) {
                     Some(v) => Ok(*v),
-                    None => Err(ParserError::Err(format!("Unbounded Variable {:?}.", name))),
+                    None => Err(ParserError::Err(format!("Unbound Variable {:?}.", name))),
                 }
             }
             _ => Err(ParserError::Err(
