@@ -2368,8 +2368,7 @@ impl App {
             selected_idx - 1
         };
         cursor = center_x - divider_width as i32;
-        let max_left_iters = num_pages + 1;
-        for _ in 0..max_left_iters {
+        loop {
             let w = tab_widths[idx];
             let tab_start = cursor - w as i32;
             entries.push((idx, tab_start, w, false));
