@@ -12,3 +12,4 @@ tachyonfx = { version = "0.25.0", features = ["wasm", "std", "dsl"] }
 web-time = "1.1"
 web-sys = "0.3"
 unicode-width = "0.2"
+tvk = { path = "../TerminalVirtualKeyboard", default-features = false }

@@ -13,6 +13,10 @@ use ratzilla::WebGl2Backend;
 use ratzilla::WebRenderer;
 use unicode_width::UnicodeWidthChar;
 
+use std::collections::HashSet;
+use tvk::virtual_key::VirtualKey;
+use tvk::layout::lisp_keyboard_layout;
+
 use tachyonfx::fx::{self};
 use tachyonfx::dsl::EffectDsl;
 use tachyonfx::{CellFilter, Duration, Effect, EffectRenderer, EffectTimer, Interpolation, Motion};
@@ -1619,6 +1623,14 @@ struct App {
     frame_elapsed: Duration,
     // Navbar breathing effect tick (separate from bg_tick for independent rate)
     navbar_breath_tick: f64,
+    // Virtual keyboard state (TVK)
+    keyboard_shifted: bool,
+    keyboard_pressed_ticks: Vec<(VirtualKey, u8)>,
+    keyboard_button_areas: Vec<(Rect, String)>,
+    keyboard_layout: tvk::layout::Layout,
+    keyboard_env: tvk::env::Env,
+    // Blog navigation effect
+    blog_nav_effect: Option<Effect>,
 }
 
 impl App {
@@ -1672,6 +1684,17 @@ impl App {
             dsl_effects_cache: Vec::new(),
             frame_elapsed: Duration::from_millis(0),
             navbar_breath_tick: 0.0,
+            keyboard_shifted: false,
+            keyboard_pressed_ticks: Vec::new(),
+            keyboard_button_areas: Vec::new(),
+            keyboard_layout: lisp_keyboard_layout(),
+            keyboard_env: {
+                let mut env = tvk::env::Env::new();
+                env.insert("border_color", tvk::env::Value::RGB(55, 60, 70));
+                env.insert("highlight", tvk::env::Value::RGB(207, 181, 59));
+                env
+            },
+            blog_nav_effect: None,
         }
     }
 
@@ -1833,6 +1856,14 @@ impl App {
                 }
             }
             FocusMode::Focused => {
+                // Flash pressed key on virtual keyboard
+                if self.page == Page::Repl {
+                    if let Some(vk) = keycode_to_virtual_key(key.code) {
+                        // Remove any existing entry for this key and add fresh
+                        self.keyboard_pressed_ticks.retain(|(k, _)| *k != vk);
+                        self.keyboard_pressed_ticks.push((vk, 8));
+                    }
+                }
                 // Check for Escape first — always returns to outer mode
                 if key.code == KeyCode::Esc {
                     // For Blog post view, first exit to title list (stay focused)
@@ -1843,6 +1874,8 @@ impl App {
                         return;
                     }
                     self.focus_mode = FocusMode::Outer;
+                    self.keyboard_shifted = false;
+                    self.keyboard_pressed_ticks.clear();
                     // Blur REPL virtual keyboard when leaving focus
                     if self.page == Page::Repl {
                         let _ = web_sys::js_sys::eval("window._replTabActive=false;window._blurReplInput&&window._blurReplInput()");
@@ -2044,6 +2077,23 @@ impl App {
                 }
             }
 
+            // Virtual keyboard button clicks (REPL page, focused mode)
+            if self.page == Page::Repl && self.focus_mode == FocusMode::Focused {
+                let mut kbd_hit: Option<(Rect, String)> = None;
+                for (btn_area, display_name) in &self.keyboard_button_areas {
+                    if col >= btn_area.x && col < btn_area.right()
+                        && row >= btn_area.y && row < btn_area.bottom()
+                    {
+                        kbd_hit = Some((*btn_area, display_name.clone()));
+                        break;
+                    }
+                }
+                if let Some((btn_area, display_name)) = kbd_hit {
+                    self.handle_keyboard_tap(&display_name);
+                    self.trigger_btn_effect(btn_area);
+                }
+            }
+
             // Check scroll arrow button clicks
             if self.scroll_up_area.width > 0
                 && col >= self.scroll_up_area.x
@@ -2175,12 +2225,22 @@ impl App {
                     if self.blog_index > 0 {
                         self.blog_index -= 1;
                         self.blog_scroll = 0;
+                        let dark = Color::Rgb(8, 9, 14);
+                        self.blog_nav_effect = Some(fx::sweep_in(
+                            Motion::DownToUp, 4, 2, dark,
+                            EffectTimer::from_ms(300, Interpolation::QuadOut),
+                        ));
                     }
                 }
                 KeyCode::Down => {
                     if self.blog_index + 1 < BLOG_ENTRIES.len() {
                         self.blog_index += 1;
                         self.blog_scroll = 0;
+                        let dark = Color::Rgb(8, 9, 14);
+                        self.blog_nav_effect = Some(fx::sweep_in(
+                            Motion::UpToDown, 4, 2, dark,
+                            EffectTimer::from_ms(300, Interpolation::QuadOut),
+                        ));
                     }
                 }
                 KeyCode::Enter | KeyCode::Right => {
@@ -2191,6 +2251,37 @@ impl App {
                     }
                 }
                 _ => {}
+            }
+        }
+    }
+
+    fn handle_keyboard_tap(&mut self, display_name: &str) {
+        match display_name {
+            "⇧" => {
+                self.keyboard_shifted = !self.keyboard_shifted;
+            }
+            "⌫" => {
+                let key = KeyEvent { code: KeyCode::Backspace, ctrl: false, alt: false, shift: false };
+                self.handle_repl_event(key);
+            }
+            "↵" => {
+                let key = KeyEvent { code: KeyCode::Enter, ctrl: false, alt: false, shift: false };
+                self.handle_repl_event(key);
+            }
+            " " => {
+                let key = KeyEvent { code: KeyCode::Char(' '), ctrl: false, alt: false, shift: false };
+                self.handle_repl_event(key);
+            }
+            name => {
+                // Regular character key — dispatch as Char
+                if let Some(ch) = name.chars().next() {
+                    let key = KeyEvent { code: KeyCode::Char(ch), ctrl: false, alt: false, shift: false };
+                    self.handle_repl_event(key);
+                    // Turn off shift after typing a character (sticky shift)
+                    if self.keyboard_shifted {
+                        self.keyboard_shifted = false;
+                    }
+                }
             }
         }
     }
@@ -2404,6 +2495,16 @@ impl App {
             Page::Blog => self.render_blog(frame, content_area),
             Page::About => self.render_about(frame, content_area),
             Page::Effects => self.render_effects(frame, content_area),
+        }
+
+        // Process blog navigation effect
+        if let Some(ref mut effect) = self.blog_nav_effect {
+            if effect.running() {
+                frame.render_effect(effect, content_area, elapsed);
+            }
+        }
+        if self.blog_nav_effect.as_ref().is_some_and(|e| !e.running()) {
+            self.blog_nav_effect = None;
         }
 
         // Focus indicator: subtle border highlight when in focused mode
@@ -2776,7 +2877,21 @@ impl App {
         self.home_scroll = scroll;
     }
 
-    fn render_repl(&self, frame: &mut Frame, area: Rect) {
+    fn render_repl(&mut self, frame: &mut Frame, area: Rect) {
+        // Determine keyboard height: 5 rows × 3 lines = 15 lines for keyboard
+        let show_keyboard = self.focus_mode == FocusMode::Focused;
+        let kbd_height = if show_keyboard { 15 } else { 0 };
+
+        let (repl_area, kbd_area) = if show_keyboard {
+            let [r, k] = Layout::vertical([
+                Constraint::Min(6),
+                Constraint::Length(kbd_height),
+            ]).areas(area);
+            (r, Some(k))
+        } else {
+            (area, None)
+        };
+
         let block = Block::bordered()
             .border_type(BorderType::Rounded)
             .border_style(Color::Rgb(55, 60, 70))
@@ -2787,8 +2902,8 @@ impl App {
                     .style(Style::default().fg(Color::Rgb(55, 60, 70))),
             );
 
-        let inner = block.inner(area);
-        frame.render_widget(block, area);
+        let inner = block.inner(repl_area);
+        frame.render_widget(block, repl_area);
 
         let [input_area, history_area] =
             Layout::vertical([Constraint::Length(3), Constraint::Min(1)]).areas(inner);
@@ -2854,6 +2969,35 @@ impl App {
 
         // Render vertical scrollbar on REPL output if it overflows
         self.render_vertical_scrollbar(frame, history_area, scroll, max_scroll);
+
+        // Render virtual keyboard when focused
+        if let Some(kbd_area) = kbd_area {
+            // Decay keyboard press flash timers
+            self.keyboard_pressed_ticks.retain_mut(|(_, ticks)| {
+                *ticks = ticks.saturating_sub(1);
+                *ticks > 0
+            });
+
+            // Build pressed keys set for rendering
+            let mut pressed: HashSet<VirtualKey> = self.keyboard_pressed_ticks
+                .iter()
+                .map(|(k, _)| *k)
+                .collect();
+            if self.keyboard_shifted {
+                pressed.insert(VirtualKey::ShiftLeft);
+            }
+
+            // Render keyboard and store button areas for click handling
+            self.keyboard_button_areas = tvk::render::render_keyboard_inline(
+                frame,
+                kbd_area,
+                &pressed,
+                &self.keyboard_layout,
+                &self.keyboard_env,
+            );
+        } else {
+            self.keyboard_button_areas.clear();
+        }
     }
 
     fn render_blinking_cursor(&self, frame: &mut Frame, cursor_x: u16, cursor_y: u16, max_x: u16) {
@@ -3032,18 +3176,26 @@ impl App {
 
         for (i, (title, date, _)) in BLOG_ENTRIES.iter().enumerate() {
             blog_line_indices.push(lines.len());
+            let selected = self.blog_index == i && self.focus_mode == FocusMode::Focused;
             let hovered = self
                 .blog_item_areas
                 .get(i)
                 .is_some_and(|r| self.is_hovered(*r));
             let style = if hovered {
                 Style::default().fg(Color::Rgb(255, 255, 255)).bold().add_modifier(Modifier::REVERSED)
+            } else if selected {
+                Style::default().fg(Color::Rgb(207, 181, 59)).bold()
             } else {
                 Style::default().fg(Color::Rgb(200, 200, 210)).bold()
             };
-            let marker = if hovered { "▸ " } else { "  " };
+            let marker = if selected || hovered { "▸ " } else { "  " };
             lines.push(Line::from(format!("{marker}{title}")).style(style));
-            lines.push(Line::styled(format!("    {date}"), Style::default().fg(Color::Rgb(75, 80, 90))));
+            let date_style = if selected {
+                Style::default().fg(Color::Rgb(184, 115, 51))
+            } else {
+                Style::default().fg(Color::Rgb(75, 80, 90))
+            };
+            lines.push(Line::styled(format!("    {date}"), date_style));
             lines.push(Line::from(""));
         }
 
@@ -3627,6 +3779,56 @@ fn open_url(url: &str) {
         .replace('\r', "\\r");
     let js = format!("setTimeout(function(){{window.open('{}','_blank','noopener')}},500)", escaped);
     let _ = web_sys::js_sys::eval(&js);
+}
+
+fn keycode_to_virtual_key(code: KeyCode) -> Option<VirtualKey> {
+    match code {
+        KeyCode::Char(c) => match c.to_ascii_lowercase() {
+            'a' => Some(VirtualKey::KeyA),
+            'b' => Some(VirtualKey::KeyB),
+            'c' => Some(VirtualKey::KeyC),
+            'd' => Some(VirtualKey::KeyD),
+            'e' => Some(VirtualKey::KeyE),
+            'f' => Some(VirtualKey::KeyF),
+            'g' => Some(VirtualKey::KeyG),
+            'h' => Some(VirtualKey::KeyH),
+            'i' => Some(VirtualKey::KeyI),
+            'j' => Some(VirtualKey::KeyJ),
+            'k' => Some(VirtualKey::KeyK),
+            'l' => Some(VirtualKey::KeyL),
+            'm' => Some(VirtualKey::KeyM),
+            'n' => Some(VirtualKey::KeyN),
+            'o' => Some(VirtualKey::KeyO),
+            'p' => Some(VirtualKey::KeyP),
+            'q' => Some(VirtualKey::KeyQ),
+            'r' => Some(VirtualKey::KeyR),
+            's' => Some(VirtualKey::KeyS),
+            't' => Some(VirtualKey::KeyT),
+            'u' => Some(VirtualKey::KeyU),
+            'v' => Some(VirtualKey::KeyV),
+            'w' => Some(VirtualKey::KeyW),
+            'x' => Some(VirtualKey::KeyX),
+            'y' => Some(VirtualKey::KeyY),
+            'z' => Some(VirtualKey::KeyZ),
+            '0' => Some(VirtualKey::Num0),
+            '1' => Some(VirtualKey::Num1),
+            '2' => Some(VirtualKey::Num2),
+            '3' => Some(VirtualKey::Num3),
+            '4' => Some(VirtualKey::Num4),
+            '5' => Some(VirtualKey::Num5),
+            '6' => Some(VirtualKey::Num6),
+            '7' => Some(VirtualKey::Num7),
+            '8' => Some(VirtualKey::Num8),
+            '9' => Some(VirtualKey::Num9),
+            ' ' => Some(VirtualKey::Space),
+            _ => None,
+        },
+        KeyCode::Enter => Some(VirtualKey::Return),
+        KeyCode::Backspace => Some(VirtualKey::Backspace),
+        KeyCode::Tab => Some(VirtualKey::Tab),
+        KeyCode::Esc => Some(VirtualKey::Escape),
+        _ => None,
+    }
 }
 
 fn main() -> std::io::Result<()> {
