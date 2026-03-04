@@ -14,6 +14,7 @@ use ratzilla::WebRenderer;
 use unicode_width::UnicodeWidthChar;
 
 use tachyonfx::fx::{self};
+use tachyonfx::dsl::EffectDsl;
 use tachyonfx::{CellFilter, Duration, Effect, EffectRenderer, EffectTimer, Interpolation, Motion};
 
 const TRAIL_INITIAL_INTENSITY: u8 = 200;
@@ -283,13 +284,1178 @@ Performance Notes\n\
   • Minimal memory footprint — fixed arena with const generics\n\
   • Touch event handlers use passive listeners for smooth scrolling";
 
-const EFFECT_SHOWCASE: &[&str] = &[
-    "FADE",
-    "SWEEP",
-    "SLIDE",
-    "COALESCE",
-    "SHIFT",
+// ---------------------------------------------------------------------------
+// Expanded Effects DSL Showcase
+// ---------------------------------------------------------------------------
+// Each entry: (category, title, DSL expression string).
+// The DSL expressions are compiled at runtime by tachyonfx::dsl::EffectDsl.
+// Effects are wrapped with repeating(ping_pong(...)) so they loop forever.
+// ---------------------------------------------------------------------------
+
+struct DslShowcaseEntry {
+    category: &'static str,
+    title: &'static str,
+    dsl: &'static str,
+}
+
+const DSL_SHOWCASE: &[DslShowcaseEntry] = &[
+    // ── Dissolve / Coalesce ──────────────────────────────────────────────
+    DslShowcaseEntry {
+        category: "Dissolve & Coalesce",
+        title: "dissolve",
+        dsl: "fx::dissolve(2000)",
+    },
+    DslShowcaseEntry {
+        category: "Dissolve & Coalesce",
+        title: "coalesce",
+        dsl: "fx::coalesce(2000)",
+    },
+    DslShowcaseEntry {
+        category: "Dissolve & Coalesce",
+        title: "dissolve (QuadOut)",
+        dsl: "fx::dissolve((2500, QuadOut))",
+    },
+    DslShowcaseEntry {
+        category: "Dissolve & Coalesce",
+        title: "coalesce (SineOut)",
+        dsl: "fx::coalesce((2500, SineOut))",
+    },
+    DslShowcaseEntry {
+        category: "Dissolve & Coalesce",
+        title: "dissolve (BounceOut)",
+        dsl: "fx::dissolve((3000, BounceOut))",
+    },
+    DslShowcaseEntry {
+        category: "Dissolve & Coalesce",
+        title: "dissolve (CubicInOut)",
+        dsl: "fx::dissolve((2500, CubicInOut))",
+    },
+    DslShowcaseEntry {
+        category: "Dissolve & Coalesce",
+        title: "dissolve_to amber",
+        dsl: "fx::dissolve_to(Color::Rgb(207, 181, 59), (2500, QuadOut))",
+    },
+    DslShowcaseEntry {
+        category: "Dissolve & Coalesce",
+        title: "coalesce_from teal",
+        dsl: "fx::coalesce_from(Color::Rgb(0, 180, 180), (2500, CubicOut))",
+    },
+
+    // ── Slide / Sweep ────────────────────────────────────────────────────
+    DslShowcaseEntry {
+        category: "Slide & Sweep",
+        title: "sweep_in L→R",
+        dsl: r#"
+            let bg = Color::Rgb(8, 9, 14);
+            fx::sweep_in(Motion::LeftToRight, 10, 3, bg, (3000, QuadOut))
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Slide & Sweep",
+        title: "sweep_in R→L",
+        dsl: r#"
+            let bg = Color::Rgb(8, 9, 14);
+            fx::sweep_in(Motion::RightToLeft, 10, 3, bg, (3000, QuadOut))
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Slide & Sweep",
+        title: "sweep_in U→D",
+        dsl: r#"
+            let bg = Color::Rgb(8, 9, 14);
+            fx::sweep_in(Motion::UpToDown, 8, 2, bg, (3000, CubicOut))
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Slide & Sweep",
+        title: "sweep_in D→U",
+        dsl: r#"
+            let bg = Color::Rgb(8, 9, 14);
+            fx::sweep_in(Motion::DownToUp, 8, 2, bg, (3000, CubicOut))
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Slide & Sweep",
+        title: "sweep_out L→R",
+        dsl: r#"
+            let bg = Color::Rgb(8, 9, 14);
+            fx::sweep_out(Motion::LeftToRight, 10, 3, bg, (3000, QuadOut))
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Slide & Sweep",
+        title: "slide_in L→R",
+        dsl: r#"
+            let bg = Color::Rgb(8, 9, 14);
+            fx::slide_in(Motion::LeftToRight, 8, 3, bg, (3000, CubicOut))
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Slide & Sweep",
+        title: "slide_in U→D",
+        dsl: r#"
+            let bg = Color::Rgb(8, 9, 14);
+            fx::slide_in(Motion::UpToDown, 8, 3, bg, (3000, CubicOut))
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Slide & Sweep",
+        title: "slide_out R→L",
+        dsl: r#"
+            let bg = Color::Rgb(8, 9, 14);
+            fx::slide_out(Motion::RightToLeft, 8, 3, bg, (3000, QuadOut))
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Slide & Sweep",
+        title: "sweep_in wide L→R",
+        dsl: r#"
+            let bg = Color::Rgb(8, 9, 14);
+            fx::sweep_in(Motion::LeftToRight, 20, 6, bg, (4000, SineOut))
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Slide & Sweep",
+        title: "slide_in narrow D→U",
+        dsl: r#"
+            let bg = Color::Rgb(8, 9, 14);
+            fx::slide_in(Motion::DownToUp, 4, 1, bg, (2500, QuadOut))
+        "#,
+    },
+
+    // ── Color Fading ─────────────────────────────────────────────────────
+    DslShowcaseEntry {
+        category: "Color Fading",
+        title: "fade_from black",
+        dsl: r#"
+            let bg = Color::Rgb(8, 9, 14);
+            fx::fade_from(bg, bg, (3000, CubicOut))
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Color Fading",
+        title: "fade_to_fg red",
+        dsl: "fx::fade_to_fg(Color::Red, (2500, QuadOut))",
+    },
+    DslShowcaseEntry {
+        category: "Color Fading",
+        title: "fade_to_fg blue",
+        dsl: "fx::fade_to_fg(Color::Blue, (2500, SineOut))",
+    },
+    DslShowcaseEntry {
+        category: "Color Fading",
+        title: "fade_to_fg green",
+        dsl: "fx::fade_to_fg(Color::Green, (2500, CubicOut))",
+    },
+    DslShowcaseEntry {
+        category: "Color Fading",
+        title: "fade_to_fg amber",
+        dsl: "fx::fade_to_fg(Color::Rgb(207, 181, 59), (2500, QuadOut))",
+    },
+    DslShowcaseEntry {
+        category: "Color Fading",
+        title: "fade_from_fg cyan",
+        dsl: "fx::fade_from_fg(Color::Cyan, (2500, QuadOut))",
+    },
+    DslShowcaseEntry {
+        category: "Color Fading",
+        title: "fade_from_fg magenta",
+        dsl: "fx::fade_from_fg(Color::Magenta, (3000, SineOut))",
+    },
+    DslShowcaseEntry {
+        category: "Color Fading",
+        title: "fade_to pink→amber",
+        dsl: r#"fx::fade_to(Color::Rgb(255, 105, 180), Color::Rgb(207, 181, 59), (3000, CubicOut))"#,
+    },
+    DslShowcaseEntry {
+        category: "Color Fading",
+        title: "fade_from deep blue",
+        dsl: r#"fx::fade_from(Color::Rgb(0, 30, 90), Color::Rgb(0, 30, 90), (3500, SineOut))"#,
+    },
+    DslShowcaseEntry {
+        category: "Color Fading",
+        title: "fade_to_fg orange (BounceOut)",
+        dsl: "fx::fade_to_fg(Color::Rgb(255, 140, 0), (3000, BounceOut))",
+    },
+
+    // ── HSL Manipulation ─────────────────────────────────────────────────
+    DslShowcaseEntry {
+        category: "HSL Manipulation",
+        title: "hsl_shift_fg warm",
+        dsl: "fx::hsl_shift_fg([30.0, 20.0, 25.0], (3000, SineOut))",
+    },
+    DslShowcaseEntry {
+        category: "HSL Manipulation",
+        title: "hsl_shift_fg cool",
+        dsl: "fx::hsl_shift_fg([-40.0, 15.0, -10.0], (3000, QuadOut))",
+    },
+    DslShowcaseEntry {
+        category: "HSL Manipulation",
+        title: "hsl_shift_fg vibrant",
+        dsl: "fx::hsl_shift_fg([60.0, 40.0, 30.0], (3500, CubicOut))",
+    },
+    DslShowcaseEntry {
+        category: "HSL Manipulation",
+        title: "hsl_shift_fg pastel",
+        dsl: "fx::hsl_shift_fg([20.0, -30.0, 40.0], (3000, SineOut))",
+    },
+    DslShowcaseEntry {
+        category: "HSL Manipulation",
+        title: "hsl_shift_fg neon",
+        dsl: "fx::hsl_shift_fg([90.0, 50.0, 20.0], (4000, QuadInOut))",
+    },
+    DslShowcaseEntry {
+        category: "HSL Manipulation",
+        title: "hsl_shift full spectrum",
+        dsl: "fx::hsl_shift_fg([180.0, 0.0, 0.0], (5000, Linear))",
+    },
+    DslShowcaseEntry {
+        category: "HSL Manipulation",
+        title: "saturate_fg",
+        dsl: "fx::saturate_fg(50.0, (3000, QuadOut))",
+    },
+    DslShowcaseEntry {
+        category: "HSL Manipulation",
+        title: "lighten_fg",
+        dsl: "fx::lighten_fg(40.0, (3000, SineOut))",
+    },
+    DslShowcaseEntry {
+        category: "HSL Manipulation",
+        title: "darken_fg",
+        dsl: "fx::darken_fg(40.0, (3000, QuadOut))",
+    },
+    DslShowcaseEntry {
+        category: "HSL Manipulation",
+        title: "hsl_shift_fg muted sunset",
+        dsl: "fx::hsl_shift_fg([45.0, -20.0, 15.0], (3500, CubicOut))",
+    },
+
+    // ── Paint Effects ────────────────────────────────────────────────────
+    DslShowcaseEntry {
+        category: "Paint Effects",
+        title: "paint_fg gold",
+        dsl: "fx::paint_fg(Color::Rgb(207, 181, 59), (2500, QuadOut))",
+    },
+    DslShowcaseEntry {
+        category: "Paint Effects",
+        title: "paint_fg copper",
+        dsl: "fx::paint_fg(Color::Rgb(184, 115, 51), (2500, CubicOut))",
+    },
+    DslShowcaseEntry {
+        category: "Paint Effects",
+        title: "paint_fg silver",
+        dsl: "fx::paint_fg(Color::Rgb(192, 192, 192), (2500, SineOut))",
+    },
+    DslShowcaseEntry {
+        category: "Paint Effects",
+        title: "paint_fg cyan",
+        dsl: "fx::paint_fg(Color::Cyan, (2500, QuadOut))",
+    },
+    DslShowcaseEntry {
+        category: "Paint Effects",
+        title: "paint_fg hot pink",
+        dsl: "fx::paint_fg(Color::Rgb(255, 105, 180), (2500, CubicOut))",
+    },
+
+    // ── Explosion & Stretch ──────────────────────────────────────────────
+    DslShowcaseEntry {
+        category: "Explosion & Motion",
+        title: "explode",
+        dsl: "fx::explode((3000, QuadOut))",
+    },
+    DslShowcaseEntry {
+        category: "Explosion & Motion",
+        title: "stretch L→R",
+        dsl: "fx::stretch(Motion::LeftToRight, (3000, CubicOut))",
+    },
+    DslShowcaseEntry {
+        category: "Explosion & Motion",
+        title: "stretch U→D",
+        dsl: "fx::stretch(Motion::UpToDown, (3000, QuadOut))",
+    },
+    DslShowcaseEntry {
+        category: "Explosion & Motion",
+        title: "expand L→R",
+        dsl: "fx::expand(Motion::LeftToRight, (3000, CubicOut))",
+    },
+    DslShowcaseEntry {
+        category: "Explosion & Motion",
+        title: "expand U→D",
+        dsl: "fx::expand(Motion::UpToDown, (3000, QuadOut))",
+    },
+    DslShowcaseEntry {
+        category: "Explosion & Motion",
+        title: "translate",
+        dsl: "fx::translate(3, 1, (2500, QuadOut))",
+    },
+    DslShowcaseEntry {
+        category: "Explosion & Motion",
+        title: "translate reverse",
+        dsl: "fx::translate(-3, -1, (2500, CubicOut))",
+    },
+    DslShowcaseEntry {
+        category: "Explosion & Motion",
+        title: "explode (BounceOut)",
+        dsl: "fx::explode((3500, BounceOut))",
+    },
+
+    // ── Sequences & Compositions ─────────────────────────────────────────
+    DslShowcaseEntry {
+        category: "Compositions",
+        title: "sequence: dissolve → coalesce",
+        dsl: r#"
+            fx::sequence(&[
+                fx::dissolve(1500),
+                fx::coalesce(1500)
+            ])
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Compositions",
+        title: "sequence: fade colors",
+        dsl: r#"
+            fx::sequence(&[
+                fx::fade_to_fg(Color::Red, 1000),
+                fx::fade_to_fg(Color::Blue, 1000),
+                fx::fade_to_fg(Color::Green, 1000)
+            ])
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Compositions",
+        title: "parallel: dissolve + hsl",
+        dsl: r#"
+            fx::parallel(&[
+                fx::dissolve((3000, QuadOut)),
+                fx::hsl_shift_fg([60.0, 30.0, 20.0], (3000, SineOut))
+            ])
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Compositions",
+        title: "sequence: triple sweep",
+        dsl: r#"
+            let bg = Color::Rgb(8, 9, 14);
+            fx::sequence(&[
+                fx::sweep_in(Motion::LeftToRight, 10, 3, bg, (1200, QuadOut)),
+                fx::sweep_in(Motion::RightToLeft, 10, 3, bg, (1200, QuadOut)),
+                fx::sweep_in(Motion::UpToDown, 8, 2, bg, (1200, CubicOut))
+            ])
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Compositions",
+        title: "parallel: fade + sweep",
+        dsl: r#"
+            let bg = Color::Rgb(8, 9, 14);
+            fx::parallel(&[
+                fx::fade_to_fg(Color::Rgb(207, 181, 59), (3000, QuadOut)),
+                fx::sweep_in(Motion::LeftToRight, 15, 5, bg, (3000, SineOut))
+            ])
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Compositions",
+        title: "sequence: paint chain",
+        dsl: r#"
+            fx::sequence(&[
+                fx::paint_fg(Color::Red, 800),
+                fx::paint_fg(Color::Rgb(255, 165, 0), 800),
+                fx::paint_fg(Color::Yellow, 800),
+                fx::paint_fg(Color::Green, 800)
+            ])
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Compositions",
+        title: "parallel: triple shift",
+        dsl: r#"
+            fx::parallel(&[
+                fx::hsl_shift_fg([120.0, 0.0, 0.0], (4000, Linear)),
+                fx::lighten_fg(20.0, (4000, SineOut)),
+                fx::saturate_fg(30.0, (4000, QuadOut))
+            ])
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Compositions",
+        title: "sequence: slide bounce",
+        dsl: r#"
+            let bg = Color::Rgb(8, 9, 14);
+            fx::sequence(&[
+                fx::slide_in(Motion::LeftToRight, 8, 3, bg, (1500, BounceOut)),
+                fx::slide_in(Motion::RightToLeft, 8, 3, bg, (1500, BounceOut))
+            ])
+        "#,
+    },
+
+    // ── With Patterns ────────────────────────────────────────────────────
+    DslShowcaseEntry {
+        category: "Patterns",
+        title: "dissolve + radial center",
+        dsl: r#"
+            fx::dissolve((3000, QuadOut))
+                .with_pattern(RadialPattern::center())
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Patterns",
+        title: "coalesce + radial center",
+        dsl: r#"
+            fx::coalesce((3000, CubicOut))
+                .with_pattern(RadialPattern::center())
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Patterns",
+        title: "dissolve + diamond",
+        dsl: r#"
+            fx::dissolve((3000, QuadOut))
+                .with_pattern(DiamondPattern::center())
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Patterns",
+        title: "coalesce + diamond",
+        dsl: r#"
+            fx::coalesce((3000, SineOut))
+                .with_pattern(DiamondPattern::center())
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Patterns",
+        title: "dissolve + spiral 4 arms",
+        dsl: r#"
+            fx::dissolve((4000, Linear))
+                .with_pattern(SpiralPattern::center().with_arms(4))
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Patterns",
+        title: "coalesce + spiral 6 arms",
+        dsl: r#"
+            fx::coalesce((4000, Linear))
+                .with_pattern(SpiralPattern::center().with_arms(6))
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Patterns",
+        title: "dissolve + diagonal TL→BR",
+        dsl: r#"
+            fx::dissolve((3000, QuadOut))
+                .with_pattern(DiagonalPattern::top_left_to_bottom_right())
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Patterns",
+        title: "dissolve + checkerboard",
+        dsl: r#"
+            fx::dissolve((3000, CubicOut))
+                .with_pattern(CheckerboardPattern::default())
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Patterns",
+        title: "dissolve + sweep pattern L→R",
+        dsl: r#"
+            fx::dissolve((3000, QuadOut))
+                .with_pattern(SweepPattern::left_to_right())
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Patterns",
+        title: "coalesce + inverted radial",
+        dsl: r#"
+            fx::coalesce((3000, SineOut))
+                .with_pattern(InvertedPattern::new(RadialPattern::center()))
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Patterns",
+        title: "dissolve + spiral wide",
+        dsl: r#"
+            fx::dissolve((4000, QuadOut))
+                .with_pattern(
+                    SpiralPattern::center()
+                        .with_arms(3)
+                        .with_transition_width(2.5)
+                )
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Patterns",
+        title: "dissolve + combined radial×diamond",
+        dsl: r#"
+            fx::dissolve((4000, SineOut))
+                .with_pattern(CombinedPattern::multiply(
+                    RadialPattern::center(),
+                    DiamondPattern::center()
+                ))
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Patterns",
+        title: "coalesce + blend spiral↔radial",
+        dsl: r#"
+            fx::coalesce((4000, QuadOut))
+                .with_pattern(BlendPattern::new(
+                    SpiralPattern::center().with_arms(4),
+                    RadialPattern::center()
+                ))
+        "#,
+    },
+
+    // ── Wave Patterns ────────────────────────────────────────────────────
+    DslShowcaseEntry {
+        category: "Wave Patterns",
+        title: "dissolve + sine wave",
+        dsl: r#"
+            fx::dissolve((4000, Linear))
+                .with_pattern(WavePattern::new(
+                    WaveLayer::new(Oscillator::sin(2.0, 0.0, 1.0))
+                ))
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Wave Patterns",
+        title: "dissolve + cos wave",
+        dsl: r#"
+            fx::dissolve((4000, Linear))
+                .with_pattern(WavePattern::new(
+                    WaveLayer::new(Oscillator::cos(0.0, 3.0, 0.5))
+                ))
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Wave Patterns",
+        title: "coalesce + triangle wave",
+        dsl: r#"
+            fx::coalesce((4000, Linear))
+                .with_pattern(WavePattern::new(
+                    WaveLayer::new(Oscillator::triangle(2.0, 2.0, 0.8))
+                ))
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Wave Patterns",
+        title: "dissolve + sawtooth wave",
+        dsl: r#"
+            fx::dissolve((4000, Linear))
+                .with_pattern(WavePattern::new(
+                    WaveLayer::new(Oscillator::sawtooth(3.0, 0.0, 1.0))
+                ))
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Wave Patterns",
+        title: "dissolve + modulated wave",
+        dsl: r#"
+            fx::dissolve((5000, Linear))
+                .with_pattern(WavePattern::new(
+                    WaveLayer::new(
+                        Oscillator::sin(2.0, 0.0, 1.0)
+                            .modulated_by(Modulator::sin(1.0, 1.0, 0.25).intensity(0.5))
+                    )
+                ))
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Wave Patterns",
+        title: "coalesce + multiplied waves",
+        dsl: r#"
+            fx::coalesce((5000, Linear))
+                .with_pattern(WavePattern::new(
+                    WaveLayer::new(Oscillator::sin(2.0, 0.0, 1.0))
+                        .multiply(Oscillator::cos(0.0, 3.0, 0.5))
+                ))
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Wave Patterns",
+        title: "dissolve + wave contrast",
+        dsl: r#"
+            fx::dissolve((4500, Linear))
+                .with_pattern(
+                    WavePattern::new(
+                        WaveLayer::new(Oscillator::sin(3.0, 0.0, 0.8))
+                            .amplitude(0.9)
+                    ).with_contrast(3)
+                )
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Wave Patterns",
+        title: "dissolve + complex wave",
+        dsl: r#"
+            fx::dissolve((6000, Linear))
+                .with_pattern(WavePattern::new(
+                    WaveLayer::new(Oscillator::sin(2.0, 0.0, 1.0))
+                        .multiply(
+                            Oscillator::cos(0.0, 3.0, 0.5)
+                                .modulated_by(
+                                    Modulator::sin(1.0, 1.0, 0.25)
+                                        .intensity(0.5)
+                                )
+                        )
+                        .amplitude(0.8)
+                ))
+        "#,
+    },
+
+    // ── Timing & Control ─────────────────────────────────────────────────
+    DslShowcaseEntry {
+        category: "Timing & Control",
+        title: "with_duration dissolve",
+        dsl: "fx::with_duration(4000, fx::dissolve(2000))",
+    },
+    DslShowcaseEntry {
+        category: "Timing & Control",
+        title: "delay + coalesce",
+        dsl: r#"
+            fx::sequence(&[
+                fx::sleep(500),
+                fx::coalesce((2500, SineOut))
+            ])
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Timing & Control",
+        title: "prolong_start dissolve",
+        dsl: "fx::prolong_start(500, fx::dissolve((2000, QuadOut)))",
+    },
+    DslShowcaseEntry {
+        category: "Timing & Control",
+        title: "prolong_end coalesce",
+        dsl: "fx::prolong_end(500, fx::coalesce((2000, SineOut)))",
+    },
+    DslShowcaseEntry {
+        category: "Timing & Control",
+        title: "sequence delayed sweeps",
+        dsl: r#"
+            let bg = Color::Rgb(8, 9, 14);
+            fx::sequence(&[
+                fx::sweep_in(Motion::LeftToRight, 10, 3, bg, (1200, QuadOut)),
+                fx::sleep(300),
+                fx::sweep_in(Motion::RightToLeft, 10, 3, bg, (1200, QuadOut)),
+                fx::sleep(300),
+                fx::sweep_in(Motion::UpToDown, 8, 2, bg, (1200, CubicOut))
+            ])
+        "#,
+    },
+
+    // ── Cell Filters ─────────────────────────────────────────────────────
+    DslShowcaseEntry {
+        category: "Cell Filters",
+        title: "dissolve Text only",
+        dsl: r#"
+            fx::dissolve((2500, QuadOut))
+                .with_filter(CellFilter::Text)
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Cell Filters",
+        title: "fade_to_fg NonEmpty",
+        dsl: r#"
+            fx::fade_to_fg(Color::Rgb(207, 181, 59), (2500, SineOut))
+                .with_filter(CellFilter::NonEmpty)
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Cell Filters",
+        title: "hsl_shift Text filter",
+        dsl: r#"
+            fx::hsl_shift_fg([45.0, 25.0, 20.0], (3000, QuadOut))
+                .with_filter(CellFilter::Text)
+        "#,
+    },
+
+    // ── Interpolation Showcase ───────────────────────────────────────────
+    DslShowcaseEntry {
+        category: "Interpolation",
+        title: "dissolve Linear",
+        dsl: "fx::dissolve((3000, Linear))",
+    },
+    DslShowcaseEntry {
+        category: "Interpolation",
+        title: "dissolve QuadIn",
+        dsl: "fx::dissolve((3000, QuadIn))",
+    },
+    DslShowcaseEntry {
+        category: "Interpolation",
+        title: "dissolve QuadOut",
+        dsl: "fx::dissolve((3000, QuadOut))",
+    },
+    DslShowcaseEntry {
+        category: "Interpolation",
+        title: "dissolve CubicIn",
+        dsl: "fx::dissolve((3000, CubicIn))",
+    },
+    DslShowcaseEntry {
+        category: "Interpolation",
+        title: "dissolve CubicOut",
+        dsl: "fx::dissolve((3000, CubicOut))",
+    },
+    DslShowcaseEntry {
+        category: "Interpolation",
+        title: "dissolve CubicInOut",
+        dsl: "fx::dissolve((3000, CubicInOut))",
+    },
+    DslShowcaseEntry {
+        category: "Interpolation",
+        title: "dissolve SineIn",
+        dsl: "fx::dissolve((3000, SineIn))",
+    },
+    DslShowcaseEntry {
+        category: "Interpolation",
+        title: "dissolve SineOut",
+        dsl: "fx::dissolve((3000, SineOut))",
+    },
+    DslShowcaseEntry {
+        category: "Interpolation",
+        title: "dissolve BounceOut",
+        dsl: "fx::dissolve((3000, BounceOut))",
+    },
+    DslShowcaseEntry {
+        category: "Interpolation",
+        title: "dissolve BounceIn",
+        dsl: "fx::dissolve((3000, BounceIn))",
+    },
+    DslShowcaseEntry {
+        category: "Interpolation",
+        title: "dissolve ExpoOut",
+        dsl: "fx::dissolve((3000, ExpoOut))",
+    },
+    DslShowcaseEntry {
+        category: "Interpolation",
+        title: "dissolve ElasticOut",
+        dsl: "fx::dissolve((3000, ElasticOut))",
+    },
+
+    // ── Color Space ──────────────────────────────────────────────────────
+    DslShowcaseEntry {
+        category: "Color Space",
+        title: "fade_to_fg HSV",
+        dsl: r#"
+            fx::fade_to_fg(Color::Red, (3000, QuadOut))
+                .with_color_space(ColorSpace::Hsv)
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Color Space",
+        title: "fade_to_fg HSL",
+        dsl: r#"
+            fx::fade_to_fg(Color::Blue, (3000, SineOut))
+                .with_color_space(ColorSpace::Hsl)
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Color Space",
+        title: "fade_to_fg RGB",
+        dsl: r#"
+            fx::fade_to_fg(Color::Green, (3000, CubicOut))
+                .with_color_space(ColorSpace::Rgb)
+        "#,
+    },
+
+    // ── Evolution Effects ────────────────────────────────────────────────
+    DslShowcaseEntry {
+        category: "Evolution",
+        title: "evolve Shaded",
+        dsl: "fx::evolve(EvolveSymbolSet::Shaded, (3000, QuadOut))",
+    },
+    DslShowcaseEntry {
+        category: "Evolution",
+        title: "evolve Quadrants",
+        dsl: "fx::evolve(EvolveSymbolSet::Quadrants, (3000, CubicOut))",
+    },
+    DslShowcaseEntry {
+        category: "Evolution",
+        title: "evolve BlocksHorizontal",
+        dsl: "fx::evolve(EvolveSymbolSet::BlocksHorizontal, (3000, SineOut))",
+    },
+    DslShowcaseEntry {
+        category: "Evolution",
+        title: "evolve BlocksVertical",
+        dsl: "fx::evolve(EvolveSymbolSet::BlocksVertical, (3000, QuadOut))",
+    },
+    DslShowcaseEntry {
+        category: "Evolution",
+        title: "evolve_into Circles",
+        dsl: r#"fx::evolve_into(EvolveSymbolSet::Circles, "◉", (3000, CubicOut))"#,
+    },
+    DslShowcaseEntry {
+        category: "Evolution",
+        title: "evolve_from Squares",
+        dsl: r#"fx::evolve_from(EvolveSymbolSet::Squares, "■", (3000, QuadOut))"#,
+    },
+
+    // ── Advanced Compositions ────────────────────────────────────────────
+    DslShowcaseEntry {
+        category: "Advanced",
+        title: "parallel paint + dissolve",
+        dsl: r#"
+            fx::parallel(&[
+                fx::paint_fg(Color::Rgb(255, 105, 180), (3000, QuadOut)),
+                fx::dissolve((3000, CubicOut))
+            ])
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Advanced",
+        title: "sequence: evolve → dissolve",
+        dsl: r#"
+            fx::sequence(&[
+                fx::evolve(EvolveSymbolSet::Shaded, (1500, QuadOut)),
+                fx::dissolve((1500, CubicOut))
+            ])
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Advanced",
+        title: "parallel: sweep + fade + shift",
+        dsl: r#"
+            let bg = Color::Rgb(8, 9, 14);
+            fx::parallel(&[
+                fx::sweep_in(Motion::LeftToRight, 10, 3, bg, (3500, QuadOut)),
+                fx::fade_to_fg(Color::Rgb(207, 181, 59), (3500, SineOut)),
+                fx::hsl_shift_fg([20.0, 15.0, 10.0], (3500, CubicOut))
+            ])
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Advanced",
+        title: "dissolve radial + hsl",
+        dsl: r#"
+            fx::parallel(&[
+                fx::dissolve((4000, QuadOut))
+                    .with_pattern(RadialPattern::center()),
+                fx::hsl_shift_fg([90.0, 30.0, 0.0], (4000, Linear))
+            ])
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Advanced",
+        title: "wave dissolve + fade gold",
+        dsl: r#"
+            fx::parallel(&[
+                fx::dissolve((5000, Linear))
+                    .with_pattern(WavePattern::new(
+                        WaveLayer::new(Oscillator::sin(2.0, 1.0, 0.5))
+                    )),
+                fx::fade_to_fg(Color::Rgb(207, 181, 59), (5000, SineOut))
+            ])
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Advanced",
+        title: "spiral dissolve + paint",
+        dsl: r#"
+            fx::parallel(&[
+                fx::dissolve((4000, Linear))
+                    .with_pattern(SpiralPattern::center().with_arms(5)),
+                fx::paint_fg(Color::Rgb(0, 200, 200), (4000, QuadOut))
+            ])
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Advanced",
+        title: "checkerboard + saturate",
+        dsl: r#"
+            fx::parallel(&[
+                fx::coalesce((4000, QuadOut))
+                    .with_pattern(CheckerboardPattern::default()),
+                fx::saturate_fg(40.0, (4000, SineOut))
+            ])
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Advanced",
+        title: "diamond dissolve + darken",
+        dsl: r#"
+            fx::parallel(&[
+                fx::dissolve((3500, CubicOut))
+                    .with_pattern(DiamondPattern::center()),
+                fx::darken_fg(30.0, (3500, QuadOut))
+            ])
+        "#,
+    },
 ];
+
+/// Number of procedurally generated effects beyond the static list.
+/// Together with DSL_SHOWCASE these form an infinitely scrollable list.
+const PROCEDURAL_EFFECT_COUNT: usize = 200;
+
+/// Total showcase entries (static + procedural).
+fn total_dsl_effects() -> usize {
+    DSL_SHOWCASE.len() + PROCEDURAL_EFFECT_COUNT
+}
+
+/// Procedurally generate a DSL string and title for indices beyond the static
+/// DSL_SHOWCASE table. Uses deterministic mixing of categories, colors,
+/// interpolations, patterns, and timings so every index yields a unique
+/// combination.
+fn procedural_dsl_entry(index: usize) -> (String, String, String) {
+    // Deterministic seed from index
+    let seed = index.wrapping_mul(2654435761); // Knuth multiplicative hash
+
+    // ── palettes ────────────────────────────────────────────────────────
+    const COLORS: &[&str] = &[
+        "Color::Rgb(207, 181, 59)",   // gold
+        "Color::Rgb(184, 115, 51)",   // copper
+        "Color::Rgb(192, 192, 192)",  // silver
+        "Color::Rgb(0, 180, 180)",    // teal
+        "Color::Rgb(255, 105, 180)",  // hot pink
+        "Color::Rgb(100, 149, 237)",  // cornflower
+        "Color::Rgb(255, 140, 0)",    // dark orange
+        "Color::Rgb(138, 43, 226)",   // blue violet
+        "Color::Rgb(50, 205, 50)",    // lime green
+        "Color::Rgb(220, 20, 60)",    // crimson
+        "Color::Red",
+        "Color::Blue",
+        "Color::Green",
+        "Color::Cyan",
+        "Color::Magenta",
+        "Color::Yellow",
+    ];
+
+    const INTERPS: &[&str] = &[
+        "Linear", "QuadOut", "QuadIn", "CubicOut", "CubicIn", "CubicInOut",
+        "SineOut", "SineIn", "BounceOut", "ExpoOut", "ElasticOut", "QuadInOut",
+    ];
+
+    const MOTIONS: &[&str] = &[
+        "Motion::LeftToRight",
+        "Motion::RightToLeft",
+        "Motion::UpToDown",
+        "Motion::DownToUp",
+    ];
+
+    const HSL_SETS: &[(f32, f32, f32)] = &[
+        (30.0, 20.0, 25.0),
+        (-40.0, 15.0, -10.0),
+        (60.0, 40.0, 30.0),
+        (90.0, 50.0, 20.0),
+        (20.0, -30.0, 40.0),
+        (180.0, 0.0, 0.0),
+        (45.0, -20.0, 15.0),
+        (-90.0, 30.0, -20.0),
+        (120.0, 10.0, 10.0),
+        (15.0, 40.0, -15.0),
+    ];
+
+    const EVOLVE_SETS: &[&str] = &[
+        "EvolveSymbolSet::Shaded",
+        "EvolveSymbolSet::Quadrants",
+        "EvolveSymbolSet::BlocksHorizontal",
+        "EvolveSymbolSet::BlocksVertical",
+        "EvolveSymbolSet::Circles",
+        "EvolveSymbolSet::Squares",
+    ];
+
+    // Pick values from seed
+    let pick = |arr_len: usize, salt: usize| -> usize {
+        (seed.wrapping_add(salt).wrapping_mul(2246822519)) % arr_len
+    };
+
+    let color_a = COLORS[pick(COLORS.len(), 0)];
+    let color_b = COLORS[pick(COLORS.len(), 7)];
+    let interp = INTERPS[pick(INTERPS.len(), 1)];
+    let interp2 = INTERPS[pick(INTERPS.len(), 11)];
+    let motion = MOTIONS[pick(MOTIONS.len(), 2)];
+    let hsl = HSL_SETS[pick(HSL_SETS.len(), 3)];
+    let evolve = EVOLVE_SETS[pick(EVOLVE_SETS.len(), 4)];
+    let duration = 2000 + (pick(5, 5) as u32) * 500;
+    let duration2 = 1000 + (pick(4, 6) as u32) * 500;
+    let arms = 2 + pick(6, 8) as u32;
+
+    let category_idx = index % 12;
+
+    let (category, title, dsl) = match category_idx {
+        0 => {
+            // Dissolve with pattern variation
+            let patterns = [
+                "RadialPattern::center()".to_string(),
+                "DiamondPattern::center()".to_string(),
+                format!("SpiralPattern::center().with_arms({})", arms),
+                "DiagonalPattern::top_left_to_bottom_right()".to_string(),
+                "CheckerboardPattern::default()".to_string(),
+                "SweepPattern::left_to_right()".to_string(),
+            ];
+            let pat = &patterns[pick(patterns.len(), 9)];
+            (
+                "Procedural: Dissolve+Pattern".to_string(),
+                format!("dissolve #{} pattern", index + 1),
+                format!(
+                    "fx::dissolve(({}, {}))\n    .with_pattern({})",
+                    duration, interp, pat
+                ),
+            )
+        }
+        1 => {
+            // Coalesce with pattern
+            let patterns = [
+                "RadialPattern::center()".to_string(),
+                "DiamondPattern::center()".to_string(),
+                format!("SpiralPattern::center().with_arms({})", arms),
+                "InvertedPattern::new(RadialPattern::center())".to_string(),
+            ];
+            let pat = &patterns[pick(patterns.len(), 10)];
+            (
+                "Procedural: Coalesce+Pattern".to_string(),
+                format!("coalesce #{} pattern", index + 1),
+                format!(
+                    "fx::coalesce(({}, {}))\n    .with_pattern({})",
+                    duration, interp, pat
+                ),
+            )
+        }
+        2 => {
+            // Sweep with varying params
+            let cells = 6 + pick(15, 12) as u16;
+            let gap = pick(5, 13) as u16;
+            (
+                "Procedural: Sweep".to_string(),
+                format!("sweep #{} {}", index + 1, &motion[8..]),
+                format!(
+                    "let bg = Color::Rgb(8, 9, 14);\nfx::sweep_in({}, {}, {}, bg, ({}, {}))",
+                    motion, cells, gap, duration, interp
+                ),
+            )
+        }
+        3 => {
+            // Slide with varying params
+            let cells = 4 + pick(10, 14) as u16;
+            let gap = 1 + pick(4, 15) as u16;
+            (
+                "Procedural: Slide".to_string(),
+                format!("slide #{} {}", index + 1, &motion[8..]),
+                format!(
+                    "let bg = Color::Rgb(8, 9, 14);\nfx::slide_in({}, {}, {}, bg, ({}, {}))",
+                    motion, cells, gap, duration, interp
+                ),
+            )
+        }
+        4 => {
+            // Fade to fg color
+            (
+                "Procedural: Fade".to_string(),
+                format!("fade_to_fg #{}", index + 1),
+                format!(
+                    "fx::fade_to_fg({}, ({}, {}))",
+                    color_a, duration, interp
+                ),
+            )
+        }
+        5 => {
+            // HSL shift
+            (
+                "Procedural: HSL Shift".to_string(),
+                format!("hsl_shift #{}", index + 1),
+                format!(
+                    "fx::hsl_shift_fg([{:.1}, {:.1}, {:.1}], ({}, {}))",
+                    hsl.0, hsl.1, hsl.2, duration, interp
+                ),
+            )
+        }
+        6 => {
+            // Paint fg
+            (
+                "Procedural: Paint".to_string(),
+                format!("paint_fg #{}", index + 1),
+                format!(
+                    "fx::paint_fg({}, ({}, {}))",
+                    color_a, duration, interp
+                ),
+            )
+        }
+        7 => {
+            // Evolve
+            (
+                "Procedural: Evolution".to_string(),
+                format!("evolve #{}", index + 1),
+                format!(
+                    "fx::evolve({}, ({}, {}))",
+                    evolve, duration, interp
+                ),
+            )
+        }
+        8 => {
+            // Sequence: dissolve → coalesce with different interps
+            (
+                "Procedural: Sequence".to_string(),
+                format!("seq dissolve→coalesce #{}", index + 1),
+                format!(
+                    "fx::sequence(&[\n    fx::dissolve(({}, {})),\n    fx::coalesce(({}, {}))\n])",
+                    duration2, interp, duration2, interp2
+                ),
+            )
+        }
+        9 => {
+            // Parallel: fade + dissolve with pattern
+            let patterns = [
+                "RadialPattern::center()".to_string(),
+                "DiamondPattern::center()".to_string(),
+                format!("SpiralPattern::center().with_arms({})", arms),
+            ];
+            let pat = &patterns[pick(patterns.len(), 16)];
+            (
+                "Procedural: Parallel".to_string(),
+                format!("parallel fade+dissolve #{}", index + 1),
+                format!(
+                    "fx::parallel(&[\n    fx::fade_to_fg({}, ({}, {})),\n    fx::dissolve(({}, {}))\n        .with_pattern({})\n])",
+                    color_a, duration, interp, duration, interp2, pat
+                ),
+            )
+        }
+        10 => {
+            // Wave pattern dissolve
+            let kx = 1.0 + (pick(5, 17) as f32) * 0.5;
+            let ky = (pick(4, 18) as f32) * 1.0;
+            let kt = 0.3 + (pick(4, 19) as f32) * 0.3;
+            let wave_types = ["sin", "cos", "triangle", "sawtooth"];
+            let wt = wave_types[pick(wave_types.len(), 20)];
+            (
+                "Procedural: Wave".to_string(),
+                format!("wave {} dissolve #{}", wt, index + 1),
+                format!(
+                    "fx::dissolve(({}, Linear))\n    .with_pattern(WavePattern::new(\n        WaveLayer::new(Oscillator::{}({:.1}, {:.1}, {:.1}))\n    ))",
+                    duration + 1000, wt, kx, ky, kt
+                ),
+            )
+        }
+        11 => {
+            // Sequence: paint chain
+            (
+                "Procedural: Paint Chain".to_string(),
+                format!("paint chain #{}", index + 1),
+                format!(
+                    "fx::sequence(&[\n    fx::paint_fg({}, {}),\n    fx::paint_fg({}, {})\n])",
+                    color_a, duration2, color_b, duration2
+                ),
+            )
+        }
+        _ => unreachable!(),
+    };
+
+    (category, title, dsl)
+}
+
+/// Compile a DSL expression string into a looping (repeating + ping_pong) Effect.
+fn compile_dsl_effect(dsl_src: &str) -> Option<Effect> {
+    let dsl = EffectDsl::new();
+    // Wrap the user expression in repeating(ping_pong(...)) for infinite loop
+    let wrapped = format!("fx::repeating(fx::ping_pong({}))", dsl_src.trim());
+    match dsl.compiler().compile(&wrapped) {
+        Ok(effect) => Some(effect),
+        Err(_) => {
+            // Fallback: try without wrapping (some effects might not support ping_pong)
+            match dsl.compiler().compile(dsl_src.trim()) {
+                Ok(effect) => Some(fx::repeating(fx::ping_pong(effect))),
+                Err(_) => None,
+            }
+        }
+    }
+}
 
 const BLOG_ENTRIES: &[(&str, &str, &str)] = &[
     (
@@ -488,10 +1654,9 @@ struct App {
     last_hovered_tab: Option<usize>,
     link_hover_effects: Vec<(usize, Effect)>,
     last_hovered_link: Option<usize>,
-    // Effects showcase state
-    effects_index: usize,
-    effects_list: Vec<Effect>,
-    effects_cycle_elapsed: std::time::Duration,
+    // DSL effects showcase state (infinitely scrollable)
+    dsl_effects_scroll: usize,
+    dsl_effects_cache: Vec<Option<Effect>>,
     frame_elapsed: Duration,
 }
 
@@ -540,9 +1705,8 @@ impl App {
             last_hovered_tab: None,
             link_hover_effects: Vec::new(),
             last_hovered_link: None,
-            effects_index: 0,
-            effects_list: Vec::new(),
-            effects_cycle_elapsed: std::time::Duration::ZERO,
+            dsl_effects_scroll: 0,
+            dsl_effects_cache: Vec::new(),
             frame_elapsed: Duration::from_millis(0),
         }
     }
@@ -907,19 +2071,21 @@ impl App {
     }
 
     fn handle_effects_event(&mut self, key: KeyEvent) {
-        let len = EFFECT_SHOWCASE.len();
+        let step = 2;
         match key.code {
-            KeyCode::Left | KeyCode::Up => {
-                if self.effects_index > 0 {
-                    self.effects_index -= 1;
-                } else {
-                    self.effects_index = len - 1;
-                }
-                self.effects_cycle_elapsed = std::time::Duration::ZERO;
+            KeyCode::Up => {
+                self.dsl_effects_scroll = self.dsl_effects_scroll.saturating_sub(step);
             }
-            KeyCode::Right | KeyCode::Down => {
-                self.effects_index = (self.effects_index + 1) % len;
-                self.effects_cycle_elapsed = std::time::Duration::ZERO;
+            KeyCode::Down => {
+                self.dsl_effects_scroll += step;
+            }
+            KeyCode::Left => {
+                // Jump back by one full page of entries
+                self.dsl_effects_scroll = self.dsl_effects_scroll.saturating_sub(20);
+            }
+            KeyCode::Right => {
+                // Jump forward by one full page of entries
+                self.dsl_effects_scroll += 20;
             }
             _ => {}
         }
@@ -1885,106 +3051,162 @@ impl App {
         );
     }
 
-    fn create_showcase_effect(index: usize) -> Effect {
-        let dark = Color::Rgb(8, 9, 14);
-        match index {
-            0 => { // FADE
-                fx::repeating(fx::ping_pong(fx::fade_from(
-                    dark, dark,
-                    EffectTimer::from_ms(3000, Interpolation::CubicOut),
-                )))
-            }
-            1 => { // SWEEP
-                fx::repeating(fx::ping_pong(fx::sweep_in(
-                    Motion::LeftToRight, 10, 3, dark,
-                    EffectTimer::from_ms(3500, Interpolation::QuadOut),
-                )))
-            }
-            2 => { // SLIDE
-                fx::repeating(fx::ping_pong(fx::slide_in(
-                    Motion::UpToDown, 8, 3, dark,
-                    EffectTimer::from_ms(3500, Interpolation::CubicOut),
-                )))
-            }
-            3 => { // COALESCE
-                fx::repeating(fx::ping_pong(fx::coalesce(
-                    EffectTimer::from_ms(3000, Interpolation::SineOut),
-                )))
-            }
-            _ => { // SHIFT
-                fx::repeating(fx::ping_pong(fx::hsl_shift_fg(
-                    [30.0, 20.0, 25.0],
-                    (3000, Interpolation::SineOut),
-                )))
-            }
+    /// Get (category, title, dsl_src) for the given global index into the
+    /// combined static + procedural effect list.
+    fn dsl_entry_info(global_index: usize) -> (String, String, String) {
+        if global_index < DSL_SHOWCASE.len() {
+            let e = &DSL_SHOWCASE[global_index];
+            (
+                e.category.to_string(),
+                e.title.to_string(),
+                e.dsl.to_string(),
+            )
+        } else {
+            procedural_dsl_entry(global_index - DSL_SHOWCASE.len())
         }
     }
 
+    /// Ensure the DSL effects cache has an entry at `index`, compiling on
+    /// demand. Returns true if an effect exists at that slot.
+    fn ensure_dsl_effect(&mut self, index: usize) -> bool {
+        // Grow cache if needed
+        if index >= self.dsl_effects_cache.len() {
+            self.dsl_effects_cache
+                .resize_with(index + 1, || None);
+        }
+        if self.dsl_effects_cache[index].is_none() {
+            let (_cat, _title, dsl_src) = Self::dsl_entry_info(index);
+            self.dsl_effects_cache[index] = compile_dsl_effect(&dsl_src);
+        }
+        self.dsl_effects_cache[index].is_some()
+    }
+
     fn render_effects(&mut self, frame: &mut Frame, area: Rect) {
-        // Initialize effects if needed
-        if self.effects_list.len() != EFFECT_SHOWCASE.len() {
-            self.effects_list.clear();
-            for i in 0..EFFECT_SHOWCASE.len() {
-                self.effects_list.push(Self::create_showcase_effect(i));
-            }
-        }
-
-        // Auto-cycle every ~10 seconds using accumulated real time
-        let frame_std = std::time::Duration::from_millis(self.frame_elapsed.as_millis() as u64);
-        self.effects_cycle_elapsed += frame_std;
-        if self.effects_cycle_elapsed >= std::time::Duration::from_secs(10) {
-            self.effects_cycle_elapsed = std::time::Duration::ZERO;
-            self.effects_index = (self.effects_index + 1) % EFFECT_SHOWCASE.len();
-        }
-
         let elapsed = self.frame_elapsed;
-        let word = EFFECT_SHOWCASE[self.effects_index];
+        let total = total_dsl_effects();
 
+        // ── outer border ────────────────────────────────────────────────
         let block = Block::bordered()
             .border_type(BorderType::Rounded)
             .border_style(Color::Rgb(55, 60, 70))
-            .title(" TachyonFX Showcase ".bold().fg(Color::Rgb(207, 181, 59)));
+            .title(
+                " TachyonFX DSL Showcase "
+                    .bold()
+                    .fg(Color::Rgb(207, 181, 59)),
+            );
         let inner = block.inner(area);
         frame.render_widget(block, area);
 
-        // Layout: center the 3-row effect container vertically
-        let v_center = inner.height / 2;
-        let container_y = inner.y + v_center.saturating_sub(1);
-        // Clamp so the 3-row container + 1-row nav bar below fit within inner area
-        let container_y = container_y.min(inner.bottom().saturating_sub(4));
-        let container = Rect::new(
-            inner.x + 2,
-            container_y,
-            inner.width.saturating_sub(4),
-            3,
-        );
-
-        // Render word centered in the middle row of the 3-tile container
-        let text = Paragraph::new(vec![
-            Line::from(""),
-            Line::styled(word, Style::default().fg(Color::Rgb(220, 225, 235)).bold()),
-            Line::from(""),
-        ]).alignment(Alignment::Center);
-        frame.render_widget(text, container);
-
-        // Apply the tachyonfx effect to the full 3-row container
-        if let Some(effect) = self.effects_list.get_mut(self.effects_index) {
-            frame.render_effect(effect, container, elapsed);
+        if inner.height < 4 || inner.width < 10 {
+            return;
         }
 
-        // Info bar at bottom
-        let nav = Rect::new(inner.x, inner.bottom().saturating_sub(1), inner.width, 1);
-        let info = format!(
-            "◄ {} / {} ► │ {} │ swipe ↔",
-            self.effects_index + 1,
-            EFFECT_SHOWCASE.len(),
-            word,
-        );
-        frame.render_widget(
-            Paragraph::new(info)
-                .alignment(Alignment::Center)
-                .style(Style::default().fg(Color::Rgb(140, 145, 155))),
-            nav,
+        // ── layout: scrollable entries + nav bar ────────────────────────
+        let [entries_area, nav_bar] =
+            Layout::vertical([Constraint::Min(1), Constraint::Length(1)])
+                .areas(inner);
+
+        // Height of each effect entry: 3-row demo + title line + 1 blank
+        let entry_height: u16 = 5;
+        let visible_slots =
+            (entries_area.height / entry_height).max(1) as usize;
+        let max_scroll = total.saturating_sub(visible_slots);
+        self.dsl_effects_scroll = self.dsl_effects_scroll.min(max_scroll);
+
+        let start_idx = self.dsl_effects_scroll;
+        let end_idx = (start_idx + visible_slots).min(total);
+
+        // ── pre-compile visible effects ─────────────────────────────────
+        for idx in start_idx..end_idx {
+            self.ensure_dsl_effect(idx);
+        }
+
+        // ── render each visible entry ───────────────────────────────────
+        for (slot, idx) in (start_idx..end_idx).enumerate() {
+            let slot_y = entries_area.y + (slot as u16) * entry_height;
+            if slot_y + entry_height > entries_area.bottom() {
+                break;
+            }
+
+            let (category, title, dsl_src) = Self::dsl_entry_info(idx);
+
+            // Title row
+            let title_area = Rect::new(
+                entries_area.x,
+                slot_y,
+                entries_area.width,
+                1,
+            );
+            let label = format!(
+                " {:>3}. [{}] {}",
+                idx + 1,
+                category,
+                title,
+            );
+            frame.render_widget(
+                Paragraph::new(label)
+                    .style(Style::default().fg(Color::Rgb(207, 181, 59)).bold()),
+                title_area,
+            );
+
+            // DSL code hint (first meaningful line, truncated)
+            let code_line = dsl_src
+                .lines()
+                .map(|l| l.trim())
+                .find(|l| !l.is_empty())
+                .unwrap_or("...");
+            let code_area = Rect::new(
+                entries_area.x + 1,
+                slot_y + 1,
+                entries_area.width.saturating_sub(2),
+                1,
+            );
+            let code_display = if code_line.len() > code_area.width as usize {
+                format!("{}…", &code_line[..code_area.width.saturating_sub(2) as usize])
+            } else {
+                code_line.to_string()
+            };
+            frame.render_widget(
+                Paragraph::new(code_display)
+                    .style(Style::default().fg(Color::Rgb(120, 125, 140))),
+                code_area,
+            );
+
+            // Demo area (3 rows with sample text)
+            let demo_area = Rect::new(
+                entries_area.x + 1,
+                slot_y + 2,
+                entries_area.width.saturating_sub(2),
+                2,
+            );
+            let sample = format!("│ {} │", title);
+            frame.render_widget(
+                Paragraph::new(vec![
+                    Line::styled(
+                        &sample,
+                        Style::default().fg(Color::Rgb(220, 225, 235)).bold(),
+                    ),
+                    Line::styled(
+                        "─".repeat(demo_area.width as usize),
+                        Style::default().fg(Color::Rgb(55, 60, 70)),
+                    ),
+                ]),
+                demo_area,
+            );
+
+            // Apply compiled effect
+            if let Some(Some(ref mut effect)) = self.dsl_effects_cache.get_mut(idx) {
+                frame.render_effect(effect, demo_area, elapsed);
+            }
+        }
+
+        // ── nav bar ─────────────────────────────────────────────────────
+        self.render_scroll_arrows(
+            frame,
+            nav_bar,
+            self.dsl_effects_scroll,
+            max_scroll,
+            "swipe ↕ │ ◄► page",
         );
     }
 
