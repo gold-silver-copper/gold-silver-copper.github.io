@@ -180,6 +180,7 @@ fn render_rows(
 }
 
 /// Render keyboard rows inline and return button areas with their active display names.
+/// The keyboard is horizontally centered within the given area.
 fn render_rows_inline(
     f: &mut Frame,
     area: Rect,
@@ -207,6 +208,23 @@ fn render_rows_inline(
             break;
         }
 
+        // Calculate total row width for centering
+        let total_row_width: u16 = row.iter().map(|k| k.attr.width).sum();
+        let row_area = row_areas[r_idx];
+        let h_offset = if row_area.width > total_row_width {
+            (row_area.width - total_row_width) / 2
+        } else {
+            0
+        };
+
+        // Create a centered sub-area for this row
+        let centered_row = Rect::new(
+            row_area.x + h_offset,
+            row_area.y,
+            total_row_width.min(row_area.width),
+            row_area.height,
+        );
+
         let key_constraints: Vec<Constraint> = row
             .iter()
             .map(|k| Constraint::Length(k.attr.width))
@@ -215,7 +233,7 @@ fn render_rows_inline(
         let key_areas = TuiLayout::default()
             .direction(Direction::Horizontal)
             .constraints(key_constraints)
-            .split(row_areas[r_idx]);
+            .split(centered_row);
 
         for (k_idx, button) in row.iter().enumerate() {
             if k_idx >= key_areas.len() {
@@ -253,7 +271,7 @@ fn render_rows_inline(
                 }
                 None => {
                     let name = button.binds.first().map(|b| b.0.as_ref()).unwrap_or("");
-                    (name, Style::default().fg(Color::Rgb(170, 175, 185)))
+                    (name, Style::default().fg(Color::Rgb(170, 175, 185)).add_modifier(Modifier::BOLD))
                 }
             };
 
