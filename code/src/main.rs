@@ -1858,7 +1858,7 @@ impl App {
             FocusMode::Focused => {
                 // Flash pressed key on virtual keyboard
                 if self.page == Page::Repl {
-                    if let Some(vk) = keycode_to_virtual_key(key.code) {
+                    if let Some(vk) = keycode_to_virtual_key(&key.code) {
                         // Remove any existing entry for this key and add fresh
                         self.keyboard_pressed_ticks.retain(|(k, _)| *k != vk);
                         self.keyboard_pressed_ticks.push((vk, 8));
@@ -3781,7 +3781,7 @@ fn open_url(url: &str) {
     let _ = web_sys::js_sys::eval(&js);
 }
 
-fn keycode_to_virtual_key(code: KeyCode) -> Option<VirtualKey> {
+fn keycode_to_virtual_key(code: &KeyCode) -> Option<VirtualKey> {
     match code {
         KeyCode::Char(c) => match c.to_ascii_lowercase() {
             'a' => Some(VirtualKey::KeyA),
