@@ -1,36 +1,92 @@
 <!DOCTYPE html><html lang="en"><head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="theme-color" content="#08090e">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="mobile-web-app-capable" content="yes">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/firacode/6.2.0/fira_code.min.css">
     <title>GRIFT.RS – Personal Website &amp; Grift Demo</title>
-    <link rel="stylesheet" href="/./style-f21e1f6eecc150fc.css">
+    <link rel="stylesheet" href="/./style-29422d563ca3f4fc.css">
   
-<link rel="preload" href="/./grift-site-dc1c2200736b6f81_bg.wasm" as="fetch" type="application/wasm" crossorigin="">
-<link rel="modulepreload" href="/./grift-site-dc1c2200736b6f81.js"></head>
+<link rel="preload" href="/./grift-site-e2e77d5d07c79b5a_bg.wasm" as="fetch" type="application/wasm" crossorigin="">
+<link rel="modulepreload" href="/./grift-site-e2e77d5d07c79b5a.js"></head>
   <body>
+    <!-- Hidden input for mobile virtual keyboard (REPL) -->
+    <input id="repl-keyboard-input" type="text" style="position:fixed;opacity:0;width:1px;height:1px;top:-9999px;left:-9999px;pointer-events:none;" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" inputmode="text" enterkeyhint="done">
     <script>
-      // Mobile interaction support: swipe gestures, mousewheel, continuous touch-scroll
+      // Mobile interaction support: swipe gestures, mousewheel, momentum scrolling, zone-aware scrolling
       (function() {
         var touchStartX = 0;
         var touchStartY = 0;
         var touchLastY = 0;
-        var minSwipeDistance = 50;
-        var touchScrollThreshold = 30;
+        var touchLastX = 0;
+        var touchLastTime = 0;
+        var velocityY = 0;
+        var minSwipeDistance = 40;
+        var touchScrollThreshold = 20;
+        var momentumId = null;
+        // Zone detection: track touch start position relative to screen
+        var touchZone = 'content'; // 'tabs' or 'content'
+        var tabZoneThreshold = 0.12; // top 12% of screen is tab zone
+        var replInputZoneThreshold = 0.75; // bottom 25% of screen is REPL input zone
+
+        // Prevent context menu on long press for native feel
+        document.addEventListener('contextmenu', function(e) {
+          e.preventDefault();
+        });
+
+        // Helper: detect if touch is in the tab bar zone (top portion of screen)
+        function getTouchZone(clientY) {
+          var winH = window.innerHeight || document.documentElement.clientHeight || 600;
+          return (clientY / winH) < tabZoneThreshold ? 'tabs' : 'content';
+        }
 
         document.addEventListener('touchstart', function(e) {
           touchStartX = e.changedTouches[0].screenX;
           touchStartY = e.changedTouches[0].screenY;
           touchLastY = touchStartY;
+          touchLastX = touchStartX;
+          touchLastTime = Date.now();
+          velocityY = 0;
+          // Determine which zone the touch started in
+          touchZone = getTouchZone(e.changedTouches[0].clientY);
+          // Cancel any running momentum scroll
+          if (momentumId) {
+            clearTimeout(momentumId);
+            momentumId = null;
+          }
         }, { passive: true });
 
-        // Continuous vertical scroll during touch-move
+        // Continuous scroll during touch-move with velocity tracking and zone awareness
         document.addEventListener('touchmove', function(e) {
           var currentY = e.changedTouches[0].screenY;
+          var currentX = e.changedTouches[0].screenX;
+          var now = Date.now();
+          var dt = now - touchLastTime;
           var deltaY = currentY - touchLastY;
-          if (Math.abs(deltaY) > touchScrollThreshold) {
-            var key = deltaY > 0 ? 'ArrowUp' : 'ArrowDown';
-            document.dispatchEvent(new KeyboardEvent('keydown', { key: key, bubbles: true }));
-            touchLastY = currentY;
+          var deltaX = currentX - touchLastX;
+
+          if (dt > 0) {
+            velocityY = deltaY / dt;
+          }
+
+          if (touchZone === 'tabs') {
+            // In tab zone: horizontal movement scrolls tabs
+            if (Math.abs(deltaX) > touchScrollThreshold) {
+              var key = deltaX > 0 ? 'ArrowLeft' : 'ArrowRight';
+              document.dispatchEvent(new KeyboardEvent('keydown', { key: key, bubbles: true }));
+              touchLastX = currentX;
+              touchLastTime = now;
+            }
+          } else {
+            // In content zone: vertical movement scrolls content
+            if (Math.abs(deltaY) > touchScrollThreshold) {
+              var key = deltaY > 0 ? 'ArrowUp' : 'ArrowDown';
+              document.dispatchEvent(new KeyboardEvent('keydown', { key: key, bubbles: true }));
+              touchLastY = currentY;
+              touchLastTime = now;
+            }
           }
         }, { passive: true });
 
@@ -38,10 +94,40 @@
           var dx = e.changedTouches[0].screenX - touchStartX;
           var dy = e.changedTouches[0].screenY - touchStartY;
 
+          if (touchZone === 'tabs') {
+            // Tab zone: horizontal swipes scroll tabs (already handled in touchmove)
+            // No momentum for tab scrolling
+            return;
+          }
+
           if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > minSwipeDistance) {
-            // Horizontal swipe — dispatch arrow key for tab/page navigation
+            // Horizontal swipe in content zone — dispatch arrow key for navigation
             var key = dx > 0 ? 'ArrowLeft' : 'ArrowRight';
             document.dispatchEvent(new KeyboardEvent('keydown', { key: key, bubbles: true }));
+          } else if (Math.abs(velocityY) > 0.3) {
+            // Momentum scrolling — continue scrolling with deceleration
+            var v = velocityY;
+            var friction = 0.92;
+            var throttledStep = function() {
+              v *= friction;
+              if (Math.abs(v) < 0.05) {
+                momentumId = null;
+                return;
+              }
+              var key = v > 0 ? 'ArrowUp' : 'ArrowDown';
+              document.dispatchEvent(new KeyboardEvent('keydown', { key: key, bubbles: true }));
+              momentumId = setTimeout(throttledStep, 66);
+            };
+            throttledStep();
+          }
+        }, { passive: true });
+
+        // Handle touch cancel (e.g. notification interrupts)
+        document.addEventListener('touchcancel', function() {
+          velocityY = 0;
+          if (momentumId) {
+            clearTimeout(momentumId);
+            momentumId = null;
           }
         }, { passive: true });
 
@@ -58,8 +144,80 @@
             e.preventDefault();
           }
         }, { passive: false });
+
+        // Prevent double-tap zoom on iOS
+        var lastTap = 0;
+        document.addEventListener('touchend', function(e) {
+          var now = Date.now();
+          if (now - lastTap < 300) {
+            e.preventDefault();
+          }
+          lastTap = now;
+        }, { passive: false });
+
+        // REPL virtual keyboard support: focus hidden input on tap to open keyboard
+        // Expose a global function that Rust can call to focus/blur the hidden input
+        var replInput = null;
+        var replInputInitialized = false;
+        function initReplInput() {
+          if (replInputInitialized) return;
+          replInput = document.getElementById('repl-keyboard-input');
+          if (!replInput) return;
+          replInputInitialized = true;
+          // Forward input events as key events (added once)
+          replInput.addEventListener('input', function(e) {
+            var data = e.data;
+            if (data) {
+              for (var i = 0; i < data.length; i++) {
+                document.dispatchEvent(new KeyboardEvent('keydown', {
+                  key: data[i], bubbles: true
+                }));
+              }
+            }
+            replInput.value = '';
+          });
+          replInput.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter' || e.key === 'Backspace') {
+              document.dispatchEvent(new KeyboardEvent('keydown', {
+                key: e.key, bubbles: true
+              }));
+              e.preventDefault();
+            }
+          });
+        }
+        window._focusReplInput = function() {
+          initReplInput();
+          if (replInput) {
+            replInput.style.top = '0';
+            replInput.style.left = '0';
+            replInput.style.pointerEvents = 'auto';
+            replInput.focus();
+          }
+        };
+        window._blurReplInput = function() {
+          initReplInput();
+          if (replInput) {
+            replInput.blur();
+            replInput.style.top = '-9999px';
+            replInput.style.left = '-9999px';
+            replInput.style.pointerEvents = 'none';
+          }
+        };
+
+        // Tap-to-focus: when user taps in the lower portion of the screen while on REPL,
+        // focus the hidden input to bring up virtual keyboard
+        document.addEventListener('click', function(e) {
+          var winH = window.innerHeight || 600;
+          if (e.clientY > winH * replInputZoneThreshold) {
+            // Check if the REPL tab might be active by seeing if hidden input should focus
+            if (window._replTabActive) {
+              window._focusReplInput();
+            }
+          }
+        });
+        window._replTabActive = false;
       })();
     </script>
   
 
-<script type="module">import init from '/./grift-site-dc1c2200736b6f81.js';init('/./grift-site-dc1c2200736b6f81_bg.wasm');</script></body></html>
+<script type="module">import init from '/./grift-site-e2e77d5d07c79b5a.js';init('/./grift-site-e2e77d5d07c79b5a_bg.wasm');</script></body></html>
