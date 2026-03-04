@@ -1512,6 +1512,12 @@ const BLOG_ENTRIES: &[(&str, &str, &str)] = &[
 ];
 
 #[derive(Clone, Copy, PartialEq)]
+enum FocusMode {
+    Outer,   // Arrow keys move across tabs; content scrolls passively
+    Focused, // Active tab captures input; Escape returns to Outer
+}
+
+#[derive(Clone, Copy, PartialEq)]
 enum Page {
     Home,
     Repl,
@@ -1549,6 +1555,7 @@ enum ScrollTarget {
 
 struct App {
     page: Page,
+    focus_mode: FocusMode,
     // REPL state
     repl_input: String,
     repl_cursor: usize,
@@ -1610,6 +1617,8 @@ struct App {
     dsl_effects_scroll: usize,
     dsl_effects_cache: Vec<Option<Effect>>,
     frame_elapsed: Duration,
+    // Navbar breathing effect tick (separate from bg_tick for independent rate)
+    navbar_breath_tick: f64,
 }
 
 impl App {
@@ -1617,6 +1626,7 @@ impl App {
         let lisp: Box<Lisp<2000>> = Box::new(Lisp::new());
         Self {
             page: Page::Home,
+            focus_mode: FocusMode::Outer,
             repl_input: String::new(),
             repl_cursor: 0,
             repl_history: Vec::new(),
@@ -1661,6 +1671,7 @@ impl App {
             dsl_effects_scroll: 0,
             dsl_effects_cache: Vec::new(),
             frame_elapsed: Duration::from_millis(0),
+            navbar_breath_tick: 0.0,
         }
     }
 
@@ -1701,7 +1712,12 @@ impl App {
 
     fn switch_page(&mut self, page: Page) {
         if self.page != page {
+            // Blur REPL if leaving it
+            if self.page == Page::Repl {
+                let _ = web_sys::js_sys::eval("window._replTabActive=false;window._blurReplInput&&window._blurReplInput()");
+            }
             self.page = page;
+            self.focus_mode = FocusMode::Outer;
             self.tab_glow_effect = None;
             self.blog_scroll = 0;
             self.blog_viewing_post = false;
@@ -1738,12 +1754,6 @@ impl App {
                 ),
             ]);
             self.carousel_effect = Some(carousel_fx);
-            // Focus/blur hidden input for REPL virtual keyboard
-            if page == Page::Repl {
-                let _ = web_sys::js_sys::eval("window._replTabActive=true;window._focusReplInput&&window._focusReplInput()");
-            } else {
-                let _ = web_sys::js_sys::eval("window._replTabActive=false;window._blurReplInput&&window._blurReplInput()");
-            }
         }
     }
 
@@ -1801,13 +1811,103 @@ impl App {
     }
 
     fn handle_key_event(&mut self, key: KeyEvent) {
+        match self.focus_mode {
+            FocusMode::Outer => {
+                // Outer mode: arrows move across tabs, Up/Down passively scroll content
+                match key.code {
+                    KeyCode::Left => self.switch_to_prev_tab(),
+                    KeyCode::Right => self.switch_to_next_tab(),
+                    KeyCode::Up | KeyCode::Down => {
+                        // Passive scroll of current tab content
+                        self.handle_passive_scroll(key);
+                    }
+                    KeyCode::Enter => {
+                        // Enter focused mode for the current tab
+                        self.focus_mode = FocusMode::Focused;
+                        // If entering REPL focus, activate virtual keyboard
+                        if self.page == Page::Repl {
+                            let _ = web_sys::js_sys::eval("window._replTabActive=true;window._focusReplInput&&window._focusReplInput()");
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            FocusMode::Focused => {
+                // Check for Escape first — always returns to outer mode
+                if key.code == KeyCode::Esc {
+                    // For Blog post view, first exit to title list (stay focused)
+                    if self.page == Page::Blog && self.blog_viewing_post {
+                        self.blog_viewing_post = false;
+                        self.blog_scroll = 0;
+                        self.trigger_transition();
+                        return;
+                    }
+                    self.focus_mode = FocusMode::Outer;
+                    // Blur REPL virtual keyboard when leaving focus
+                    if self.page == Page::Repl {
+                        let _ = web_sys::js_sys::eval("window._replTabActive=false;window._blurReplInput&&window._blurReplInput()");
+                    }
+                    return;
+                }
+                // Delegate to page-specific focused handler
+                match self.page {
+                    Page::Repl => self.handle_repl_event(key),
+                    Page::Blog => self.handle_blog_event(key),
+                    Page::Docs => self.handle_scroll_event_focused(key, ScrollTarget::Docs),
+                    Page::Home => self.handle_scroll_event_focused(key, ScrollTarget::Home),
+                    Page::About => self.handle_scroll_event_focused(key, ScrollTarget::About),
+                    Page::Effects => self.handle_effects_event_focused(key),
+                }
+            }
+        }
+    }
+
+    /// Passive scroll in Outer mode — only Up/Down scroll content, no interaction
+    fn handle_passive_scroll(&mut self, key: KeyEvent) {
+        let step = 2;
         match self.page {
-            Page::Repl => self.handle_repl_event(key),
-            Page::Docs => self.handle_scroll_event(key, ScrollTarget::Docs),
-            Page::Blog => self.handle_blog_event(key),
-            Page::Home => self.handle_scroll_event(key, ScrollTarget::Home),
-            Page::About => self.handle_scroll_event(key, ScrollTarget::About),
-            Page::Effects => self.handle_effects_event(key),
+            Page::Repl => {
+                match key.code {
+                    KeyCode::Up => self.repl_scroll = self.repl_scroll.saturating_sub(1),
+                    KeyCode::Down => self.repl_scroll += 1,
+                    _ => {}
+                }
+            }
+            Page::Docs => {
+                match key.code {
+                    KeyCode::Up => self.doc_scroll = self.doc_scroll.saturating_sub(step),
+                    KeyCode::Down => self.doc_scroll += step,
+                    _ => {}
+                }
+            }
+            Page::Blog => {
+                match key.code {
+                    KeyCode::Up => self.blog_scroll = self.blog_scroll.saturating_sub(1),
+                    KeyCode::Down => self.blog_scroll += 1,
+                    _ => {}
+                }
+            }
+            Page::Home => {
+                match key.code {
+                    KeyCode::Up => self.home_scroll = self.home_scroll.saturating_sub(step),
+                    KeyCode::Down => self.home_scroll += step,
+                    _ => {}
+                }
+            }
+            Page::About => {
+                match key.code {
+                    KeyCode::Up => self.about_scroll = self.about_scroll.saturating_sub(step),
+                    KeyCode::Down => self.about_scroll += step,
+                    _ => {}
+                }
+            }
+            Page::Effects => {
+                match key.code {
+                    KeyCode::Up => self.dsl_effects_scroll = self.dsl_effects_scroll.saturating_sub(step),
+                    KeyCode::Down => self.dsl_effects_scroll += step,
+                    _ => {}
+                }
+            }
         }
     }
 
@@ -1848,10 +1948,47 @@ impl App {
                         if let Some(&page_idx) = self.tab_page_indices.get(i) {
                             self.trigger_btn_effect(*tab_rect);
                             self.switch_page(Page::ALL[page_idx]);
+                            // Clicking a tab returns to outer mode
+                            self.focus_mode = FocusMode::Outer;
                             return;
                         }
                     }
                 }
+                // Clicked in tab bar but not on a tab — return to outer mode
+                if self.focus_mode == FocusMode::Focused {
+                    self.focus_mode = FocusMode::Outer;
+                    if self.page == Page::Repl {
+                        let _ = web_sys::js_sys::eval("window._replTabActive=false;window._blurReplInput&&window._blurReplInput()");
+                    }
+                }
+                return;
+            }
+
+            // Click in content area — enter focused mode if in outer mode
+            if self.focus_mode == FocusMode::Outer
+                && col >= self.content_area.x
+                && col < self.content_area.right()
+                && row >= self.content_area.y
+                && row < self.content_area.bottom()
+            {
+                self.focus_mode = FocusMode::Focused;
+                if self.page == Page::Repl {
+                    let _ = web_sys::js_sys::eval("window._replTabActive=true;window._focusReplInput&&window._focusReplInput()");
+                }
+            }
+
+            // Click outside content area while focused — return to outer mode
+            if self.focus_mode == FocusMode::Focused
+                && (col < self.content_area.x
+                    || col >= self.content_area.right()
+                    || row < self.content_area.y
+                    || row >= self.content_area.bottom())
+            {
+                self.focus_mode = FocusMode::Outer;
+                if self.page == Page::Repl {
+                    let _ = web_sys::js_sys::eval("window._replTabActive=false;window._blurReplInput&&window._blurReplInput()");
+                }
+                return;
             }
 
             // Check link clicks on About page
@@ -1953,8 +2090,33 @@ impl App {
                 }
             }
             KeyCode::Char(c) => {
-                // Skip modifier-held keys (Ctrl+V paste is handled by JS paste event)
-                if key.ctrl || key.alt {
+                if key.ctrl {
+                    // Emacs-style keybindings for REPL focused mode
+                    match c {
+                        'b' | 'B' => {
+                            // Ctrl+B: move cursor backward
+                            self.repl_cursor = self.repl_cursor.saturating_sub(1);
+                        }
+                        'f' | 'F' => {
+                            // Ctrl+F: move cursor forward
+                            let max = self.repl_input.chars().count();
+                            if self.repl_cursor < max {
+                                self.repl_cursor += 1;
+                            }
+                        }
+                        'p' | 'P' => {
+                            // Ctrl+P: scroll history up (previous)
+                            self.repl_scroll = self.repl_scroll.saturating_sub(1);
+                        }
+                        'n' | 'N' => {
+                            // Ctrl+N: scroll history down (next)
+                            self.repl_scroll += 1;
+                        }
+                        _ => {}
+                    }
+                    return;
+                }
+                if key.alt {
                     return;
                 }
                 let byte_idx = self.byte_index();
@@ -1991,7 +2153,7 @@ impl App {
 
     fn handle_blog_event(&mut self, key: KeyEvent) {
         if self.blog_viewing_post {
-            // Viewing a post: scroll content, left goes back to list, right goes to next tab
+            // Post mode: Up/Down scroll content, Left/Escape exits to title list
             match key.code {
                 KeyCode::Up => {
                     self.blog_scroll = self.blog_scroll.saturating_sub(1);
@@ -2004,32 +2166,36 @@ impl App {
                     self.blog_scroll = 0;
                     self.trigger_transition();
                 }
-                KeyCode::Right => {
-                    self.switch_to_next_tab();
-                }
                 _ => {}
             }
         } else {
-            // Viewing the list: Up/Down scroll, Left goes to prev tab, Right is unused (tap to select)
+            // Title list mode: Up/Down navigate titles, Enter/Right opens post
             match key.code {
                 KeyCode::Up => {
-                    self.blog_scroll = self.blog_scroll.saturating_sub(1);
+                    if self.blog_index > 0 {
+                        self.blog_index -= 1;
+                        self.blog_scroll = 0;
+                    }
                 }
                 KeyCode::Down => {
-                    self.blog_scroll += 1;
+                    if self.blog_index + 1 < BLOG_ENTRIES.len() {
+                        self.blog_index += 1;
+                        self.blog_scroll = 0;
+                    }
                 }
-                KeyCode::Left => {
-                    self.switch_to_prev_tab();
-                }
-                KeyCode::Right => {
-                    self.switch_to_next_tab();
+                KeyCode::Enter | KeyCode::Right => {
+                    if !BLOG_ENTRIES.is_empty() {
+                        self.blog_viewing_post = true;
+                        self.blog_scroll = 0;
+                        self.trigger_transition();
+                    }
                 }
                 _ => {}
             }
         }
     }
 
-    fn handle_scroll_event(&mut self, key: KeyEvent, target: ScrollTarget) {
+    fn handle_scroll_event_focused(&mut self, key: KeyEvent, target: ScrollTarget) {
         let scroll = match target {
             ScrollTarget::Home => &mut self.home_scroll,
             ScrollTarget::About => &mut self.about_scroll,
@@ -2043,17 +2209,11 @@ impl App {
             KeyCode::Down => {
                 *scroll += step;
             }
-            KeyCode::Left => {
-                self.switch_to_prev_tab();
-            }
-            KeyCode::Right => {
-                self.switch_to_next_tab();
-            }
             _ => {}
         }
     }
 
-    fn handle_effects_event(&mut self, key: KeyEvent) {
+    fn handle_effects_event_focused(&mut self, key: KeyEvent) {
         let step = 2;
         match key.code {
             KeyCode::Up => {
@@ -2061,12 +2221,6 @@ impl App {
             }
             KeyCode::Down => {
                 self.dsl_effects_scroll += step;
-            }
-            KeyCode::Left => {
-                self.switch_to_prev_tab();
-            }
-            KeyCode::Right => {
-                self.switch_to_next_tab();
             }
             _ => {}
         }
@@ -2089,6 +2243,8 @@ impl App {
 
         self.bg_tick = self.bg_tick.wrapping_add(1);
         self.cursor_blink_tick = self.cursor_blink_tick.wrapping_add(1);
+        // Advance navbar breathing tick (slow, calm rhythm)
+        self.navbar_breath_tick += elapsed.as_millis() as f64 * 0.001;
 
         // Decay mouse trail
         self.mouse_idle_ticks = self.mouse_idle_ticks.saturating_add(1);
@@ -2135,6 +2291,52 @@ impl App {
         self.content_area = content_area;
 
         self.render_tabs(frame, tab_area);
+
+        // ── Navbar breathing effect ─────────────────────────────────────
+        // Per-character darken_fg: center brighter, edges dimmer, with
+        // procedural per-column offset for an organic breathing pulse.
+        {
+            let buf = frame.buffer_mut();
+            let tab_row = tab_area.y + 1; // text row inside bordered tab area
+            let tab_left = tab_area.x + 1;
+            let tab_right = tab_area.right().saturating_sub(1);
+            let tab_span = (tab_right as f64 - tab_left as f64).max(1.0);
+            let center = tab_left as f64 + tab_span * 0.5;
+            let t = self.navbar_breath_tick;
+
+            for x in tab_left..tab_right {
+                let pos = Position::new(x, tab_row);
+                if let Some(cell) = buf.cell_mut(pos) {
+                    // Normalized distance from center: 0.0 = center, 1.0 = edge
+                    let dist = ((x as f64 - center).abs() / (tab_span * 0.5)).min(1.0);
+
+                    // Per-character phase offset for organic wave feel
+                    let phase_offset = (x as f64 - tab_left as f64) * 0.18;
+
+                    // Slow breathing: sin wave with ~6s period per cycle
+                    let breath = ((t * 1.05 + phase_offset).sin() * 0.5 + 0.5) as f64;
+
+                    // Base darkening: center gets light dimming, edges get heavy dimming
+                    // Range: center ~0.15, edges ~0.75 (dim & tarnished)
+                    let base_darken = 0.15 + dist * 0.60;
+
+                    // Breathing modulates darkening by ±0.12
+                    let darken = (base_darken + breath * 0.12).min(0.90);
+
+                    // Apply darken_fg: reduce each RGB channel of fg
+                    let keep = 1.0 - darken;
+                    let (r, g, b) = match cell.fg {
+                        Color::Rgb(r, g, b) => (r, g, b),
+                        _ => (200, 200, 210),
+                    };
+                    cell.set_fg(Color::Rgb(
+                        (r as f64 * keep) as u8,
+                        (g as f64 * keep) as u8,
+                        (b as f64 * keep) as u8,
+                    ));
+                }
+            }
+        }
 
         // Render fire glow effect on the selected tab
         if let Some(selected_tab_rect) = self.tab_rects.get(self.center_tab_idx).copied() {
@@ -2202,6 +2404,30 @@ impl App {
             Page::Blog => self.render_blog(frame, content_area),
             Page::About => self.render_about(frame, content_area),
             Page::Effects => self.render_effects(frame, content_area),
+        }
+
+        // Focus indicator: subtle border highlight when in focused mode
+        if self.focus_mode == FocusMode::Focused {
+            let buf = frame.buffer_mut();
+            let focus_fg = Color::Rgb(100, 110, 130);
+            // Highlight the top and bottom border of content area
+            for x in content_area.x..content_area.right() {
+                for &y in &[content_area.y, content_area.bottom().saturating_sub(1)] {
+                    let pos = Position::new(x, y);
+                    if let Some(cell) = buf.cell_mut(pos) {
+                        cell.set_fg(focus_fg);
+                    }
+                }
+            }
+            // Highlight the left and right border of content area
+            for y in content_area.y..content_area.bottom() {
+                for &x in &[content_area.x, content_area.right().saturating_sub(1)] {
+                    let pos = Position::new(x, y);
+                    if let Some(cell) = buf.cell_mut(pos) {
+                        cell.set_fg(focus_fg);
+                    }
+                }
+            }
         }
 
         // Process transition effects

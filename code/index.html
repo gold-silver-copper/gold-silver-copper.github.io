@@ -103,9 +103,10 @@
         }
 
         // ── Gesture state machine ──────────────────────────────────────
-        // States: IDLE → TOUCHING → SWIPING
-        // TOUCHING: finger is down, hasn't moved past threshold
-        // SWIPING:  finger moved past threshold — suppress click on end
+        // States: IDLE → TOUCHING → SWIPING → DOUBLE_TAP_DRAGGING
+        // TOUCHING:            finger is down, hasn't moved past threshold
+        // SWIPING:             finger moved past threshold — suppress click on end
+        // DOUBLE_TAP_DRAGGING: double-tap-then-drag — simulates click-and-hold (selection)
         var gesture = {
           state:      'IDLE',
           zone:       'content',
@@ -114,19 +115,37 @@
           lastTime:   0,
           velocityY:  0,
           momentumId: null,
+          // Double-tap-then-drag tracking
+          lastTapTime:   0,
+          lastTapX:      0,
+          lastTapY:      0,
+          isDoubleTap:   false,
 
           begin: function(touch) {
+            var now = Date.now();
+            var dt  = now - this.lastTapTime;
+            var tapDx = Math.abs(touch.screenX - this.lastTapX);
+            var tapDy = Math.abs(touch.screenY - this.lastTapY);
+            // Detect double-tap: second tap within DOUBLE_TAP_MS and near previous tap
+            this.isDoubleTap = (dt < CFG.DOUBLE_TAP_MS && tapDx < 30 && tapDy < 30);
+
             this.state    = 'TOUCHING';
             this.zone     = zone(touch.clientY);
             this.startX   = touch.screenX;
             this.startY   = touch.screenY;
             this.lastX    = touch.screenX;
             this.lastY    = touch.screenY;
-            this.lastTime = Date.now();
+            this.lastTime = now;
             this.velocityY = 0;
             this.cancelMomentum();
-            // Forward mousemove for hover tracking (not mousedown — that waits for tap confirm)
-            emitMouse('mousemove', touch.clientX, touch.clientY);
+
+            if (this.isDoubleTap) {
+              // Immediately emit mousedown to begin click-and-hold simulation
+              emitMouse('mousedown', touch.clientX, touch.clientY);
+            } else {
+              // Forward mousemove for hover tracking (not mousedown — that waits for tap confirm)
+              emitMouse('mousemove', touch.clientX, touch.clientY);
+            }
           },
 
           move: function(touch) {
@@ -136,33 +155,43 @@
             var dx  = sx - this.lastX;
             var dy  = sy - this.lastY;
 
-            // Promote to SWIPING once movement exceeds threshold
+            // Promote to appropriate dragging state once movement exceeds threshold
             if (this.state === 'TOUCHING') {
               var totalDx = sx - this.startX;
               var totalDy = sy - this.startY;
               if (Math.abs(totalDx) > CFG.SWIPE_THRESHOLD || Math.abs(totalDy) > CFG.SWIPE_THRESHOLD) {
-                this.state = 'SWIPING';
+                if (this.isDoubleTap) {
+                  // Double-tap-then-drag: enter click-and-hold drag mode (selection)
+                  this.state = 'DOUBLE_TAP_DRAGGING';
+                } else {
+                  this.state = 'SWIPING';
+                }
               }
             }
 
             if (dt > 0) this.velocityY = dy / dt;
 
-            // Forward mousemove for hover tracking
-            emitMouse('mousemove', touch.clientX, touch.clientY);
-
-            if (this.zone === 'tabs') {
-              // Horizontal movement scrolls tabs
-              if (Math.abs(dx) > CFG.SCROLL_STEP) {
-                dispatch(dx > 0 ? 'ArrowLeft' : 'ArrowRight');
-                this.lastX = sx;
-                this.lastTime = now;
-              }
+            if (this.state === 'DOUBLE_TAP_DRAGGING') {
+              // Forward mousemove with button held for selection drag behavior
+              emitMouse('mousemove', touch.clientX, touch.clientY);
             } else {
-              // Vertical movement scrolls content
-              if (Math.abs(dy) > CFG.SCROLL_STEP) {
-                dispatch(dy > 0 ? 'ArrowUp' : 'ArrowDown');
-                this.lastY = sy;
-                this.lastTime = now;
+              // Forward mousemove for hover tracking
+              emitMouse('mousemove', touch.clientX, touch.clientY);
+
+              if (this.zone === 'tabs') {
+                // Horizontal movement scrolls tabs
+                if (Math.abs(dx) > CFG.SCROLL_STEP) {
+                  dispatch(dx > 0 ? 'ArrowLeft' : 'ArrowRight');
+                  this.lastX = sx;
+                  this.lastTime = now;
+                }
+              } else {
+                // Vertical movement scrolls content
+                if (Math.abs(dy) > CFG.SCROLL_STEP) {
+                  dispatch(dy > 0 ? 'ArrowUp' : 'ArrowDown');
+                  this.lastY = sy;
+                  this.lastTime = now;
+                }
               }
             }
           },
@@ -170,8 +199,14 @@
           end: function(touch) {
             var wasTap = (this.state === 'TOUCHING');
 
-            if (wasTap) {
-              // Confirmed tap — forward as mousedown + mouseup (click)
+            if (this.state === 'DOUBLE_TAP_DRAGGING') {
+              // End of double-tap-then-drag: release the simulated click-and-hold
+              emitMouse('mouseup', touch.clientX, touch.clientY);
+            } else if (wasTap && this.isDoubleTap) {
+              // Double-tap without drag: complete the mousedown/mouseup cycle
+              emitMouse('mouseup', touch.clientX, touch.clientY);
+            } else if (wasTap) {
+              // Confirmed single tap — forward as mousedown + mouseup (click)
               emitMouse('mousedown', touch.clientX, touch.clientY);
               emitMouse('mouseup',   touch.clientX, touch.clientY);
             } else if (this.zone === 'content') {
@@ -186,11 +221,24 @@
             }
             // Tab zone swipes: already handled in move(), no momentum needed.
 
+            // Record tap time/position for double-tap detection on next touch
+            if (wasTap) {
+              this.lastTapTime = Date.now();
+              this.lastTapX    = touch.screenX;
+              this.lastTapY    = touch.screenY;
+            }
+
             this.state = 'IDLE';
+            this.isDoubleTap = false;
           },
 
           cancel: function() {
+            if (this.state === 'DOUBLE_TAP_DRAGGING' || (this.state === 'TOUCHING' && this.isDoubleTap)) {
+              // Release simulated click-and-hold on cancel
+              emitMouse('mouseup', this.lastX, this.lastY);
+            }
             this.state = 'IDLE';
+            this.isDoubleTap = false;
             this.velocityY = 0;
             this.cancelMomentum();
           },
@@ -222,13 +270,11 @@
         }, { passive: true });
 
         // Touchend: confirm tap or finalize swipe (passive: false to prevent double-tap zoom)
-        var lastTapTime = 0;
         document.addEventListener('touchend', function(e) {
           gesture.end(e.changedTouches[0]);
           // Prevent double-tap zoom on iOS
           var now = Date.now();
-          if (now - lastTapTime < CFG.DOUBLE_TAP_MS) e.preventDefault();
-          lastTapTime = now;
+          if (now - gesture.lastTapTime < CFG.DOUBLE_TAP_MS) e.preventDefault();
         }, { passive: false });
 
         document.addEventListener('touchcancel', function() {
