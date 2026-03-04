@@ -2188,30 +2188,28 @@ impl App {
         }
     }
 
+    // ── Blog: Event Handling ──────────────────────────────────────────
+    // Two modes: list (browsing titles) and post (reading content).
+    // Focused list: Up/Down select, Enter/Right open.
+    // Focused post: Up/Down scroll, Left/Esc back to list.
+    // All selection goes through blog_select(); all opens through blog_open_post().
+
     fn handle_blog_event(&mut self, key: KeyEvent) {
         if self.blog_viewing_post {
-            // Post mode: Up/Down scroll content, Left/Escape exits to title list
             match key.code {
-                KeyCode::Up => {
-                    self.blog_scroll = self.blog_scroll.saturating_sub(1);
-                }
-                KeyCode::Down => {
-                    self.blog_scroll += 1;
-                }
-                KeyCode::Left => {
-                    self.blog_exit_post();
-                }
+                KeyCode::Up => self.blog_scroll = self.blog_scroll.saturating_sub(1),
+                KeyCode::Down => self.blog_scroll += 1,
+                KeyCode::Left => self.blog_exit_post(),
                 _ => {}
             }
         } else {
-            // Title list mode: Up/Down navigate titles, Enter/Right opens post
+            let count = BLOG_ENTRIES.len();
             match key.code {
-                KeyCode::Up => {
+                KeyCode::Up if count > 0 => {
                     self.blog_select(self.blog_index.saturating_sub(1));
                 }
-                KeyCode::Down => {
-                    let next = (self.blog_index + 1).min(BLOG_ENTRIES.len().saturating_sub(1));
-                    self.blog_select(next);
+                KeyCode::Down if count > 0 => {
+                    self.blog_select((self.blog_index + 1).min(count - 1));
                 }
                 KeyCode::Enter | KeyCode::Right => {
                     self.blog_open_post(self.blog_index);
@@ -2221,7 +2219,7 @@ impl App {
         }
     }
 
-    /// Unified blog post selection — used by both keyboard and mouse/tap
+    /// Move selection to `index`, triggering a nav effect on the affected items.
     fn blog_select(&mut self, index: usize) {
         if index >= BLOG_ENTRIES.len() || index == self.blog_index {
             return;
@@ -2236,7 +2234,7 @@ impl App {
         ));
     }
 
-    /// Unified blog post open — used by both keyboard and mouse/tap
+    /// Open a blog post by index. Selects it first if not already selected.
     fn blog_open_post(&mut self, index: usize) {
         if index >= BLOG_ENTRIES.len() {
             return;
@@ -2246,10 +2244,11 @@ impl App {
         }
         self.blog_viewing_post = true;
         self.blog_scroll = 0;
+        self.focus_mode = FocusMode::Focused;
         self.trigger_transition();
     }
 
-    /// Unified blog post exit — used by both keyboard and mouse/tap
+    /// Return from post view to the title list.
     fn blog_exit_post(&mut self) {
         self.blog_viewing_post = false;
         self.blog_scroll = 0;
@@ -3149,102 +3148,111 @@ impl App {
         self.doc_scroll = scroll;
     }
 
+    // ── Blog: Rendering ──────────────────────────────────────────────
+    // Two views dispatched from render_blog:
+    //   render_blog_post  — full post with back button and scrollable content
+    //   render_blog_list  — scrollable list of titles with selection highlight
+
     fn render_blog(&mut self, frame: &mut Frame, area: Rect) {
         self.blog_back_area = Rect::default();
-
         if self.blog_viewing_post {
-            // Show post content with a back button
-            let block = Block::bordered()
-                .border_type(BorderType::Rounded)
-                .border_style(Color::Rgb(55, 60, 70))
-                .title(" Blog ".bold().fg(Color::Rgb(200, 200, 210)));
+            self.render_blog_post(frame, area);
+        } else {
+            self.render_blog_list(frame, area);
+        }
+    }
 
-            let inner = block.inner(area);
-            frame.render_widget(block, area);
+    fn render_blog_post(&mut self, frame: &mut Frame, area: Rect) {
+        self.blog_list_area = Rect::default();
+        self.blog_item_areas.clear();
 
-            let [back_bar, scroll_area, nav_bar] =
-                Layout::vertical([Constraint::Length(1), Constraint::Min(1), Constraint::Length(1)]).areas(inner);
+        let block = Block::bordered()
+            .border_type(BorderType::Rounded)
+            .border_style(Color::Rgb(55, 60, 70))
+            .title(" Blog ".bold().fg(Color::Rgb(200, 200, 210)));
+        let inner = block.inner(area);
+        frame.render_widget(block, area);
 
-            // Back button
-            let back_hovered = self.is_hovered(back_bar);
-            let back_style = if back_hovered {
-                Style::default().fg(Color::Rgb(255, 255, 255)).bold()
-            } else {
-                Style::default().fg(Color::Rgb(184, 115, 51))
-            };
-            frame.render_widget(
-                Paragraph::new("◄ Back to posts").style(back_style),
-                back_bar,
-            );
-            self.blog_back_area = back_bar;
+        let [back_bar, scroll_area, nav_bar] =
+            Layout::vertical([Constraint::Length(1), Constraint::Min(1), Constraint::Length(1)]).areas(inner);
 
-            // Blog content — scrollable
-            self.blog_list_area = Rect::default();
-            self.blog_item_areas.clear();
-            if let Some((title, date, content)) = BLOG_ENTRIES.get(self.blog_index) {
-                let mut lines = vec![
-                    Line::styled(*title, Style::default().fg(Color::Rgb(220, 225, 235)).bold()),
-                    Line::styled(*date, Style::default().fg(Color::Rgb(75, 80, 90))),
-                    Line::from(""),
-                ];
-                for line in content.lines() {
-                    lines.push(Line::styled(line, Style::default().fg(Color::Rgb(170, 175, 185))));
-                }
+        // Back button
+        let back_style = if self.is_hovered(back_bar) {
+            Style::default().fg(Color::Rgb(255, 255, 255)).bold()
+        } else {
+            Style::default().fg(Color::Rgb(184, 115, 51))
+        };
+        frame.render_widget(Paragraph::new("◄ Back to posts").style(back_style), back_bar);
+        self.blog_back_area = back_bar;
 
-                let visible_height = scroll_area.height.saturating_sub(2) as usize;
-                let content_width = scroll_area.width.saturating_sub(2) as usize;
-                let total_wrapped = Self::wrapped_line_count(&lines, content_width);
-                let max_scroll = total_wrapped.saturating_sub(visible_height);
-                self.blog_scroll = self.blog_scroll.min(max_scroll);
+        // Post content
+        let (title, date, content) = match BLOG_ENTRIES.get(self.blog_index) {
+            Some(entry) => *entry,
+            None => return,
+        };
 
-                let blog = Paragraph::new(Text::from(lines))
-                    .wrap(Wrap { trim: false })
-                    .scroll((self.blog_scroll as u16, 0))
-                    .block(
-                        Block::bordered()
-                            .border_type(BorderType::Rounded)
-                            .border_style(Color::Rgb(40, 44, 52)),
-                    );
-                frame.render_widget(blog, scroll_area);
-                self.blog_content_area = scroll_area;
-
-                // Render vertical scrollbar on blog post content
-                self.render_vertical_scrollbar(frame, scroll_area, self.blog_scroll, max_scroll);
-
-                self.render_scroll_arrows(frame, nav_bar, self.blog_scroll, max_scroll,
-                    if self.focus_mode == FocusMode::Focused {
-                        "Esc/←: back │ ↑↓: scroll"
-                    } else {
-                        "Enter/tap: focus │ ←→: tabs"
-                    });
-            }
-            return;
+        let mut lines = vec![
+            Line::styled(title, Style::default().fg(Color::Rgb(220, 225, 235)).bold()),
+            Line::styled(date, Style::default().fg(Color::Rgb(75, 80, 90))),
+            Line::from(""),
+        ];
+        for line in content.lines() {
+            lines.push(Line::styled(line, Style::default().fg(Color::Rgb(170, 175, 185))));
         }
 
-        // Show scrollable list of blog titles as clickable buttons
+        let visible_height = scroll_area.height.saturating_sub(2) as usize;
+        let content_width = scroll_area.width.saturating_sub(2) as usize;
+        let total_wrapped = Self::wrapped_line_count(&lines, content_width);
+        let max_scroll = total_wrapped.saturating_sub(visible_height);
+        self.blog_scroll = self.blog_scroll.min(max_scroll);
+
+        let post = Paragraph::new(Text::from(lines))
+            .wrap(Wrap { trim: false })
+            .scroll((self.blog_scroll as u16, 0))
+            .block(
+                Block::bordered()
+                    .border_type(BorderType::Rounded)
+                    .border_style(Color::Rgb(40, 44, 52)),
+            );
+        frame.render_widget(post, scroll_area);
+        self.blog_content_area = scroll_area;
+
+        self.render_vertical_scrollbar(frame, scroll_area, self.blog_scroll, max_scroll);
+
+        let hint = if self.focus_mode == FocusMode::Focused {
+            "Esc/←: back │ ↑↓: scroll"
+        } else {
+            "Enter/tap: focus │ ←→: tabs"
+        };
+        self.render_scroll_arrows(frame, nav_bar, self.blog_scroll, max_scroll, hint);
+    }
+
+    fn render_blog_list(&mut self, frame: &mut Frame, area: Rect) {
         self.blog_list_area = area;
         self.blog_content_area = Rect::default();
 
+        // Build list lines — one title + date + blank per entry
         let mut lines: Vec<Line> = Vec::new();
-        let mut blog_line_indices: Vec<usize> = Vec::new(); // line index for each blog entry
+        let mut entry_line_indices: Vec<usize> = Vec::new();
 
         for (i, (title, date, _)) in BLOG_ENTRIES.iter().enumerate() {
-            blog_line_indices.push(lines.len());
-            let selected = self.blog_index == i && self.focus_mode == FocusMode::Focused;
-            let hovered = self
-                .blog_item_areas
-                .get(i)
-                .is_some_and(|r| self.is_hovered(*r));
-            let style = if hovered {
-                Style::default().fg(Color::Rgb(255, 255, 255)).bold().add_modifier(Modifier::REVERSED)
-            } else if selected {
-                Style::default().fg(Color::Rgb(207, 181, 59)).bold()
+            entry_line_indices.push(lines.len());
+
+            let is_selected = self.blog_index == i;
+            let is_hovered = self.blog_item_areas.get(i).is_some_and(|r| self.is_hovered(*r));
+
+            // Single highlight model: hover wins over selection, selection always visible
+            let (style, marker) = if is_hovered {
+                (Style::default().fg(Color::Rgb(255, 255, 255)).bold().add_modifier(Modifier::REVERSED), "▸ ")
+            } else if is_selected {
+                (Style::default().fg(Color::Rgb(207, 181, 59)).bold(), "▸ ")
             } else {
-                Style::default().fg(Color::Rgb(200, 200, 210)).bold()
+                (Style::default().fg(Color::Rgb(200, 200, 210)).bold(), "  ")
             };
-            let marker = if selected || hovered { "▸ " } else { "  " };
+
             lines.push(Line::from(format!("{marker}{title}")).style(style));
-            let date_style = if selected {
+
+            let date_style = if is_selected {
                 Style::default().fg(Color::Rgb(184, 115, 51))
             } else {
                 Style::default().fg(Color::Rgb(75, 80, 90))
@@ -3253,7 +3261,7 @@ impl App {
             lines.push(Line::from(""));
         }
 
-        let blog_list_hint = if self.focus_mode == FocusMode::Focused {
+        let hint = if self.focus_mode == FocusMode::Focused {
             "Esc: unfocus │ ↑↓: select │ Enter/→: read"
         } else {
             "Enter/tap: focus │ ←→: tabs │ tap post"
@@ -3264,27 +3272,24 @@ impl App {
             frame, area, lines, &mut scroll,
             Some(" Blog ".bold().fg(Color::Rgb(200, 200, 210)).into()),
             Some(" Posts — tap to read ".bold().fg(Color::Rgb(184, 115, 51)).into()),
-            blog_list_hint,
+            hint,
         );
         self.blog_scroll = scroll;
 
-        // Compute click areas for blog titles relative to the scroll position
-        let content_block = Block::bordered()
+        // Compute click areas for each blog title relative to scroll position
+        let content_inner = Block::bordered()
             .border_type(BorderType::Rounded)
-            .border_style(Color::Rgb(40, 44, 52));
-        let content_inner = content_block.inner(scroll_area);
+            .border_style(Color::Rgb(40, 44, 52))
+            .inner(scroll_area);
 
         self.blog_item_areas.clear();
-        for &line_idx in blog_line_indices.iter() {
+        for &line_idx in &entry_line_indices {
             if line_idx >= self.blog_scroll {
                 let visible_row = (line_idx - self.blog_scroll) as u16;
                 if visible_row < content_inner.height {
-                    // Click area covers the title line (1 row)
                     self.blog_item_areas.push(Rect::new(
-                        content_inner.x,
-                        content_inner.y + visible_row,
-                        content_inner.width,
-                        1,
+                        content_inner.x, content_inner.y + visible_row,
+                        content_inner.width, 1,
                     ));
                 } else {
                     self.blog_item_areas.push(Rect::default());
