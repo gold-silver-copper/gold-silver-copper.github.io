@@ -291,6 +291,8 @@
               var zone = getTouchZone(e.clientY);
               if (zone !== 'tabs') {
                 window._focusReplInput();
+              } else {
+                window._blurReplInput();
               }
             }
         });
