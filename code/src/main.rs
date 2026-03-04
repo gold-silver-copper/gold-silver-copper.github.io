@@ -564,41 +564,10 @@ impl App {
     }
 
     fn handle_mouse_event(&mut self, event: MouseEvent) {
-        // Convert pixel coordinates to grid coordinates using the canvas
-        // bounding rect for accurate mapping that accounts for any offset.
-        let col;
-        let row;
-        {
-            let cols = if self.grid_cols == 0 {
-                ratzilla::utils::get_window_size().width
-            } else {
-                self.grid_cols
-            };
-            let rows = if self.grid_rows == 0 {
-                ratzilla::utils::get_window_size().height
-            } else {
-                self.grid_rows
-            };
-
-            let window = web_sys::window().expect("no global window in WASM context");
-            let (ref_w, ref_h, offset_x, offset_y) = window
-                .document()
-                .and_then(|doc| doc.query_selector("canvas").ok().flatten())
-                .map(|canvas| {
-                    let rect = canvas.get_bounding_client_rect();
-                    (rect.width(), rect.height(), rect.left(), rect.top())
-                })
-                .unwrap_or_else(|| {
-                    let w = window.inner_width().ok().and_then(|v| v.as_f64()).unwrap_or(800.0);
-                    let h = window.inner_height().ok().and_then(|v| v.as_f64()).unwrap_or(600.0);
-                    (w, h, 0.0, 0.0)
-                });
-
-            let ref_w = ref_w.max(1.0);
-            let ref_h = ref_h.max(1.0);
-            col = (((event.x as f64 - offset_x) / ref_w) * cols as f64).max(0.0) as u16;
-            row = (((event.y as f64 - offset_y) / ref_h) * rows as f64).max(0.0) as u16;
-        }
+        // The ratzilla MouseEvent already provides terminal grid coordinates
+        // (col, row) via beamterm's TerminalMouseHandler — no manual conversion needed.
+        let col = event.col;
+        let row = event.row;
 
         // Update hover position on any mouse event
         let prev_col = self.hover_col;
@@ -618,7 +587,7 @@ impl App {
             }
         }
 
-        if event.event == MouseEventKind::Pressed && event.button == MouseButton::Left {
+        if event.kind == MouseEventKind::ButtonDown(MouseButton::Left) {
 
             // Check tab clicks using individual tab areas
             if row >= self.tab_area.y && row < self.tab_area.bottom() {
@@ -1748,11 +1717,11 @@ fn main() -> std::io::Result<()> {
             $terminal.on_key_event({
                 let app = $app.clone();
                 move |key_event| { app.borrow_mut().handle_key_event(key_event); }
-            });
+            }).expect("failed to register key event handler");
             $terminal.on_mouse_event({
                 let app = $app.clone();
                 move |mouse_event| { app.borrow_mut().handle_mouse_event(mouse_event); }
-            });
+            }).expect("failed to register mouse event handler");
             $terminal.draw_web({
                 let app = $app.clone();
                 move |frame| { app.borrow_mut().draw(frame); }
@@ -1763,7 +1732,7 @@ fn main() -> std::io::Result<()> {
     let options = WebGl2BackendOptions::new()
         .enable_mouse_selection_with_mode(Default::default());
     let backend = WebGl2Backend::new_with_options(options).expect("failed to create WebGL2 backend");
-    let terminal = ratzilla::ratatui::Terminal::new(backend)?;
+    let mut terminal = ratzilla::ratatui::Terminal::new(backend)?;
     setup_terminal!(terminal, app);
 
     Ok(())
