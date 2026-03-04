@@ -1589,6 +1589,7 @@ impl App {
                 let is_ws = ch.is_whitespace();
                 let sym_w = UnicodeWidthChar::width(ch).unwrap_or(0);
 
+                // Skip characters wider than the line (matching ratatui's WordWrapper)
                 if sym_w > max_w { continue; }
 
                 let word_found = non_ws_prev && is_ws;
