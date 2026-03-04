@@ -197,8 +197,8 @@
         // Visual viewport API: handle virtual keyboard appearance
         if (window.visualViewport) {
           window.visualViewport.addEventListener('resize', function() {
-            var c = getCanvas();
             var vv = window.visualViewport;
+            var c = getCanvas();
             if (c) {
               c.style.height = vv.height + 'px';
               c.style.width = vv.width + 'px';

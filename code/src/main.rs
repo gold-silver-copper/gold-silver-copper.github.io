@@ -666,11 +666,13 @@ impl App {
                         && row < area.bottom()
                         && i < BLOG_ENTRIES.len()
                     {
-                        self.blog_index = i;
-                        self.blog_viewing_post = true;
-                        self.blog_scroll = 0;
-                        self.trigger_btn_effect(*area);
-                        self.trigger_transition();
+                        if self.blog_index != i || !self.blog_viewing_post {
+                            self.blog_index = i;
+                            self.blog_viewing_post = true;
+                            self.blog_scroll = 0;
+                            self.trigger_btn_effect(*area);
+                            self.trigger_transition();
+                        }
                         return;
                     }
                 }
@@ -756,7 +758,7 @@ impl App {
     }
 
     fn handle_blog_event(&mut self, key: KeyEvent) {
-        let is_narrow = self.grid_cols < NARROW_WIDTH_THRESHOLD;
+        let is_narrow = self.content_area.width < NARROW_WIDTH_THRESHOLD + 4;
 
         if is_narrow && self.blog_viewing_post {
             // In narrow mode, viewing a post: scroll content or go back
