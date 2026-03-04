@@ -3,7 +3,7 @@ use std::rc::Rc;
 
 use grift::Lisp;
 use ratzilla::event::{KeyCode, KeyEvent, MouseButton, MouseEvent, MouseEventKind};
-use ratzilla::ratatui::layout::{Alignment, Constraint, Layout, Offset, Position, Rect};
+use ratzilla::ratatui::layout::{Alignment, Constraint, Layout, Position, Rect};
 use ratzilla::ratatui::style::{Color, Modifier, Style, Stylize};
 use ratzilla::ratatui::text::{Line, Span, Text};
 use ratzilla::ratatui::widgets::{Block, BorderType, List, ListItem, Paragraph, Wrap};
@@ -21,37 +21,20 @@ const MAX_TRAIL_LENGTH: usize = 30;
 const TRAIL_FADE_RATE: u8 = 8;
 const CURSOR_BLINK_RATE: u64 = 60;
 
-// Responsive layout breakpoints (in terminal grid columns/rows)
-const NARROW_WIDTH_THRESHOLD: u16 = 50;
-const VERY_NARROW_WIDTH_THRESHOLD: u16 = 35;
-const NARROW_MARGIN_THRESHOLD: u16 = 60;
-const SHORT_MARGIN_THRESHOLD: u16 = 30;
+// Unified layout: always use compact mobile-style sizing
+const MARGIN_DIVISOR: u16 = 16;
 
 const DESCRIPTION: &str = "\
-A Kernel-style Lisp built in Rust where everything is first-class.\n\
-Operatives (fexprs) subsume both functions and macros — receiving\n\
-arguments unevaluated with access to the caller's environment.\n\
-no_std, no_alloc, #![forbid(unsafe_code)], compiles to WASM.";
+A Kernel-style Lisp built in Rust where everything is first-class. Operatives (fexprs) subsume both functions and macros — receiving arguments unevaluated with access to the caller's environment. no_std, no_alloc, #![forbid(unsafe_code)], compiles to WASM. Grift is designed for minimalism and correctness: the entire evaluator fits in a single file with zero dependencies on heap allocation or unsafe code.";
 
 const VAU_INFO: &str = "\
-Grift implements vau calculus: first-class operatives that receive\n\
-their operands unevaluated alongside the dynamic environment.\n\
-This single primitive replaces the function/macro split entirely.\n\
-User-defined operatives have the same power as built-in forms —\n\
-define!, if, and quote are all expressible in user space.";
+Grift implements vau calculus: first-class operatives that receive their operands unevaluated alongside the dynamic environment. This single primitive replaces the function/macro split entirely. User-defined operatives have the same power as built-in forms — define!, if, and quote are all expressible in user space. Vau calculus was introduced by John Shutt in his 2010 PhD thesis as a cleaner foundation for Lisp semantics.";
 
 const FIRST_CLASS_INFO: &str = "\
-Environments, continuations, operatives, and combiners are all\n\
-first-class values. Operatives close over their static environment\n\
-and capture the caller's dynamic environment at each call site.\n\
-This enables reflective towers, hygienic binding constructs, and\n\
-arbitrary evaluation strategies — without special-casing.";
+Environments, continuations, operatives, and combiners are all first-class values. Operatives close over their static environment and capture the caller's dynamic environment at each call site. This enables reflective towers, hygienic binding constructs, and arbitrary evaluation strategies — without special-casing. First-class environments mean you can pass, return, and inspect environments just like any other value in the language.";
 
 const IMPL_INFO: &str = "\
-Written in pure Rust: arena-allocated with const-generic capacity,\n\
-tail-call optimized, mark-and-sweep GC, zero unsafe code.\n\
-Runs on bare-metal embedded targets and compiles to WebAssembly.\n\
-This entire site is a Rust TUI rendered to canvas via WASM.";
+Written in pure Rust: arena-allocated with const-generic capacity, tail-call optimized, mark-and-sweep GC, zero unsafe code. Runs on bare-metal embedded targets and compiles to WebAssembly. This entire site is a Rust TUI rendered to canvas via WASM. The arena allocator uses a fixed-size array with const generics so the capacity is determined at compile time with no runtime overhead.";
 
 const LINKS: &[(&str, &str)] = &[
     (
@@ -67,6 +50,9 @@ const LINKS: &[(&str, &str)] = &[
     ("Ratatui – Terminal UI framework", "https://github.com/ratatui/ratatui"),
     ("TachyonFX – Shader-like effects for TUIs", "https://github.com/ratatui/tachyonfx"),
     ("WebAssembly", "https://webassembly.org"),
+    ("Rust Programming Language", "https://www.rust-lang.org"),
+    ("crates.io – Rust Package Registry", "https://crates.io"),
+    ("Trunk – WASM bundler for Rust", "https://trunkrs.dev"),
 ];
 
 const DOC_BASICS: &str = "\
@@ -167,22 +153,46 @@ Type checking:\n\
   (null? ())          => #t\n\
   (boolean? #t)       => #t";
 
+const DOC_ENVIRONMENTS: &str = "\
+Environments & Evaluation\n\
+─────────────────────────\n\
+\n\
+Environments are first-class in Grift:\n\
+  (get-current-environment)  => <environment>\n\
+  (make-environment)         => <empty-env>\n\
+  (eval expr env)            => evaluate expr in env\n\
+\n\
+Operatives receive the dynamic environment:\n\
+  ($vau (x) e (eval x e))   ; like lambda\n\
+  (wrap ($vau (x) #ignore x)) ; applicative from operative\n\
+\n\
+The evaluator:\n\
+  1. Symbols are looked up in the current environment\n\
+  2. Pairs: evaluate the operator, then combine\n\
+  3. Operatives receive operands unevaluated\n\
+  4. Applicatives evaluate operands first, then call\n\
+\n\
+Tail-call optimization:\n\
+  Grift optimizes tail positions so recursive functions\n\
+  run in constant stack space. This applies to if, cond,\n\
+  begin, let, and operative/applicative bodies.";
+
 const SHOWCASE_INFO: &str = "\
 Ratzilla & Grift — Mobile Showcase\n\
 ──────────────────────────────────\n\
 \n\
-This website is a fully interactive terminal UI running\n\
-natively in your mobile browser — no app install needed.\n\
-Everything is rendered via WebAssembly + WebGL2.\n\
+This website is a fully interactive terminal UI running natively in your browser — no app install needed. Everything is rendered via WebAssembly + WebGL2. The same layout works on phones, tablets, and desktops without any distinction.\n\
 \n\
-Mobile Interactions\n\
-───────────────────\n\
+Interactions\n\
+────────────\n\
 \n\
   • Swipe LEFT / RIGHT to switch between tabs\n\
   • Swipe UP / DOWN to scroll content\n\
   • Tap on tabs, links, and buttons to interact\n\
   • Pinch-to-zoom is disabled for native feel\n\
-  • Mouse wheel scrolling works on desktop\n\
+  • Mouse wheel scrolling works everywhere\n\
+  • Keyboard input works on the REPL tab\n\
+  • Paste text with Ctrl+V / Cmd+V in the REPL\n\
 \n\
 Built With\n\
 ──────────\n\
@@ -195,42 +205,40 @@ Built With\n\
 Why Terminal UI in the Browser?\n\
 ──────────────────────────────\n\
 \n\
-  Traditional web apps use HTML/CSS/JavaScript to render\n\
-  DOM elements. This site takes a different approach:\n\
-  the entire UI is a Rust application compiled to WASM,\n\
-  rendering a terminal grid to an HTML canvas.\n\
+Traditional web apps use HTML/CSS/JavaScript to render DOM elements. This site takes a different approach: the entire UI is a Rust application compiled to WASM, rendering a terminal grid to an HTML canvas. There is no DOM manipulation, no CSS layout engine, and no JavaScript framework involved.\n\
 \n\
   Benefits:\n\
-  • Consistent rendering across all devices\n\
+  • Consistent rendering across all devices and browsers\n\
   • No CSS layout quirks or browser differences\n\
   • Rust type safety and performance\n\
-  • Retro terminal aesthetic with modern effects\n\
+  • Retro terminal aesthetic with modern shader effects\n\
+  • Single codebase for all screen sizes\n\
 \n\
-Mobile-First Design\n\
-───────────────────\n\
+Unified Layout\n\
+──────────────\n\
 \n\
-  The layout adapts to screen size:\n\
-  • Narrow screens get a vertical stacked layout\n\
-  • Wide screens get side-by-side panels\n\
-  • Touch gestures replace keyboard shortcuts\n\
-  • Scrollable sections work on all screen sizes\n\
+There is no separate mobile or desktop layout. The same compact layout adapts to any screen size through terminal grid scaling. Touch gestures, mouse input, and keyboard shortcuts all work simultaneously. Scrollable sections work via swipe, mouse wheel, or arrow buttons.\n\
 \n\
-  Every section you see can be scrolled by swiping\n\
-  up and down, or by using the ▲ / ▼ buttons at\n\
-  the bottom of the screen.\n\
+Mobile Browser Support\n\
+─────────────────────\n\
+\n\
+  • Safari on iOS: fully supported with safe area insets\n\
+  • Chrome on Android: supported with dynamic viewport handling\n\
+  • Firefox Mobile: fully supported\n\
+  • Samsung Internet: fully supported\n\
+  • Landscape and portrait modes both work correctly\n\
+  • Virtual keyboard is handled for the REPL tab\n\
 \n\
 Try the REPL!\n\
 ─────────────\n\
 \n\
-  Switch to the REPL tab and type Lisp expressions.\n\
-  The on-screen keyboard works — try:\n\
-    (+ 1 2)\n\
-    (list 1 2 3)\n\
-    (define! x 42)\n\
-    (* x x)\n\
+Switch to the REPL tab and type Lisp expressions. The on-screen keyboard works — try:\n\
+  (+ 1 2)\n\
+  (list 1 2 3)\n\
+  (define! x 42)\n\
+  (* x x)\n\
 \n\
-  The REPL runs a real Lisp interpreter (Grift)\n\
-  compiled to WebAssembly — not a simulation.";
+The REPL runs a real Lisp interpreter (Grift) compiled to WebAssembly — not a simulation.";
 
 const BLOG_ENTRIES: &[(&str, &str, &str)] = &[
     (
@@ -285,6 +293,27 @@ const BLOG_ENTRIES: &[(&str, &str, &str)] = &[
          \n\
          No JavaScript framework. No DOM manipulation. Just Rust\n\
          rendering a terminal buffer to a canvas element.",
+    ),
+    (
+        "Unified Layout Design",
+        "2025-05-15",
+        "Traditional responsive design uses breakpoints to switch between \
+         mobile and desktop layouts. This site takes a different approach: \
+         there is only one layout that works everywhere. The terminal grid \
+         scales naturally to any screen size, and touch gestures work \
+         alongside mouse and keyboard input. No media queries, no \
+         breakpoints, no separate code paths. The same Rust code renders \
+         identically on a phone, tablet, or ultrawide monitor.",
+    ),
+    (
+        "WebAssembly Performance",
+        "2025-06-01",
+        "Compiling Rust to WebAssembly gives near-native performance in \
+         the browser. Grift's arena allocator avoids garbage collection \
+         pauses entirely — memory is managed through a mark-and-sweep \
+         collector that runs on the fixed-size arena. Combined with \
+         Ratzilla's WebGL2 renderer, the UI maintains smooth 60fps \
+         animation even on mid-range mobile devices.",
     ),
 ];
 
@@ -779,7 +808,7 @@ impl App {
             ScrollTarget::Showcase => &mut self.showcase_scroll,
             ScrollTarget::Docs => &mut self.doc_scroll,
         };
-        let step = if self.grid_cols < NARROW_WIDTH_THRESHOLD { 2 } else { 1 };
+        let step = 2;
         match key.code {
             KeyCode::Up => {
                 *scroll = scroll.saturating_sub(step);
@@ -830,14 +859,8 @@ impl App {
 
         // Center the main content with margins to show animated background border
         // Use smaller margins on narrow screens (phones) for better usability
-        let h_margin = if full_area.width <= VERY_NARROW_WIDTH_THRESHOLD {
-            0
-        } else if full_area.width < NARROW_MARGIN_THRESHOLD {
-            1
-        } else {
-            (full_area.width / 10).max(2)
-        };
-        let v_margin = if full_area.height < SHORT_MARGIN_THRESHOLD { 0 } else { (full_area.height / 16).max(1) };
+        let h_margin = (full_area.width / MARGIN_DIVISOR).min(2);
+        let v_margin = (full_area.height / MARGIN_DIVISOR).min(1);
 
         let [_, center_v, _] = Layout::vertical([
             Constraint::Length(v_margin),
@@ -882,17 +905,21 @@ impl App {
         if current_hovered_tab != self.last_hovered_tab {
             if let Some(idx) = current_hovered_tab {
                 if self.tab_rects.get(idx).is_some() {
-                    let inner_effect = fx::fade_from(
-                        Color::Rgb(60, 65, 80),
+                    let sweep = fx::sweep_in(
+                        Motion::LeftToRight,
+                        6,
+                        2,
                         Color::Rgb(8, 9, 14),
-                        (300, Interpolation::QuadOut),
+                        EffectTimer::from_ms(350, Interpolation::QuadOut),
                     );
-                    let hover_fx = fx::translate(
-                        inner_effect,
-                        Offset { x: 0, y: -1 },
-                        (300, Interpolation::QuadOut),
-                    );
-                    self.tab_hover_effects.push((idx, hover_fx));
+                    self.tab_hover_effects.push((idx, sweep));
+                    if let Some(tab_rect) = self.tab_rects.get(idx).copied() {
+                        let shift = fx::hsl_shift_fg(
+                            [20.0, 10.0, 14.0],
+                            (450, Interpolation::SineOut),
+                        );
+                        self.btn_effects.push((tab_rect, shift));
+                    }
                 }
             }
             self.last_hovered_tab = current_hovered_tab;
@@ -1039,11 +1066,9 @@ impl App {
     fn render_tabs(&mut self, frame: &mut Frame, area: Rect) {
         self.tab_area = area;
 
-        let is_narrow = area.width < NARROW_WIDTH_THRESHOLD;
-
         // Compute individual tab click areas from the Tabs widget layout.
-        // Use narrower dividers and less padding on mobile for compact layout.
-        let divider_width: u16 = if is_narrow { 1 } else { 3 };
+        // Compact dividers with no extra padding for unified layout.
+        let divider_width: u16 = 1;
         let inner_x = area.x + 1; // after left border
         let tab_row = area.y + 1;
 
@@ -1054,15 +1079,9 @@ impl App {
             if i > 0 {
                 line_pos += divider_width;
             }
-            if !is_narrow {
-                line_pos += 1; // left space padding
-            }
             let title_len = p.title().len() as u16;
             tab_offsets.push((line_pos, title_len));
             line_pos += title_len;
-            if !is_narrow {
-                line_pos += 1; // right space padding
-            }
         }
         let total_line_width = line_pos;
 
@@ -1088,12 +1107,10 @@ impl App {
             self.tab_rects.push(Rect::new(x, tab_row, *width, 1));
         }
 
-        let divider_str = if is_narrow { "│" } else { " │ " };
-
         let mut spans: Vec<Span> = Vec::new();
         for (i, p) in Page::ALL.iter().enumerate() {
             if i > 0 {
-                spans.push(Span::styled(divider_str, Style::default().fg(Color::Rgb(100, 105, 115))));
+                spans.push(Span::styled("│", Style::default().fg(Color::Rgb(100, 105, 115))));
             }
             let hovered = self.tab_rects.get(i).is_some_and(|r| self.is_hovered(*r));
             let is_selected = self.page.index() == i;
@@ -1111,13 +1128,7 @@ impl App {
             } else {
                 Style::default().fg(fg)
             };
-            if !is_narrow {
-                spans.push(Span::styled(" ", Style::default()));
-            }
             spans.push(Span::styled(p.title(), style));
-            if !is_narrow {
-                spans.push(Span::styled(" ", Style::default()));
-            }
         }
 
         let tab_line = Line::from(spans);
@@ -1168,6 +1179,21 @@ impl App {
         for l in IMPL_INFO.lines() {
             lines.push(Line::styled(l, Style::default().fg(Color::Rgb(170, 175, 185))));
         }
+
+        lines.push(Line::from(""));
+
+        // Why Grift section
+        lines.push(Line::styled("── Why Grift? ──", Style::default().fg(Color::Rgb(160, 175, 195)).bold()));
+        lines.push(Line::from(""));
+        let why_grift = "Most Lisps distinguish between functions and macros at a fundamental level. Grift eliminates this distinction entirely through vau calculus. Every combiner is an operative that can choose whether to evaluate its arguments. This makes the language simpler, more uniform, and more powerful. If you can write a function, you can write a macro — they are the same thing.";
+        lines.push(Line::styled(why_grift, Style::default().fg(Color::Rgb(170, 175, 185))));
+        lines.push(Line::from(""));
+
+        // This Site section
+        lines.push(Line::styled("── This Site ──", Style::default().fg(Color::Rgb(207, 181, 59)).bold()));
+        lines.push(Line::from(""));
+        let this_site = "Everything you see is a Rust terminal UI compiled to WebAssembly and rendered to an HTML canvas via Ratzilla. TachyonFX provides the animated background, page transitions, and hover effects. There is no HTML layout, no CSS styling, and no JavaScript framework — just a Rust application drawing characters to a terminal grid. The same layout works on every device and screen size.";
+        lines.push(Line::styled(this_site, Style::default().fg(Color::Rgb(170, 175, 185))));
 
         let mut scroll = self.home_scroll;
         self.render_scrollable_content(
@@ -1281,7 +1307,7 @@ impl App {
 
     fn render_docs(&mut self, frame: &mut Frame, area: Rect) {
         // Combine all doc sections into one scrollable text
-        let all_docs = [DOC_BASICS, DOC_FORMS, DOC_ADVANCED];
+        let all_docs = [DOC_BASICS, DOC_FORMS, DOC_ADVANCED, DOC_ENVIRONMENTS];
         let mut lines: Vec<Line> = Vec::new();
         // Account for outer block borders (2) + inner block borders (2) + side padding (4)
         let separator_width = area.width.saturating_sub(8) as usize;

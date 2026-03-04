@@ -173,47 +173,37 @@
           lastTap = now;
         }, { passive: false });
 
-        // Dynamic window resize: force canvas to recalculate on resize/orientation change
+        // Dynamic window resize: use visual viewport when available (fixes Chrome mobile URL bar)
+        function getViewportSize() {
+          if (window.visualViewport) {
+            return { w: window.visualViewport.width, h: window.visualViewport.height };
+          }
+          return { w: window.innerWidth, h: window.innerHeight };
+        }
         function handleResize() {
           _canvas = null; // reset cached canvas in case it was recreated
           var c = getCanvas();
+          var size = getViewportSize();
           if (c) {
-            var w = window.innerWidth;
-            var h = window.innerHeight;
-            c.style.width = w + 'px';
-            c.style.height = h + 'px';
-            // Update canvas internal resolution to match display size
+            c.style.width = size.w + 'px';
+            c.style.height = size.h + 'px';
             var dpr = window.devicePixelRatio || 1;
-            c.width = Math.round(w * dpr);
-            c.height = Math.round(h * dpr);
+            c.width = Math.round(size.w * dpr);
+            c.height = Math.round(size.h * dpr);
           }
-          document.body.style.width = window.innerWidth + 'px';
-          document.body.style.height = window.innerHeight + 'px';
+          document.body.style.width = size.w + 'px';
+          document.body.style.height = size.h + 'px';
         }
         window.addEventListener('resize', handleResize);
         window.addEventListener('orientationchange', function() {
-          // Delay to let the browser settle after orientation change
           setTimeout(handleResize, 100);
           setTimeout(handleResize, 300);
           setTimeout(handleResize, 600);
         });
 
-        // Visual viewport API: handle virtual keyboard appearance
+        // Visual viewport API: handle Chrome mobile URL bar and virtual keyboard
         if (window.visualViewport) {
-          window.visualViewport.addEventListener('resize', function() {
-            var vv = window.visualViewport;
-            _canvas = null;
-            var c = getCanvas();
-            if (c) {
-              c.style.height = vv.height + 'px';
-              c.style.width = vv.width + 'px';
-              var dpr = window.devicePixelRatio || 1;
-              c.width = Math.round(vv.width * dpr);
-              c.height = Math.round(vv.height * dpr);
-            }
-            document.body.style.height = vv.height + 'px';
-            document.body.style.width = vv.width + 'px';
-          });
+          window.visualViewport.addEventListener('resize', handleResize);
           window.visualViewport.addEventListener('scroll', function() {
             var vv = window.visualViewport;
             document.body.style.transform = 'translateY(' + (-vv.offsetTop) + 'px)';
