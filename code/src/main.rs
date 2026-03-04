@@ -2798,7 +2798,7 @@ impl App {
         let content_inner = content_block.inner(scroll_area);
 
         self.blog_item_areas.clear();
-        for (i, &line_idx) in blog_line_indices.iter().enumerate() {
+        for &line_idx in blog_line_indices.iter() {
             if line_idx >= self.blog_scroll {
                 let visible_row = (line_idx - self.blog_scroll) as u16;
                 if visible_row < content_inner.height {
@@ -2815,7 +2815,6 @@ impl App {
             } else {
                 self.blog_item_areas.push(Rect::default());
             }
-            let _ = i; // suppress unused warning
         }
     }
 
@@ -3148,7 +3147,6 @@ impl App {
             return;
         }
         // Compute thumb size and position
-        let total_positions = max_scroll + 1;
         let thumb_size = (track_height * track_height / (track_height + max_scroll)).max(1);
         let thumb_pos = if max_scroll > 0 {
             scroll * (track_height - thumb_size) / max_scroll
@@ -3157,7 +3155,6 @@ impl App {
         };
         let bar_x = area.right().saturating_sub(1); // right border column
         let buf = frame.buffer_mut();
-        let _ = total_positions;
         for i in 0..track_height {
             let y = area.y + 1 + i as u16; // skip top border
             let pos = Position::new(bar_x, y);
