@@ -2890,7 +2890,7 @@ impl App {
         // Use render_scrollable_content which handles the bordered block, scroll, and nav bar
         let mut scroll = self.about_scroll;
         self.render_scrollable_content(
-            frame, area, lines.clone(), &mut scroll,
+            frame, area, lines, &mut scroll,
             Some(" About ".bold().fg(Color::Rgb(207, 181, 59)).into()),
             Some(" gold.silver.copper ".bold().fg(Color::Rgb(184, 115, 51)).into()),
             "swipe ↕ │ tap links",
@@ -2927,21 +2927,15 @@ impl App {
         for (i, link_area) in self.link_areas.iter().enumerate() {
             if self.is_hovered(*link_area) {
                 if let Some((label, _, _)) = LINKS.get(i) {
-                    let hovered_line = Line::styled(
-                        format!("  {label}"),
-                        Style::default().fg(Color::Rgb(160, 175, 195)).add_modifier(Modifier::REVERSED),
-                    );
+                    let text = format!("  {label}");
+                    let style = Style::default().fg(Color::Rgb(160, 175, 195)).add_modifier(Modifier::REVERSED);
                     let buf = frame.buffer_mut();
-                    let pos = Position::new(link_area.x, link_area.y);
-                    // Write the hovered style over the existing cell
-                    for (j, span) in hovered_line.iter().enumerate() {
-                        for (k, ch) in span.content.chars().enumerate() {
-                            let x = link_area.x + j as u16 + k as u16;
-                            if x < link_area.right() {
-                                if let Some(cell) = buf.cell_mut(Position::new(x, pos.y)) {
-                                    cell.set_char(ch);
-                                    cell.set_style(span.style);
-                                }
+                    for (k, ch) in text.chars().enumerate() {
+                        let x = link_area.x + k as u16;
+                        if x < link_area.right() {
+                            if let Some(cell) = buf.cell_mut(Position::new(x, link_area.y)) {
+                                cell.set_char(ch);
+                                cell.set_style(style);
                             }
                         }
                     }
@@ -3514,7 +3508,12 @@ fn open_url(url: &str) {
     // window.open() can trigger synchronous browser events (focus, blur)
     // that re-enter draw() while handle_mouse_event() still holds borrow_mut().
     // Using setTimeout(0) ensures the URL opens after the current borrow is released.
-    let escaped = url.replace('\\', "\\\\").replace('\'', "\\'");
+    let escaped = url
+        .replace('\\', "\\\\")
+        .replace('\'', "\\'")
+        .replace('"', "\\\"")
+        .replace('\n', "\\n")
+        .replace('\r', "\\r");
     let js = format!("setTimeout(function(){{window.open('{}','_blank','noopener')}},0)", escaped);
     let _ = web_sys::js_sys::eval(&js);
 }
