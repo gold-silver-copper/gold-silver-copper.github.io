@@ -26,55 +26,31 @@ const VERY_NARROW_WIDTH_THRESHOLD: u16 = 35;
 const NARROW_MARGIN_THRESHOLD: u16 = 60;
 const SHORT_MARGIN_THRESHOLD: u16 = 30;
 
-const BANNER: &str = r#"
-  ██████╗ ██████╗ ██╗███████╗████████╗   ██████╗ ███████╗
- ██╔════╝ ██╔══██╗██║██╔════╝╚══██╔══╝   ██╔══██╗██╔════╝
- ██║  ███╗██████╔╝██║█████╗     ██║      ██████╔╝███████╗
- ██║   ██║██╔══██╗██║██╔══╝     ██║      ██╔══██╗╚════██║
- ╚██████╔╝██║  ██║██║██║        ██║   ██╗██║  ██║███████║
-  ╚═════╝ ╚═╝  ╚═╝╚═╝╚═╝        ╚═╝   ╚═╝╚═╝  ╚═╝╚══════╝
-"#;
-
 const DESCRIPTION: &str = "\
-Grift is a minimalistic Lisp implementing Kernel-style vau calculus.\n\
-\n\
-Features:\n\
-  • First-class operatives (fexprs) that subsume functions and macros\n\
-  • no_std, no_alloc — runs on bare-metal embedded systems\n\
-  • Arena-allocated with const-generic capacity\n\
-  • Tail-call optimized with mark-and-sweep GC\n\
-  • Zero unsafe code (#![forbid(unsafe_code)])\n\
-  • Compiles to WebAssembly";
-
-const ABOUT: &str = "\
->_ gold.silver.copper — Software developer • Rust enthusiast • Language designer\n\
-Interests: programming languages, NLP, AI, game dev, web dev.";
-
-const LISP_INFO: &str = "\
-Lisp is one of the oldest and most influential programming languages.\n\
-Its uniform syntax (S-expressions) and homoiconicity make it uniquely\n\
-suited to metaprogramming and language research. Code is data, data\n\
-is code — enabling macros, DSLs, and self-modifying programs.";
+A Kernel-style Lisp built in Rust where everything is first-class.\n\
+Operatives (fexprs) subsume both functions and macros — receiving\n\
+arguments unevaluated with access to the caller's environment.\n\
+no_std, no_alloc, #![forbid(unsafe_code)], compiles to WASM.";
 
 const VAU_INFO: &str = "\
-Vau calculus extends the lambda calculus with first-class operatives\n\
-(fexprs). Unlike macros, operatives receive their arguments\n\
-unevaluated and can inspect the caller's environment. This makes\n\
-them strictly more powerful — subsuming both functions and macros\n\
-in a single, elegant primitive.";
+Grift implements vau calculus: first-class operatives that receive\n\
+their operands unevaluated alongside the dynamic environment.\n\
+This single primitive replaces the function/macro split entirely.\n\
+User-defined operatives have the same power as built-in forms —\n\
+define!, if, and quote are all expressible in user space.";
 
-const RUST_INFO: &str = "\
-Rust is a systems programming language focused on safety, speed,\n\
-and concurrency. Grift is written in pure Rust with no_std,\n\
-no_alloc — it compiles to WebAssembly and runs on bare metal.\n\
-This entire website is Rust, rendered as a terminal UI via WASM.";
+const FIRST_CLASS_INFO: &str = "\
+Environments, continuations, operatives, and combiners are all\n\
+first-class values. Operatives close over their static environment\n\
+and capture the caller's dynamic environment at each call site.\n\
+This enables reflective towers, hygienic binding constructs, and\n\
+arbitrary evaluation strategies — without special-casing.";
 
-const GSC_INFO: &str = "\
-gold.silver.copper is a software developer passionate about\n\
-programming languages and systems programming. Grift is their\n\
-minimalistic Lisp built on vau calculus — featuring arena\n\
-allocation, tail-call optimization, and mark-and-sweep GC,\n\
-all in safe Rust with zero unsafe code.";
+const IMPL_INFO: &str = "\
+Written in pure Rust: arena-allocated with const-generic capacity,\n\
+tail-call optimized, mark-and-sweep GC, zero unsafe code.\n\
+Runs on bare-metal embedded targets and compiles to WebAssembly.\n\
+This entire site is a Rust TUI rendered to canvas via WASM.";
 
 const LINKS: &[(&str, &str)] = &[
     (
@@ -405,11 +381,6 @@ struct App {
     // Tab hover effects
     tab_hover_effects: Vec<(usize, Effect)>,
     last_hovered_tab: Option<usize>,
-    // Banner glow effect
-    banner_glow_effect: Option<Effect>,
-    // Banner area tracking for glow effect
-    banner_area: Rect,
-    // Link hover effects
     link_hover_effects: Vec<(usize, Effect)>,
     last_hovered_link: Option<usize>,
 }
@@ -457,8 +428,6 @@ impl App {
             tab_glow_effect: None,
             tab_hover_effects: Vec::new(),
             last_hovered_tab: None,
-            banner_glow_effect: None,
-            banner_area: Rect::default(),
             link_hover_effects: Vec::new(),
             last_hovered_link: None,
         }
@@ -889,9 +858,9 @@ impl App {
         // Render fire glow effect on the selected tab
         if let Some(selected_tab_rect) = self.tab_rects.get(self.page.index()).copied() {
             if self.tab_glow_effect.is_none() {
-                // Subtle warm hsl shift that ping-pongs for a fire-like glow
-                let fg_shift = [-330.0, 15.0, 10.0];
-                let timer = (1200, Interpolation::SineIn);
+                // Subtle warm copper/gold hsl shift
+                let fg_shift = [8.0, 10.0, 6.0];
+                let timer = (1800, Interpolation::SineIn);
                 let glow = fx::hsl_shift_fg(fg_shift, timer)
                     .with_filter(CellFilter::Text);
                 self.tab_glow_effect = Some(fx::repeating(fx::ping_pong(glow)));
@@ -1003,21 +972,6 @@ impl App {
                     false
                 }
             });
-        }
-
-        // Subtle continuous glow on banner when on Home page
-        if self.page == Page::Home && self.banner_area.width > 0 {
-            if self.banner_glow_effect.is_none() {
-                let fg_shift = [-330.0, 10.0, 8.0];
-                let timer = (2000, Interpolation::SineIn);
-                let glow = fx::hsl_shift_fg(fg_shift, timer)
-                    .with_filter(CellFilter::Text);
-                self.banner_glow_effect = Some(fx::repeating(fx::ping_pong(glow)));
-            }
-            if let Some(ref mut effect) = self.banner_glow_effect {
-                // Apply only to the banner area, not the entire content area
-                frame.render_effect(effect, self.banner_area, elapsed);
-            }
         }
 
         // Render cursor trail
@@ -1139,12 +1093,13 @@ impl App {
 
         let tab_line = Line::from(spans);
         let tab_paragraph = Paragraph::new(tab_line)
+            .alignment(Alignment::Center)
             .scroll((0, self.tab_h_scroll as u16))
             .block(
                 Block::bordered()
                     .border_type(BorderType::Rounded)
                     .border_style(Color::Rgb(55, 60, 70))
-                    .title(" GRIFT.RS ")
+                    .title(Line::from(" GRIFT.RS ").alignment(Alignment::Center))
                     .title_style(Style::default().fg(Color::Rgb(207, 181, 59)).bold()),
             );
 
@@ -1152,69 +1107,47 @@ impl App {
     }
 
     fn render_home(&mut self, frame: &mut Frame, area: Rect) {
-        // Combine all sections into one scrollable text
         let mut lines: Vec<Line> = Vec::new();
 
-        // Banner (only on wider screens)
-        if area.width >= NARROW_WIDTH_THRESHOLD {
-            for l in BANNER.lines() {
-                lines.push(Line::styled(l, Style::default().fg(Color::Rgb(200, 200, 210)).bold()));
-            }
-            lines.push(Line::from(""));
-
-            // Description
-            lines.push(Line::styled("┌─ Grift ──────────────┐", Style::default().fg(Color::Rgb(184, 115, 51)).bold()));
-            for l in DESCRIPTION.lines() {
-                lines.push(Line::styled(l, Style::default().fg(Color::Rgb(170, 175, 185))));
-            }
-            lines.push(Line::from(""));
-        }
-
-        // About header
-        lines.push(Line::styled("┌─ About ──────────────┐", Style::default().fg(Color::Rgb(200, 200, 210)).bold()));
-        for l in ABOUT.lines() {
-            lines.push(Line::styled(l, Style::default().fg(Color::Rgb(140, 145, 155))));
-        }
+        // Grift section
+        lines.push(Line::styled("── Grift ──", Style::default().fg(Color::Rgb(207, 181, 59)).bold()).alignment(Alignment::Center));
         lines.push(Line::from(""));
-
-        // Lisp header
-        lines.push(Line::styled("┌─ Lisp ───────────────┐", Style::default().fg(Color::Rgb(207, 181, 59)).bold()));
-        for l in LISP_INFO.lines() {
+        for l in DESCRIPTION.lines() {
             lines.push(Line::styled(l, Style::default().fg(Color::Rgb(170, 175, 185))));
         }
         lines.push(Line::from(""));
 
-        // Vau calculus header
-        lines.push(Line::styled("┌─ Vau Calculus ───────┐", Style::default().fg(Color::Rgb(184, 115, 51)).bold()));
+        // Vau Calculus / Fexprs section
+        lines.push(Line::styled("── Fexprs & Vau Calculus ──", Style::default().fg(Color::Rgb(184, 115, 51)).bold()).alignment(Alignment::Center));
+        lines.push(Line::from(""));
         for l in VAU_INFO.lines() {
             lines.push(Line::styled(l, Style::default().fg(Color::Rgb(170, 175, 185))));
         }
         lines.push(Line::from(""));
 
-        // Rust header
-        lines.push(Line::styled("┌─ Rust ───────────────┐", Style::default().fg(Color::Rgb(222, 165, 132)).bold()));
-        for l in RUST_INFO.lines() {
+        // First-Class Everything section
+        lines.push(Line::styled("── First-Class Everything ──", Style::default().fg(Color::Rgb(200, 200, 210)).bold()).alignment(Alignment::Center));
+        lines.push(Line::from(""));
+        for l in FIRST_CLASS_INFO.lines() {
             lines.push(Line::styled(l, Style::default().fg(Color::Rgb(170, 175, 185))));
         }
         lines.push(Line::from(""));
 
-        // gold.silver.copper header
-        lines.push(Line::styled("┌─ gold.silver.copper ─┐", Style::default().fg(Color::Rgb(207, 181, 59)).bold()));
-        for l in GSC_INFO.lines() {
+        // Implementation section
+        lines.push(Line::styled("── Implementation ──", Style::default().fg(Color::Rgb(222, 165, 132)).bold()).alignment(Alignment::Center));
+        lines.push(Line::from(""));
+        for l in IMPL_INFO.lines() {
             lines.push(Line::styled(l, Style::default().fg(Color::Rgb(170, 175, 185))));
         }
 
         let mut scroll = self.home_scroll;
-        let scroll_area = self.render_scrollable_content(
+        self.render_scrollable_content(
             frame, area, lines, &mut scroll,
             None,
             None,
             "swipe ↕ ↔",
         );
         self.home_scroll = scroll;
-
-        // Track banner area for glow effect
-        self.banner_area = scroll_area;
     }
 
     fn render_repl(&self, frame: &mut Frame, area: Rect) {
