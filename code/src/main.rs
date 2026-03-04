@@ -1565,10 +1565,12 @@ enum Page {
     Links,
     Showcase,
     Effects,
+    Clock,
+    Matrix,
 }
 
 impl Page {
-    const ALL: [Page; 7] = [Page::Home, Page::Repl, Page::Docs, Page::Blog, Page::Links, Page::Showcase, Page::Effects];
+    const ALL: [Page; 9] = [Page::Home, Page::Repl, Page::Docs, Page::Blog, Page::Links, Page::Showcase, Page::Effects, Page::Clock, Page::Matrix];
 
     fn title(self) -> &'static str {
         match self {
@@ -1579,6 +1581,8 @@ impl Page {
             Page::Links => "Links",
             Page::Showcase => "Mobile",
             Page::Effects => "Effects",
+            Page::Clock => "Clock",
+            Page::Matrix => "Matrix",
         }
     }
 
@@ -1593,6 +1597,14 @@ enum ScrollTarget {
     Links,
     Showcase,
     Docs,
+}
+
+struct MatrixColumn {
+    head: u16,    // current head row position
+    length: u16,  // trail length
+    speed: u16,   // ticks per step
+    counter: u16, // tick counter
+    chars: Vec<char>, // characters in this column
 }
 
 struct App {
@@ -1658,6 +1670,9 @@ struct App {
     dsl_effects_scroll: usize,
     dsl_effects_cache: Vec<Option<Effect>>,
     frame_elapsed: Duration,
+    // Matrix rain state
+    matrix_columns: Vec<MatrixColumn>,
+    matrix_initialized: bool,
 }
 
 impl App {
@@ -1708,6 +1723,8 @@ impl App {
             dsl_effects_scroll: 0,
             dsl_effects_cache: Vec::new(),
             frame_elapsed: Duration::from_millis(0),
+            matrix_columns: Vec::new(),
+            matrix_initialized: false,
         }
     }
 
@@ -1747,6 +1764,18 @@ impl App {
                 EffectTimer::from_ms(500, Interpolation::CubicOut),
             ),
             Page::Effects => fx::coalesce(EffectTimer::from_ms(500, Interpolation::SineOut)),
+            Page::Clock => fx::fade_from(
+                dark,
+                dark,
+                EffectTimer::from_ms(400, Interpolation::CubicOut),
+            ),
+            Page::Matrix => fx::sweep_in(
+                Motion::UpToDown,
+                12,
+                2,
+                dark,
+                EffectTimer::from_ms(600, Interpolation::QuadOut),
+            ),
         };
         self.transition_effect = Some(effect);
     }
@@ -1764,6 +1793,20 @@ impl App {
             } else {
                 let _ = web_sys::js_sys::eval("window._replTabActive=false;window._blurReplInput&&window._blurReplInput()");
             }
+        }
+    }
+
+    fn switch_to_prev_tab(&mut self) {
+        let idx = self.page.index();
+        if idx > 0 {
+            self.switch_page(Page::ALL[idx - 1]);
+        }
+    }
+
+    fn switch_to_next_tab(&mut self) {
+        let idx = self.page.index();
+        if idx + 1 < Page::ALL.len() {
+            self.switch_page(Page::ALL[idx + 1]);
         }
     }
 
@@ -1828,6 +1871,7 @@ impl App {
             Page::Links => self.handle_scroll_event(key, ScrollTarget::Links),
             Page::Showcase => self.handle_scroll_event(key, ScrollTarget::Showcase),
             Page::Effects => self.handle_effects_event(key),
+            Page::Clock | Page::Matrix => self.handle_demo_tab_event(key),
         }
     }
 
@@ -2066,6 +2110,12 @@ impl App {
             KeyCode::Down => {
                 *scroll += step;
             }
+            KeyCode::Left => {
+                self.switch_to_prev_tab();
+            }
+            KeyCode::Right => {
+                self.switch_to_next_tab();
+            }
             _ => {}
         }
     }
@@ -2086,6 +2136,18 @@ impl App {
             KeyCode::Right => {
                 // Jump forward by one full page of entries
                 self.dsl_effects_scroll += 20;
+            }
+            _ => {}
+        }
+    }
+
+    fn handle_demo_tab_event(&mut self, key: KeyEvent) {
+        match key.code {
+            KeyCode::Left => {
+                self.switch_to_prev_tab();
+            }
+            KeyCode::Right => {
+                self.switch_to_next_tab();
             }
             _ => {}
         }
@@ -2216,6 +2278,8 @@ impl App {
             Page::Links => self.render_links(frame, content_area),
             Page::Showcase => self.render_showcase(frame, content_area),
             Page::Effects => self.render_effects(frame, content_area),
+            Page::Clock => self.render_clock(frame, content_area),
+            Page::Matrix => self.render_matrix(frame, content_area),
         }
 
         // Process transition effects
@@ -3260,6 +3324,227 @@ impl App {
             "swipe ↕",
         );
         self.showcase_scroll = scroll;
+    }
+
+    fn render_clock(&self, frame: &mut Frame, area: Rect) {
+        // Get current time from browser via js_sys
+        let date = web_sys::js_sys::Date::new_0();
+        let hours = date.get_hours();
+        let minutes = date.get_minutes();
+        let seconds = date.get_seconds();
+
+        let time_str = format!("{:02}:{:02}:{:02}", hours, minutes, seconds);
+
+        // Large ASCII digit font (3x5 per digit)
+        const DIGITS: [&[&str; 5]; 10] = [
+            &[" ▄▄ ", "█  █", "█  █", "█  █", " ▀▀ "], // 0
+            &["  █ ", " ██ ", "  █ ", "  █ ", " ▄█▄"], // 1
+            &[" ▄▄ ", "   █", " ▄▄ ", "█   ", " ▀▀▀"], // 2
+            &[" ▄▄ ", "   █", " ▄▄ ", "   █", " ▀▀ "], // 3
+            &["█  █", "█  █", " ▀▀█", "   █", "   ▀"], // 4
+            &[" ▀▀▀", "█   ", " ▀▀ ", "   █", " ▀▀ "], // 5
+            &[" ▄▄ ", "█   ", "█▄▄ ", "█  █", " ▀▀ "], // 6
+            &[" ▀▀▀", "   █", "  █ ", " █  ", " ▀  "], // 7
+            &[" ▄▄ ", "█  █", " ▄▄ ", "█  █", " ▀▀ "], // 8
+            &[" ▄▄ ", "█  █", " ▀▀█", "   █", " ▀▀ "], // 9
+        ];
+        const COLON: [&str; 5] = ["  ", "▄ ", "  ", "▄ ", "  "];
+
+        // Build 5 rows of the big clock display
+        let mut big_lines: Vec<String> = vec![String::new(); 5];
+        for ch in time_str.chars() {
+            if ch == ':' {
+                for (row, line) in big_lines.iter_mut().enumerate() {
+                    line.push_str(COLON[row]);
+                }
+            } else if let Some(d) = ch.to_digit(10) {
+                let glyph = DIGITS[d as usize];
+                for (row, line) in big_lines.iter_mut().enumerate() {
+                    line.push_str(glyph[row]);
+                    line.push(' ');
+                }
+            }
+        }
+
+        let mut lines: Vec<Line> = Vec::new();
+        lines.push(Line::from(""));
+
+        // Color cycle based on bg_tick for a subtle animated effect
+        let hue = (self.bg_tick % 360) as f64;
+        let r = (128.0 + 80.0 * (hue * std::f64::consts::PI / 180.0).sin()) as u8;
+        let g = (128.0 + 80.0 * ((hue + 120.0) * std::f64::consts::PI / 180.0).sin()) as u8;
+        let b = (128.0 + 80.0 * ((hue + 240.0) * std::f64::consts::PI / 180.0).sin()) as u8;
+
+        for big_line in &big_lines {
+            lines.push(Line::styled(
+                big_line.clone(),
+                Style::default().fg(Color::Rgb(r, g, b)).bold(),
+            ));
+        }
+
+        lines.push(Line::from(""));
+
+        // Date display
+        let day_names = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+        let month_names = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
+                           "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+        let day_of_week = date.get_day() as usize;
+        let month = date.get_month() as usize;
+        let day = date.get_date();
+        let year = date.get_full_year();
+
+        let date_str = format!(
+            "{}  {} {} {}",
+            day_names.get(day_of_week).unwrap_or(&"???"),
+            month_names.get(month).unwrap_or(&"???"),
+            day,
+            year
+        );
+        lines.push(Line::styled(
+            date_str,
+            Style::default().fg(Color::Rgb(207, 181, 59)).bold(),
+        ));
+        lines.push(Line::from(""));
+
+        // UTC offset
+        let tz_offset = date.get_timezone_offset();
+        let tz_hours = -(tz_offset as i32) / 60;
+        let tz_mins = ((tz_offset as i32).unsigned_abs()) % 60;
+        let tz_str = format!("UTC {:+}:{:02}", tz_hours, tz_mins);
+        lines.push(Line::styled(
+            tz_str,
+            Style::default().fg(Color::Rgb(140, 145, 155)),
+        ));
+        lines.push(Line::from(""));
+
+        // Unix timestamp
+        let unix_ms = date.get_time() as u64;
+        lines.push(Line::styled(
+            format!("Unix: {}", unix_ms / 1000),
+            Style::default().fg(Color::Rgb(100, 105, 115)),
+        ));
+
+        let text = Text::from(lines);
+        let block = Block::bordered()
+            .border_type(BorderType::Rounded)
+            .border_style(Color::Rgb(55, 60, 70))
+            .title(Line::from(" Clock ").alignment(Alignment::Center))
+            .title_style(Style::default().fg(Color::Rgb(207, 181, 59)).bold());
+
+        let paragraph = Paragraph::new(text)
+            .alignment(Alignment::Center)
+            .block(block);
+
+        frame.render_widget(paragraph, area);
+    }
+
+    fn render_matrix(&mut self, frame: &mut Frame, area: Rect) {
+        let width = area.width.saturating_sub(2) as usize;
+        let height = area.height.saturating_sub(2) as usize;
+
+        if width == 0 || height == 0 {
+            return;
+        }
+
+        // Initialize or resize matrix columns
+        if !self.matrix_initialized || self.matrix_columns.len() != width {
+            self.matrix_columns.clear();
+            for i in 0..width {
+                let seed = (i as u64).wrapping_mul(2654435761) ^ self.bg_tick;
+                let speed = 1 + (seed % 3) as u16;
+                let length = 4 + (seed.wrapping_mul(7) % 12) as u16;
+                let head = (seed.wrapping_mul(13) % height as u64) as u16;
+                let mut chars = Vec::new();
+                for j in 0..length {
+                    let ch_seed = seed.wrapping_mul(31).wrapping_add(j as u64);
+                    let ch = match ch_seed % 3 {
+                        0 => (0x30 + (ch_seed.wrapping_mul(7) % 10) as u8) as char, // 0-9
+                        1 => (0x41 + (ch_seed.wrapping_mul(11) % 26) as u8) as char, // A-Z
+                        _ => ['@', '#', '$', '%', '&', '*', '+', '=', '~', '^']
+                            [(ch_seed % 10) as usize],
+                    };
+                    chars.push(ch);
+                }
+                self.matrix_columns.push(MatrixColumn {
+                    head,
+                    length,
+                    speed,
+                    counter: 0,
+                    chars,
+                });
+            }
+            self.matrix_initialized = true;
+        }
+
+        // Update column positions
+        for (i, col) in self.matrix_columns.iter_mut().enumerate() {
+            col.counter += 1;
+            if col.counter >= col.speed {
+                col.counter = 0;
+                col.head += 1;
+                if col.head > height as u16 + col.length {
+                    col.head = 0;
+                    // Regenerate chars for variety
+                    let seed = (i as u64).wrapping_mul(2654435761) ^ self.bg_tick;
+                    col.length = 4 + (seed.wrapping_mul(7) % 12) as u16;
+                    col.speed = 1 + (seed % 3) as u16;
+                    col.chars.clear();
+                    for j in 0..col.length {
+                        let ch_seed = seed.wrapping_mul(31).wrapping_add(j as u64);
+                        let ch = match ch_seed % 3 {
+                            0 => (0x30 + (ch_seed.wrapping_mul(7) % 10) as u8) as char,
+                            1 => (0x41 + (ch_seed.wrapping_mul(11) % 26) as u8) as char,
+                            _ => ['@', '#', '$', '%', '&', '*', '+', '=', '~', '^']
+                                [(ch_seed % 10) as usize],
+                        };
+                        col.chars.push(ch);
+                    }
+                }
+            }
+        }
+
+        // Render block border
+        let block = Block::bordered()
+            .border_type(BorderType::Rounded)
+            .border_style(Color::Rgb(55, 60, 70))
+            .title(Line::from(" Matrix Rain ").alignment(Alignment::Center))
+            .title_style(Style::default().fg(Color::Rgb(0, 255, 65)).bold());
+        frame.render_widget(block, area);
+
+        // Render matrix rain into the inner area
+        let inner = Rect::new(area.x + 1, area.y + 1, area.width.saturating_sub(2), area.height.saturating_sub(2));
+        let buf = frame.buffer_mut();
+
+        for (col_idx, col) in self.matrix_columns.iter().enumerate() {
+            if col_idx >= inner.width as usize {
+                break;
+            }
+            let x = inner.x + col_idx as u16;
+            for trail_pos in 0..col.length {
+                let row = col.head as i32 - trail_pos as i32;
+                if row < 0 || row >= inner.height as i32 {
+                    continue;
+                }
+                let y = inner.y + row as u16;
+                let pos = Position::new(x, y);
+                if let Some(cell) = buf.cell_mut(pos) {
+                    let ch = col.chars.get(trail_pos as usize).copied().unwrap_or('0');
+                    cell.set_char(ch);
+                    if trail_pos == 0 {
+                        // Head: bright white-green
+                        cell.set_fg(Color::Rgb(200, 255, 200));
+                        cell.set_bg(Color::Rgb(0, 40, 0));
+                    } else {
+                        // Trail: fade from green to dark green
+                        let fade = 255 - (trail_pos as u16 * 255 / col.length as u16).min(255);
+                        let g = (fade as u8).max(30);
+                        let r = (fade as u8 / 8).min(20);
+                        cell.set_fg(Color::Rgb(r, g, 0));
+                        cell.set_bg(Color::Rgb(0, (g / 12).min(15), 0));
+                    }
+                }
+            }
+        }
     }
 }
 

@@ -25,6 +25,18 @@
       inputmode="text" enterkeyhint="send" />
 
     <script>
+      // Disable WebGL2 anti-aliasing: intercept context creation before ratzilla
+      (function() {
+        var origGetContext = HTMLCanvasElement.prototype.getContext;
+        HTMLCanvasElement.prototype.getContext = function(type, attrs) {
+          if (type === 'webgl2' || type === 'webgl') {
+            attrs = Object.assign({}, attrs || {});
+            attrs.antialias = false;
+          }
+          return origGetContext.call(this, type, attrs);
+        };
+      })();
+
       // Mobile interaction support: swipe gestures, mousewheel, momentum scrolling, zone-aware scrolling
       (function() {
         var touchStartX = 0;
@@ -153,6 +165,37 @@
             momentumId = null;
           }
         }, { passive: true });
+
+        // Touch-to-mouse forwarding for text selection and copy-paste on mobile.
+        // In the content zone, forward touch events as mouse events so beamterm's
+        // mouse selection handler picks them up for text selection.
+        (function() {
+          function touchToMouse(type, touch) {
+            var c = getCanvas();
+            if (!c) return;
+            c.dispatchEvent(new MouseEvent(type, {
+              clientX: touch.clientX,
+              clientY: touch.clientY,
+              button: 0,
+              buttons: type === 'mouseup' ? 0 : 1,
+              bubbles: true,
+              cancelable: true
+            }));
+          }
+          document.addEventListener('touchstart', function(e) {
+            if (getTouchZone(e.changedTouches[0].clientY) !== 'tabs') {
+              touchToMouse('mousedown', e.changedTouches[0]);
+            }
+          }, { passive: true });
+          document.addEventListener('touchmove', function(e) {
+            if (getTouchZone(e.changedTouches[0].clientY) !== 'tabs') {
+              touchToMouse('mousemove', e.changedTouches[0]);
+            }
+          }, { passive: true });
+          document.addEventListener('touchend', function(e) {
+            touchToMouse('mouseup', e.changedTouches[0]);
+          }, { passive: true });
+        })();
 
         // Mousewheel support — scroll content with wheel
         document.addEventListener('wheel', function(e) {
