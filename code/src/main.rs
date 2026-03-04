@@ -3385,8 +3385,8 @@ impl App {
         lines.push(Line::from(""));
 
         // Date display
-        let day_names = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-        let month_names = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
+        const DAY_NAMES: [&str; 7] = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+        const MONTH_NAMES: [&str; 12] = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
                            "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
         let day_of_week = date.get_day() as usize;
         let month = date.get_month() as usize;
@@ -3395,8 +3395,8 @@ impl App {
 
         let date_str = format!(
             "{}  {} {} {}",
-            day_names.get(day_of_week).unwrap_or(&"???"),
-            month_names.get(month).unwrap_or(&"???"),
+            DAY_NAMES.get(day_of_week).unwrap_or(&"???"),
+            MONTH_NAMES.get(month).unwrap_or(&"???"),
             day,
             year
         );
@@ -3439,6 +3439,16 @@ impl App {
     }
 
     fn render_matrix(&mut self, frame: &mut Frame, area: Rect) {
+        const MATRIX_SPECIAL: [char; 10] = ['@', '#', '$', '%', '&', '*', '+', '=', '~', '^'];
+
+        fn matrix_char(seed: u64) -> char {
+            match seed % 3 {
+                0 => (0x30 + (seed.wrapping_mul(7) % 10) as u8) as char, // 0-9
+                1 => (0x41 + (seed.wrapping_mul(11) % 26) as u8) as char, // A-Z
+                _ => MATRIX_SPECIAL[(seed % 10) as usize],
+            }
+        }
+
         let width = area.width.saturating_sub(2) as usize;
         let height = area.height.saturating_sub(2) as usize;
 
@@ -3457,13 +3467,7 @@ impl App {
                 let mut chars = Vec::new();
                 for j in 0..length {
                     let ch_seed = seed.wrapping_mul(31).wrapping_add(j as u64);
-                    let ch = match ch_seed % 3 {
-                        0 => (0x30 + (ch_seed.wrapping_mul(7) % 10) as u8) as char, // 0-9
-                        1 => (0x41 + (ch_seed.wrapping_mul(11) % 26) as u8) as char, // A-Z
-                        _ => ['@', '#', '$', '%', '&', '*', '+', '=', '~', '^']
-                            [(ch_seed % 10) as usize],
-                    };
-                    chars.push(ch);
+                    chars.push(matrix_char(ch_seed));
                 }
                 self.matrix_columns.push(MatrixColumn {
                     head,
@@ -3491,13 +3495,7 @@ impl App {
                     col.chars.clear();
                     for j in 0..col.length {
                         let ch_seed = seed.wrapping_mul(31).wrapping_add(j as u64);
-                        let ch = match ch_seed % 3 {
-                            0 => (0x30 + (ch_seed.wrapping_mul(7) % 10) as u8) as char,
-                            1 => (0x41 + (ch_seed.wrapping_mul(11) % 26) as u8) as char,
-                            _ => ['@', '#', '$', '%', '&', '*', '+', '=', '~', '^']
-                                [(ch_seed % 10) as usize],
-                        };
-                        col.chars.push(ch);
+                        col.chars.push(matrix_char(ch_seed));
                     }
                 }
             }
