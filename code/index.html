@@ -49,13 +49,12 @@
           // Force nearest-neighbor texture filtering on WebGL contexts
           if (ctx && (type === 'webgl2' || type === 'webgl')) {
             var origTexImage2D = ctx.texImage2D.bind(ctx);
-            var gl = ctx;
-            var origTexParam = gl.texParameteri.bind(gl);
+            var origTexParam = ctx.texParameteri.bind(ctx);
             // Monkey-patch texImage2D to force NEAREST filtering after each texture upload
             ctx.texImage2D = function() {
               var result = origTexImage2D.apply(this, arguments);
-              origTexParam(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
-              origTexParam(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+              origTexParam(ctx.TEXTURE_2D, ctx.TEXTURE_MIN_FILTER, ctx.NEAREST);
+              origTexParam(ctx.TEXTURE_2D, ctx.TEXTURE_MAG_FILTER, ctx.NEAREST);
               return result;
             };
           }
