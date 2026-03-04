@@ -1,8 +1,8 @@
-use std::{
-    str::FromStr,
-    sync::{Arc, LazyLock, RwLock},
-};
+use std::sync::{Arc, LazyLock, RwLock};
 
+#[cfg(feature = "terminal")]
+use std::str::FromStr;
+#[cfg(feature = "terminal")]
 use config::{Config, Environment, File};
 use ratatui::style::Color;
 
@@ -42,6 +42,39 @@ pub struct ColorConfig {
     pub quote_default: Color,
 }
 
+impl Default for ColorConfig {
+    fn default() -> Self {
+        Self {
+            heading_bg_color: Color::Blue,
+            heading_fg_color: Color::Black,
+            italic_color: Color::Reset,
+            bold_color: Color::Reset,
+            striketrough_color: Color::Reset,
+            quote_bg_color: Color::Reset,
+            code_fg_color: Color::Red,
+            code_bg_color: Color::Rgb(48, 48, 48),
+            code_block_bg_color: Color::Rgb(48, 48, 48),
+            link_color: Color::Blue,
+            link_selected_fg_color: Color::Green,
+            link_selected_bg_color: Color::DarkGray,
+            table_header_fg_color: Color::Yellow,
+            table_header_bg_color: Color::Reset,
+            file_tree_selected_fg_color: Color::LightGreen,
+            file_tree_page_count_color: Color::LightGreen,
+            file_tree_name_color: Color::Blue,
+            file_tree_path_color: Color::DarkGray,
+            bold_italic_color: Color::Reset,
+            quote_important: Color::LightRed,
+            quote_warning: Color::LightYellow,
+            quote_tip: Color::LightGreen,
+            quote_note: Color::LightBlue,
+            quote_caution: Color::LightMagenta,
+            quote_default: Color::White,
+        }
+    }
+}
+
+#[cfg(feature = "terminal")]
 #[must_use]
 pub fn read_color_config_from_file() -> ColorConfig {
     let config_dir = dirs::home_dir().unwrap();
@@ -174,8 +207,13 @@ pub fn read_color_config_from_file() -> ColorConfig {
     }
 }
 
+#[cfg(feature = "terminal")]
 static COLOR_CONFIG_INTERNAL: LazyLock<Arc<RwLock<ColorConfig>>> =
     LazyLock::new(|| Arc::new(RwLock::new(read_color_config_from_file())));
+
+#[cfg(not(feature = "terminal"))]
+static COLOR_CONFIG_INTERNAL: LazyLock<Arc<RwLock<ColorConfig>>> =
+    LazyLock::new(|| Arc::new(RwLock::new(ColorConfig::default())));
 
 pub fn set_color_config(config: ColorConfig) {
     let mut color_config_internal = COLOR_CONFIG_INTERNAL.write().unwrap();
@@ -196,6 +234,19 @@ pub struct HeadingColors {
     pub level_6: Color,
 }
 
+impl Default for HeadingColors {
+    fn default() -> Self {
+        Self {
+            level_2: Color::Green,
+            level_3: Color::Magenta,
+            level_4: Color::Cyan,
+            level_5: Color::Yellow,
+            level_6: Color::LightRed,
+        }
+    }
+}
+
+#[cfg(feature = "terminal")]
 #[must_use]
 pub fn read_heading_colors_from_file() -> HeadingColors {
     let config_dir = dirs::home_dir().unwrap();
@@ -229,8 +280,13 @@ pub fn read_heading_colors_from_file() -> HeadingColors {
     }
 }
 
+#[cfg(feature = "terminal")]
 static HEADING_COLORS_INTERNAL: LazyLock<Arc<RwLock<HeadingColors>>> =
     LazyLock::new(|| Arc::new(RwLock::new(read_heading_colors_from_file())));
+
+#[cfg(not(feature = "terminal"))]
+static HEADING_COLORS_INTERNAL: LazyLock<Arc<RwLock<HeadingColors>>> =
+    LazyLock::new(|| Arc::new(RwLock::new(HeadingColors::default())));
 
 pub fn set_heading_colors(config: HeadingColors) {
     let mut heading_colors_internal = HEADING_COLORS_INTERNAL.write().unwrap();

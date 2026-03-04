@@ -1,5 +1,7 @@
+#[cfg(feature = "terminal")]
 use std::sync::LazyLock;
 
+#[cfg(feature = "terminal")]
 use config::{Config, Environment, File};
 use serde::Deserialize;
 
@@ -18,6 +20,7 @@ pub enum Centering {
     Right,
 }
 
+#[cfg(feature = "terminal")]
 pub static GENERAL_CONFIG: LazyLock<GeneralConfig> = LazyLock::new(|| {
     let config_dir = dirs::home_dir().unwrap();
     let config_file = config_dir.join(".config").join("mdt").join("config.toml");

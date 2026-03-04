@@ -1,3 +1,4 @@
+#[cfg(feature = "terminal")]
 use crate::search::{compare_heading, find_and_mark};
 
 use super::{
@@ -69,6 +70,7 @@ impl ComponentRoot {
             .collect()
     }
 
+    #[cfg(feature = "terminal")]
     pub fn find_and_mark(&mut self, search: &str) {
         let mut words = self
             .components
@@ -203,6 +205,7 @@ impl ComponentRoot {
         }
     }
 
+    #[cfg(feature = "terminal")]
     pub fn heading_offset(&self, heading: &str) -> Result<u16, String> {
         let mut y_offset = 0;
         for component in &self.components {

@@ -1,10 +1,14 @@
+#[cfg(feature = "terminal")]
 use std::cmp;
 
+#[cfg(feature = "terminal")]
 use image::DynamicImage;
+#[cfg(feature = "terminal")]
 use ratatui_image::{picker::Picker, protocol::StatefulProtocol};
 
 use super::{root::ComponentProps, textcomponent::TextNode};
 
+#[cfg(feature = "terminal")]
 pub struct ImageComponent {
     _alt_text: String,
     y_offset: u16,
@@ -13,6 +17,15 @@ pub struct ImageComponent {
     image: StatefulProtocol,
 }
 
+#[cfg(not(feature = "terminal"))]
+pub struct ImageComponent {
+    _alt_text: String,
+    y_offset: u16,
+    height: u16,
+    scroll_offset: u16,
+}
+
+#[cfg(feature = "terminal")]
 impl ImageComponent {
     pub fn new<T: ToString>(image: DynamicImage, height: u32, alt_text: T) -> Option<Self> {
         let picker = Picker::from_query_stdio().ok()?;
@@ -50,6 +63,14 @@ impl ImageComponent {
         self.y_offset
     }
 
+    #[must_use]
+    pub fn height(&self) -> u16 {
+        self.height
+    }
+}
+
+#[cfg(not(feature = "terminal"))]
+impl ImageComponent {
     #[must_use]
     pub fn height(&self) -> u16 {
         self.height

@@ -120,7 +120,7 @@ fn render_rows_inline(
                 }
                 None => {
                     let name = button.binds.first().map(|b| b.0.as_ref()).unwrap_or("");
-                    (name, Style::default().fg(Color::Rgb(170, 175, 185)).add_modifier(Modifier::BOLD))
+                    (name, Style::default().fg(Color::Rgb(190, 195, 210)).add_modifier(Modifier::BOLD))
                 }
             };
 

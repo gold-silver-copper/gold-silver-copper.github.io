@@ -13,3 +13,4 @@ web-time = "1.1"
 web-sys = "0.3"
 unicode-width = "0.2"
 tvk = { path = "../TerminalVirtualKeyboard", default-features = false }
+md-tui = { path = "../md-tui", default-features = false }
