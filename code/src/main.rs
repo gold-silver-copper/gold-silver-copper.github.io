@@ -407,6 +407,9 @@ struct App {
     banner_glow_effect: Option<Effect>,
     // Banner area tracking for glow effect
     banner_area: Rect,
+    // Link hover effects
+    link_hover_effects: Vec<(usize, Effect)>,
+    last_hovered_link: Option<usize>,
 }
 
 impl App {
@@ -452,6 +455,8 @@ impl App {
             last_hovered_tab: None,
             banner_glow_effect: None,
             banner_area: Rect::default(),
+            link_hover_effects: Vec::new(),
+            last_hovered_link: None,
         }
     }
 
@@ -519,11 +524,20 @@ impl App {
     }
 
     fn trigger_link_effect(&mut self, area: Rect) {
-        let effect = fx::hsl_shift_fg(
-            [20.0, 10.0, 15.0],
-            (300, Interpolation::SineOut),
+        let dark = Color::Rgb(8, 9, 14);
+        let sweep = fx::sweep_in(
+            Motion::LeftToRight,
+            6,
+            2,
+            dark,
+            EffectTimer::from_ms(400, Interpolation::QuadOut),
         );
-        self.btn_effects.push((area, effect));
+        self.btn_effects.push((area, sweep));
+        let shift = fx::hsl_shift_fg(
+            [25.0, 12.0, 18.0],
+            (500, Interpolation::SineOut),
+        );
+        self.btn_effects.push((area, shift));
     }
 
     fn is_hovered(&self, area: Rect) -> bool {
@@ -937,6 +951,43 @@ impl App {
             }
         });
 
+        // Link hover effects — triggers when a new link is hovered
+        if self.page == Page::Links {
+            let current_hovered_link = self.link_areas.iter().enumerate()
+                .find(|(_, r)| self.is_hovered(**r))
+                .map(|(i, _)| i);
+            if current_hovered_link != self.last_hovered_link {
+                if let Some(idx) = current_hovered_link {
+                    if let Some(link_rect) = self.link_areas.get(idx).copied() {
+                        let hover_fx = fx::fade_from(
+                            Color::Rgb(80, 90, 110),
+                            Color::Rgb(8, 9, 14),
+                            (400, Interpolation::QuadOut),
+                        );
+                        self.link_hover_effects.push((idx, hover_fx));
+                        // Also trigger a subtle hsl shift
+                        let shift_fx = fx::hsl_shift_fg(
+                            [15.0, 8.0, 10.0],
+                            (500, Interpolation::SineOut),
+                        );
+                        self.btn_effects.push((link_rect, shift_fx));
+                    }
+                }
+                self.last_hovered_link = current_hovered_link;
+            }
+            // Process link hover effects
+            self.link_hover_effects.retain_mut(|(idx, effect)| {
+                if effect.running() {
+                    if let Some(link_rect) = self.link_areas.get(*idx).copied() {
+                        frame.render_effect(effect, link_rect, elapsed);
+                    }
+                    true
+                } else {
+                    false
+                }
+            });
+        }
+
         // Subtle continuous glow on banner when on Home page
         if self.page == Page::Home && self.banner_area.width > 0 {
             if self.banner_glow_effect.is_none() {
@@ -1085,25 +1136,15 @@ impl App {
 
     fn render_home(&mut self, frame: &mut Frame, area: Rect) {
         let is_narrow_area = area.width < NARROW_WIDTH_THRESHOLD + 4;
-        let bottom_hint = if is_narrow_area {
-            "│ swipe ↕ ↔ │"
-        } else {
-            "│ swipe/scroll to explore • tap tabs to navigate │"
-        };
         let block = Block::bordered()
             .border_type(BorderType::Rounded)
-            .border_style(Color::Rgb(55, 60, 70))
-            .title_bottom(
-                Line::from(bottom_hint)
-                    .alignment(Alignment::Right)
-                    .style(Style::default().fg(Color::Rgb(55, 60, 70))),
-            );
+            .border_style(Color::Rgb(55, 60, 70));
 
         let inner = block.inner(area);
         frame.render_widget(block, area);
 
         let [scroll_area, nav_bar] =
-            Layout::vertical([Constraint::Min(1), Constraint::Length(3)]).areas(inner);
+            Layout::vertical([Constraint::Min(1), Constraint::Length(1)]).areas(inner);
 
         // Combine all sections into one scrollable text
         let mut lines: Vec<Line> = Vec::new();
@@ -1173,7 +1214,8 @@ impl App {
         frame.render_widget(home_content, scroll_area);
 
         // Scroll navigation arrows
-        self.render_scroll_arrows(frame, nav_bar, self.home_scroll, max_scroll);
+        let hint = if is_narrow_area { "swipe ↕ ↔" } else { "swipe/scroll • tap tabs" };
+        self.render_scroll_arrows(frame, nav_bar, self.home_scroll, max_scroll, hint);
 
         // Track banner area for glow effect
         self.banner_area = scroll_area;
@@ -1281,22 +1323,16 @@ impl App {
 
     fn render_docs(&mut self, frame: &mut Frame, area: Rect) {
         let is_narrow_area = area.width < NARROW_WIDTH_THRESHOLD + 4;
-        let bottom_hint = if is_narrow_area { "│ swipe ↕ │" } else { "│ swipe or scroll to explore │" };
         let block = Block::bordered()
             .border_type(BorderType::Rounded)
             .border_style(Color::Rgb(55, 60, 70))
-            .title(" Documentation ".bold().fg(Color::Rgb(200, 200, 210)))
-            .title_bottom(
-                Line::from(bottom_hint)
-                    .alignment(Alignment::Center)
-                    .style(Style::default().fg(Color::Rgb(55, 60, 70))),
-            );
+            .title(" Documentation ".bold().fg(Color::Rgb(200, 200, 210)));
 
         let inner = block.inner(area);
         frame.render_widget(block, area);
 
         let [scroll_area, nav_bar] =
-            Layout::vertical([Constraint::Min(1), Constraint::Length(3)]).areas(inner);
+            Layout::vertical([Constraint::Min(1), Constraint::Length(1)]).areas(inner);
 
         // Combine all doc sections into one scrollable text
         let all_docs = [DOC_BASICS, DOC_FORMS, DOC_ADVANCED];
@@ -1378,7 +1414,8 @@ impl App {
             );
         frame.render_widget(content, scroll_area);
 
-        self.render_scroll_arrows(frame, nav_bar, self.doc_scroll, max_scroll);
+        let hint = if is_narrow_area { "swipe ↕" } else { "swipe or scroll" };
+        self.render_scroll_arrows(frame, nav_bar, self.doc_scroll, max_scroll, hint);
     }
 
     fn render_blog(&mut self, frame: &mut Frame, area: Rect) {
@@ -1484,30 +1521,30 @@ impl App {
 
     fn render_links(&mut self, frame: &mut Frame, area: Rect) {
         let is_narrow_area = area.width < NARROW_WIDTH_THRESHOLD + 4;
-        let bottom_hint = if is_narrow_area { "│ tap to open │" } else { "│ click a link to open │" };
         let block = Block::bordered()
             .border_type(BorderType::Rounded)
             .border_style(Color::Rgb(55, 60, 70))
-            .title(" Links ".bold().fg(Color::Rgb(200, 200, 210)))
-            .title_bottom(
-                Line::from(bottom_hint)
-                    .alignment(Alignment::Center)
-                    .style(Style::default().fg(Color::Rgb(55, 60, 70))),
-            );
+            .title(" Links ".bold().fg(Color::Rgb(200, 200, 210)));
 
         let inner = block.inner(area);
         frame.render_widget(block, area);
 
         let [scroll_area, nav_bar] =
-            Layout::vertical([Constraint::Min(1), Constraint::Length(3)]).areas(inner);
+            Layout::vertical([Constraint::Min(1), Constraint::Length(1)]).areas(inner);
 
         // Build all links + info as one scrollable text
         let mut lines: Vec<Line> = Vec::new();
         lines.push(Line::styled("Repositories & Resources", Style::default().fg(Color::Rgb(200, 200, 210)).bold()));
         lines.push(Line::styled("────────────────────────", Style::default().fg(Color::Rgb(140, 145, 155))));
 
-        for (label, _url) in LINKS.iter() {
-            lines.push(Line::styled(format!("  {label}"), Style::default().fg(Color::Rgb(160, 175, 195))));
+        for (i, (label, _url)) in LINKS.iter().enumerate() {
+            let hovered = self.link_areas.get(i).is_some_and(|r| self.is_hovered(*r));
+            let style = if hovered {
+                Style::default().fg(Color::Rgb(160, 175, 195)).add_modifier(Modifier::REVERSED)
+            } else {
+                Style::default().fg(Color::Rgb(160, 175, 195))
+            };
+            lines.push(Line::styled(format!("  {label}"), style));
         }
 
         lines.push(Line::from(""));
@@ -1552,13 +1589,13 @@ impl App {
             .block(links_block);
         frame.render_widget(content, scroll_area);
 
-        self.render_scroll_arrows(frame, nav_bar, self.links_scroll, max_scroll);
+        let hint = if is_narrow_area { "tap to open" } else { "click to open" };
+        self.render_scroll_arrows(frame, nav_bar, self.links_scroll, max_scroll, hint);
     }
 
-    fn render_scroll_arrows(&mut self, frame: &mut Frame, nav_bar: Rect, scroll: usize, max_scroll: usize) {
-        // Use wider arrow buttons on narrow screens for easier tapping
-        let arrow_width = if nav_bar.width < NARROW_WIDTH_THRESHOLD { 10 } else { 8 };
-        let [up_area, info_area, down_area] = Layout::horizontal([
+    fn render_scroll_arrows(&mut self, frame: &mut Frame, nav_bar: Rect, scroll: usize, max_scroll: usize, hint: &str) {
+        let arrow_width: u16 = 3;
+        let [up_area, center_area, down_area] = Layout::horizontal([
             Constraint::Length(arrow_width),
             Constraint::Min(1),
             Constraint::Length(arrow_width),
@@ -1575,72 +1612,56 @@ impl App {
         let down_hovered = can_down && self.is_hovered(down_area);
 
         let up_style = if up_hovered {
-            Style::default().fg(Color::Rgb(255, 255, 255)).bold().add_modifier(Modifier::REVERSED)
+            Style::default().fg(Color::Rgb(255, 255, 255)).bold()
         } else if can_up {
-            Style::default().fg(Color::Rgb(200, 200, 210)).bold()
+            Style::default().fg(Color::Rgb(140, 145, 155))
         } else {
-            Style::default().fg(Color::Rgb(45, 48, 56))
+            Style::default().fg(Color::Rgb(35, 38, 46))
         };
         let down_style = if down_hovered {
-            Style::default().fg(Color::Rgb(255, 255, 255)).bold().add_modifier(Modifier::REVERSED)
+            Style::default().fg(Color::Rgb(255, 255, 255)).bold()
         } else if can_down {
-            Style::default().fg(Color::Rgb(200, 200, 210)).bold()
+            Style::default().fg(Color::Rgb(140, 145, 155))
         } else {
-            Style::default().fg(Color::Rgb(45, 48, 56))
+            Style::default().fg(Color::Rgb(35, 38, 46))
         };
 
-        let up_border = if up_hovered { Color::Rgb(200, 200, 210) } else if can_up { Color::Rgb(80, 85, 95) } else { Color::Rgb(40, 44, 52) };
-        let down_border = if down_hovered { Color::Rgb(200, 200, 210) } else if can_down { Color::Rgb(80, 85, 95) } else { Color::Rgb(40, 44, 52) };
-
         frame.render_widget(
-            Paragraph::new("  ▲").style(up_style).block(
-                Block::bordered().border_type(BorderType::Rounded).border_style(up_border),
-            ),
+            Paragraph::new(" ▲ ").style(up_style).alignment(Alignment::Center),
             up_area,
         );
-
-        // Scroll position indicator
-        let indicator = if max_scroll > 0 {
-            format!(" {}/{} ", scroll + 1, max_scroll + 1)
-        } else {
-            " ─ ".to_string()
-        };
         frame.render_widget(
-            Paragraph::new(indicator)
-                .alignment(Alignment::Center)
-                .style(Style::default().fg(Color::Rgb(100, 105, 115)))
-                .block(
-                    Block::bordered().border_type(BorderType::Rounded).border_style(Color::Rgb(40, 44, 52)),
-                ),
-            info_area,
+            Paragraph::new(" ▼ ").style(down_style).alignment(Alignment::Center),
+            down_area,
         );
 
+        // Center area: hint + scroll position
+        let indicator = if max_scroll > 0 {
+            format!("{}/{}", scroll + 1, max_scroll + 1)
+        } else {
+            "─".to_string()
+        };
+        let center_text = format!("{hint} │ {indicator}");
         frame.render_widget(
-            Paragraph::new("  ▼").style(down_style).block(
-                Block::bordered().border_type(BorderType::Rounded).border_style(down_border),
-            ),
-            down_area,
+            Paragraph::new(center_text)
+                .alignment(Alignment::Center)
+                .style(Style::default().fg(Color::Rgb(75, 80, 90))),
+            center_area,
         );
     }
 
     fn render_showcase(&mut self, frame: &mut Frame, area: Rect) {
         let is_narrow_area = area.width < NARROW_WIDTH_THRESHOLD + 4;
-        let bottom_hint = if is_narrow_area { "│ swipe ↕ │" } else { "│ swipe or scroll to explore │" };
         let block = Block::bordered()
             .border_type(BorderType::Rounded)
             .border_style(Color::Rgb(55, 60, 70))
-            .title(" Mobile Showcase ".bold().fg(Color::Rgb(207, 181, 59)))
-            .title_bottom(
-                Line::from(bottom_hint)
-                    .alignment(Alignment::Center)
-                    .style(Style::default().fg(Color::Rgb(55, 60, 70))),
-            );
+            .title(" Mobile Showcase ".bold().fg(Color::Rgb(207, 181, 59)));
 
         let inner = block.inner(area);
         frame.render_widget(block, area);
 
         let [scroll_area, nav_bar] =
-            Layout::vertical([Constraint::Min(1), Constraint::Length(3)]).areas(inner);
+            Layout::vertical([Constraint::Min(1), Constraint::Length(1)]).areas(inner);
 
         // Render showcase content with syntax highlighting for headers
         let lines: Vec<Line> = SHOWCASE_INFO
@@ -1698,12 +1719,15 @@ impl App {
         frame.render_widget(content, scroll_area);
 
         // Scroll navigation arrows
-        self.render_scroll_arrows(frame, nav_bar, self.showcase_scroll, max_scroll);
+        let hint = if is_narrow_area { "swipe ↕" } else { "swipe or scroll" };
+        self.render_scroll_arrows(frame, nav_bar, self.showcase_scroll, max_scroll, hint);
     }
 }
 
 fn open_url(url: &str) {
-    let _ = ratzilla::utils::open_url(url, true);
+    // Open in a new background tab
+    let js = format!("(function(){{var w=window.open('{}','_blank','noopener');if(w)w.blur();window.focus()}})()", url);
+    let _ = web_sys::js_sys::eval(&js);
 }
 
 fn main() -> std::io::Result<()> {
