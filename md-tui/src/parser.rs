@@ -1,3 +1,4 @@
+#[cfg(feature = "terminal")]
 use image::ImageReader;
 use itertools::Itertools;
 use pest::{
@@ -8,11 +9,12 @@ use pest_derive::Parser;
 use ratatui::style::Color;
 
 use crate::nodes::{
-    image::ImageComponent,
     root::{Component, ComponentRoot},
     textcomponent::{TextComponent, TextNode},
     word::{MetaData, Word, WordType},
 };
+#[cfg(feature = "terminal")]
+use crate::nodes::image::ImageComponent;
 
 #[derive(Parser)]
 #[grammar = "md.pest"]
@@ -81,62 +83,65 @@ fn parse_component(parse_node: ParseNode) -> Component {
         MdParseEnum::Image => {
             let leaf_nodes = get_leaf_nodes(parse_node);
             let mut alt_text = String::new();
-            let mut image = None;
-            for node in leaf_nodes {
-                if node.kind() == MdParseEnum::AltText {
-                    node.content().clone_into(&mut alt_text);
-                } else if is_url(node.content()) {
-                    #[cfg(feature = "network")]
-                    {
-                        let mut buf = Vec::new();
-                        image = ureq::get(node.content()).call().ok().and_then(|b| {
-                            let noe = b.into_body().read_to_vec();
-                            noe.ok().and_then(|b| {
-                                buf = b;
-                                image::load_from_memory(&buf).ok()
-                            })
-                        });
+
+            #[cfg(feature = "terminal")]
+            {
+                let mut image = None;
+                for node in &leaf_nodes {
+                    if node.kind() == MdParseEnum::AltText {
+                        node.content().clone_into(&mut alt_text);
+                    } else if is_url(node.content()) {
+                        #[cfg(feature = "network")]
+                        {
+                            let mut buf = Vec::new();
+                            image = ureq::get(node.content()).call().ok().and_then(|b| {
+                                let noe = b.into_body().read_to_vec();
+                                noe.ok().and_then(|b| {
+                                    buf = b;
+                                    image::load_from_memory(&buf).ok()
+                                })
+                            });
+                        }
+                        #[cfg(not(feature = "network"))]
+                        {
+                            image = None;
+                        }
+                    } else {
+                        image = ImageReader::open(node.content())
+                            .ok()
+                            .and_then(|r| r.decode().ok());
                     }
-                    #[cfg(not(feature = "network"))]
-                    {
-                        image = None;
+                }
+
+                if let Some(img) = image.as_ref() {
+                    let height = img.height();
+
+                    let comp = ImageComponent::new(img.to_owned(), height, alt_text.clone());
+
+                    if let Some(comp) = comp {
+                        return Component::Image(comp);
                     }
-                } else {
-                    image = ImageReader::open(node.content())
-                        .ok()
-                        .and_then(|r| r.decode().ok());
                 }
             }
 
-            if let Some(img) = image.as_ref() {
-                let height = img.height();
-
-                let comp = ImageComponent::new(img.to_owned(), height, alt_text.clone());
-
-                if let Some(comp) = comp {
-                    Component::Image(comp)
-                } else {
-                    let word = [Word::new(format!("[{alt_text}]"), WordType::Normal)];
-
-                    let comp = TextComponent::new(TextNode::Paragraph, word.into());
-                    Component::TextComponent(comp)
+            #[cfg(not(feature = "terminal"))]
+            {
+                for node in &leaf_nodes {
+                    if node.kind() == MdParseEnum::AltText {
+                        node.content().clone_into(&mut alt_text);
+                    }
                 }
-            } else {
-                let word = [
-                    Word::new("Image".to_string(), WordType::Normal),
-                    Word::new(" ".to_owned(), WordType::Normal),
-                    Word::new("not".to_owned(), WordType::Normal),
-                    Word::new(" ".to_owned(), WordType::Normal),
-                    Word::new("found".to_owned(), WordType::Normal),
-                    Word::new("/".to_owned(), WordType::Normal),
-                    Word::new("fetched".to_owned(), WordType::Normal),
-                    Word::new(" ".to_owned(), WordType::Normal),
-                    Word::new(format!("[{alt_text}]"), WordType::Normal),
-                ];
-
-                let comp = TextComponent::new(TextNode::Paragraph, word.into());
-                Component::TextComponent(comp)
             }
+
+            // Fallback: render as text placeholder
+            let word = [
+                Word::new("Image".to_string(), WordType::Normal),
+                Word::new(" ".to_owned(), WordType::Normal),
+                Word::new(format!("[{alt_text}]"), WordType::Normal),
+            ];
+
+            let comp = TextComponent::new(TextNode::Paragraph, word.into());
+            Component::TextComponent(comp)
         }
 
         MdParseEnum::Task => {

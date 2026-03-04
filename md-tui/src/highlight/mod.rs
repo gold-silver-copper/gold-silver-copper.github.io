@@ -39,6 +39,7 @@ mod yaml;
 #[cfg(feature = "tree-sitter-diff")]
 mod diff;
 
+#[cfg(feature = "syntax-highlight")]
 use tree_sitter_highlight::HighlightEvent;
 
 use ratatui::style::Color;
@@ -86,11 +87,18 @@ pub static COLOR_MAP: [Color; 18] = [
     Color::Reset,
 ];
 
+#[cfg(feature = "syntax-highlight")]
 pub enum HighlightInfo {
     Highlighted(Vec<HighlightEvent>),
     Unhighlighted,
 }
 
+#[cfg(not(feature = "syntax-highlight"))]
+pub enum HighlightInfo {
+    Unhighlighted,
+}
+
+#[cfg(feature = "syntax-highlight")]
 #[allow(unused_variables)]
 #[must_use]
 pub fn highlight_code(language: &str, lines: &[u8]) -> HighlightInfo {
@@ -161,6 +169,13 @@ pub fn highlight_code(language: &str, lines: &[u8]) -> HighlightInfo {
 
         _ => HighlightInfo::Unhighlighted,
     }
+}
+
+#[cfg(not(feature = "syntax-highlight"))]
+#[allow(unused_variables)]
+#[must_use]
+pub fn highlight_code(language: &str, lines: &[u8]) -> HighlightInfo {
+    HighlightInfo::Unhighlighted
 }
 
 #[cfg(test)]

@@ -1694,8 +1694,8 @@ impl App {
             keyboard_layout: lisp_keyboard_layout(),
             keyboard_env: {
                 let mut env = tvk::env::Env::new();
-                env.insert("border_color", tvk::env::Value::RGB(55, 60, 70));
-                env.insert("highlight", tvk::env::Value::RGB(207, 181, 59));
+                env.insert("border_color", tvk::env::Value::RGB(100, 105, 120));
+                env.insert("highlight", tvk::env::Value::RGB(180, 185, 200));
                 env
             },
             blog_nav_effect: None,
@@ -3025,12 +3025,12 @@ impl App {
                 &self.keyboard_env,
             );
 
-            // Repeating dark bold glow effect on the keyboard area
+            // Repeating passive silver glow effect on the keyboard area
             let elapsed = self.frame_elapsed;
             if self.keyboard_glow_effect.is_none() {
                 let glow = fx::hsl_shift_fg(
-                    [6.0, 8.0, 5.0],
-                    (2400, Interpolation::SineIn),
+                    [0.0, -3.0, 8.0],
+                    (3000, Interpolation::SineIn),
                 );
                 self.keyboard_glow_effect = Some(fx::repeating(fx::ping_pong(glow)));
             }
@@ -3241,18 +3241,17 @@ impl App {
             let is_selected = self.blog_index == i;
             let is_hovered = self.blog_item_areas.get(i).is_some_and(|r| self.is_hovered(*r));
 
-            // Single highlight model: hover wins over selection, selection always visible
-            let (style, marker) = if is_hovered {
-                (Style::default().fg(Color::Rgb(255, 255, 255)).bold().add_modifier(Modifier::REVERSED), "▸ ")
-            } else if is_selected {
+            // Unified single selector: hover updates selection on mobile, highlight is always consistent
+            let active = is_selected || is_hovered;
+            let (style, marker) = if active {
                 (Style::default().fg(Color::Rgb(207, 181, 59)).bold(), "▸ ")
             } else {
-                (Style::default().fg(Color::Rgb(200, 200, 210)).bold(), "  ")
+                (Style::default().fg(Color::Rgb(200, 200, 210)), "  ")
             };
 
             lines.push(Line::from(format!("{marker}{title}")).style(style));
 
-            let date_style = if is_selected {
+            let date_style = if active {
                 Style::default().fg(Color::Rgb(184, 115, 51))
             } else {
                 Style::default().fg(Color::Rgb(75, 80, 90))

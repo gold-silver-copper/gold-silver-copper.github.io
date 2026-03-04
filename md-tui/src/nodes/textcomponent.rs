@@ -4,12 +4,15 @@ use itertools::Itertools;
 use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
 use ratatui::style::Color;
+#[cfg(feature = "syntax-highlight")]
 use tree_sitter_highlight::HighlightEvent;
 
 use crate::{
-    highlight::{COLOR_MAP, HighlightInfo, highlight_code},
+    highlight::{HighlightInfo, highlight_code},
     nodes::word::MetaData,
 };
+#[cfg(feature = "syntax-highlight")]
+use crate::highlight::COLOR_MAP;
 
 use super::word::{Word, WordType};
 
@@ -465,6 +468,7 @@ fn transform_codeblock(component: &mut TextComponent) {
 
     let content = component.content_as_lines().join("");
 
+    #[allow(unused_variables)]
     let mut new_content = Vec::new();
 
     if language.is_empty() {
@@ -474,6 +478,7 @@ fn transform_codeblock(component: &mut TextComponent) {
         );
     }
     match highlight {
+        #[cfg(feature = "syntax-highlight")]
         HighlightInfo::Highlighted(e) => {
             let mut color = Color::Reset;
             for event in e {

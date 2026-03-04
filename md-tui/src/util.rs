@@ -1,19 +1,25 @@
+#[cfg(feature = "terminal")]
 use std::{cmp, io};
 
+#[cfg(feature = "terminal")]
 use crossterm::{
     cursor,
     event::DisableMouseCapture,
     execute,
     terminal::{LeaveAlternateScreen, disable_raw_mode},
 };
+#[cfg(feature = "terminal")]
 use general::GENERAL_CONFIG;
 
+#[cfg(feature = "terminal")]
 use crate::boxes::{errorbox::ErrorBox, help_box::HelpBox, linkbox::LinkBox, searchbox::SearchBox};
 
 pub mod colors;
 pub mod general;
+#[cfg(feature = "terminal")]
 pub mod keys;
 
+#[cfg(feature = "terminal")]
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub enum Mode {
     View,
@@ -21,6 +27,7 @@ pub enum Mode {
     FileTree,
 }
 
+#[cfg(feature = "terminal")]
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub enum Boxes {
     Error,
@@ -30,6 +37,7 @@ pub enum Boxes {
     None,
 }
 
+#[cfg(feature = "terminal")]
 impl From<JumpHistory> for Mode {
     fn from(jump_history: JumpHistory) -> Self {
         match jump_history.history.last() {
@@ -42,6 +50,7 @@ impl From<JumpHistory> for Mode {
     }
 }
 
+#[cfg(feature = "terminal")]
 #[derive(Default, Clone)]
 pub struct App {
     pub vertical_scroll: u16,
@@ -57,6 +66,7 @@ pub struct App {
     pub link_box: LinkBox,
 }
 
+#[cfg(feature = "terminal")]
 impl App {
     pub fn reset(&mut self) {
         self.vertical_scroll = 0;
@@ -78,12 +88,14 @@ impl App {
     }
 }
 
+#[cfg(feature = "terminal")]
 pub enum LinkType<'a> {
     Internal(&'a str),
     External(&'a str),
     MarkdownFile(&'a str),
 }
 
+#[cfg(feature = "terminal")]
 impl<'a> From<&'a str> for LinkType<'a> {
     fn from(s: &'a str) -> Self {
         if s.starts_with('#') {
@@ -96,17 +108,20 @@ impl<'a> From<&'a str> for LinkType<'a> {
     }
 }
 
+#[cfg(feature = "terminal")]
 pub fn destruct_terminal() {
     disable_raw_mode().unwrap();
     execute!(io::stdout(), LeaveAlternateScreen, DisableMouseCapture).unwrap();
     execute!(io::stdout(), cursor::Show).unwrap();
 }
 
+#[cfg(feature = "terminal")]
 #[derive(Debug, Clone)]
 pub struct JumpHistory {
     history: Vec<Jump>,
 }
 
+#[cfg(feature = "terminal")]
 impl JumpHistory {
     #[must_use]
     pub fn new() -> Self {
@@ -128,18 +143,21 @@ impl JumpHistory {
     }
 }
 
+#[cfg(feature = "terminal")]
 impl Default for JumpHistory {
     fn default() -> Self {
         Self::new()
     }
 }
 
+#[cfg(feature = "terminal")]
 #[derive(Debug, Clone, PartialEq)]
 pub enum Jump {
     File(String),
     FileTree,
 }
 
+#[cfg(feature = "terminal")]
 #[cfg(test)]
 #[test]
 fn test_jump_history() {
