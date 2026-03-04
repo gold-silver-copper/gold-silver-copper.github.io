@@ -2500,7 +2500,7 @@ impl App {
                 if self.prev_blog_index != self.blog_index {
                     if let Some(old_area) = self.blog_item_areas.get(self.prev_blog_index).copied() {
                         if old_area.width > 0 {
-                            // Clone-like: create a small inverse effect for the old title
+                            // Subtle inverse HSL shift to dim the old title (negative hue/sat/light)
                             let mut reverse = fx::hsl_shift_fg(
                                 [-10.0, -5.0, -8.0],
                                 (250, Interpolation::QuadOut),

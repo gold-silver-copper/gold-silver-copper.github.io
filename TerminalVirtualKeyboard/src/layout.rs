@@ -78,7 +78,7 @@ pub fn lisp_keyboard_layout() -> Layout {
     let k = Button::key;
     let ks = Button::key_shift;
 
-    // Row 1: ( 1 2 3 4 5 6 7 8 9 )  0
+    // Row 1: ( 1 2 3 4 5 6 7 8 9 ) 0
     let row1 = vec![
         ks("(", "[", None, 3),
         ks("1", "@", Some(Num1), 3),
