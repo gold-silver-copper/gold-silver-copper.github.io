@@ -55,6 +55,20 @@ canvas {
   background: transparent;
   color: transparent;
   caret-color: transparent;
+  font-size: 16px; /* Prevent iOS zoom on focus */
+}
+
+/* Remove focus outlines globally (canvas-based app) */
+*:focus,
+*:focus-visible {
+  outline: none;
+}
+
+canvas:focus,
+canvas:focus-visible,
+body:focus,
+body:focus-visible {
+  outline: none;
 }
 
 /* Hide scrollbars globally */

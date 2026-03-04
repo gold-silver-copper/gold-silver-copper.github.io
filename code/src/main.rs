@@ -11,6 +11,7 @@ use ratzilla::ratatui::Frame;
 use ratzilla::backend::webgl2::WebGl2BackendOptions;
 use ratzilla::WebGl2Backend;
 use ratzilla::WebRenderer;
+use unicode_width::UnicodeWidthChar;
 
 use tachyonfx::fx::{self};
 use tachyonfx::{CellFilter, Duration, Effect, EffectRenderer, EffectTimer, Interpolation, Motion};
@@ -26,55 +27,31 @@ const VERY_NARROW_WIDTH_THRESHOLD: u16 = 35;
 const NARROW_MARGIN_THRESHOLD: u16 = 60;
 const SHORT_MARGIN_THRESHOLD: u16 = 30;
 
-const BANNER: &str = r#"
-  ██████╗ ██████╗ ██╗███████╗████████╗   ██████╗ ███████╗
- ██╔════╝ ██╔══██╗██║██╔════╝╚══██╔══╝   ██╔══██╗██╔════╝
- ██║  ███╗██████╔╝██║█████╗     ██║      ██████╔╝███████╗
- ██║   ██║██╔══██╗██║██╔══╝     ██║      ██╔══██╗╚════██║
- ╚██████╔╝██║  ██║██║██║        ██║   ██╗██║  ██║███████║
-  ╚═════╝ ╚═╝  ╚═╝╚═╝╚═╝        ╚═╝   ╚═╝╚═╝  ╚═╝╚══════╝
-"#;
-
 const DESCRIPTION: &str = "\
-Grift is a minimalistic Lisp implementing Kernel-style vau calculus.\n\
-\n\
-Features:\n\
-  • First-class operatives (fexprs) that subsume functions and macros\n\
-  • no_std, no_alloc — runs on bare-metal embedded systems\n\
-  • Arena-allocated with const-generic capacity\n\
-  • Tail-call optimized with mark-and-sweep GC\n\
-  • Zero unsafe code (#![forbid(unsafe_code)])\n\
-  • Compiles to WebAssembly";
-
-const ABOUT: &str = "\
->_ gold.silver.copper — Software developer • Rust enthusiast • Language designer\n\
-Interests: programming languages, NLP, AI, game dev, web dev.";
-
-const LISP_INFO: &str = "\
-Lisp is one of the oldest and most influential programming languages.\n\
-Its uniform syntax (S-expressions) and homoiconicity make it uniquely\n\
-suited to metaprogramming and language research. Code is data, data\n\
-is code — enabling macros, DSLs, and self-modifying programs.";
+A Kernel-style Lisp built in Rust where everything is first-class.\n\
+Operatives (fexprs) subsume both functions and macros — receiving\n\
+arguments unevaluated with access to the caller's environment.\n\
+no_std, no_alloc, #![forbid(unsafe_code)], compiles to WASM.";
 
 const VAU_INFO: &str = "\
-Vau calculus extends the lambda calculus with first-class operatives\n\
-(fexprs). Unlike macros, operatives receive their arguments\n\
-unevaluated and can inspect the caller's environment. This makes\n\
-them strictly more powerful — subsuming both functions and macros\n\
-in a single, elegant primitive.";
+Grift implements vau calculus: first-class operatives that receive\n\
+their operands unevaluated alongside the dynamic environment.\n\
+This single primitive replaces the function/macro split entirely.\n\
+User-defined operatives have the same power as built-in forms —\n\
+define!, if, and quote are all expressible in user space.";
 
-const RUST_INFO: &str = "\
-Rust is a systems programming language focused on safety, speed,\n\
-and concurrency. Grift is written in pure Rust with no_std,\n\
-no_alloc — it compiles to WebAssembly and runs on bare metal.\n\
-This entire website is Rust, rendered as a terminal UI via WASM.";
+const FIRST_CLASS_INFO: &str = "\
+Environments, continuations, operatives, and combiners are all\n\
+first-class values. Operatives close over their static environment\n\
+and capture the caller's dynamic environment at each call site.\n\
+This enables reflective towers, hygienic binding constructs, and\n\
+arbitrary evaluation strategies — without special-casing.";
 
-const GSC_INFO: &str = "\
-gold.silver.copper is a software developer passionate about\n\
-programming languages and systems programming. Grift is their\n\
-minimalistic Lisp built on vau calculus — featuring arena\n\
-allocation, tail-call optimization, and mark-and-sweep GC,\n\
-all in safe Rust with zero unsafe code.";
+const IMPL_INFO: &str = "\
+Written in pure Rust: arena-allocated with const-generic capacity,\n\
+tail-call optimized, mark-and-sweep GC, zero unsafe code.\n\
+Runs on bare-metal embedded targets and compiles to WebAssembly.\n\
+This entire site is a Rust TUI rendered to canvas via WASM.";
 
 const LINKS: &[(&str, &str)] = &[
     (
@@ -360,6 +337,7 @@ struct App {
     doc_scroll: usize,
     // Blog state
     blog_index: usize,
+    blog_viewing_post: bool,
     // Scroll state for scrollable pages
     home_scroll: usize,
     links_scroll: usize,
@@ -388,6 +366,7 @@ struct App {
     tab_rects: Vec<Rect>,
     link_areas: Vec<Rect>,
     blog_item_areas: Vec<Rect>,
+    blog_back_area: Rect,
     // Zone detection areas
     content_area: Rect,
     blog_list_area: Rect,
@@ -403,10 +382,8 @@ struct App {
     // Tab hover effects
     tab_hover_effects: Vec<(usize, Effect)>,
     last_hovered_tab: Option<usize>,
-    // Banner glow effect
-    banner_glow_effect: Option<Effect>,
-    // Banner area tracking for glow effect
-    banner_area: Rect,
+    link_hover_effects: Vec<(usize, Effect)>,
+    last_hovered_link: Option<usize>,
 }
 
 impl App {
@@ -421,6 +398,7 @@ impl App {
             lisp,
             doc_scroll: 0,
             blog_index: 0,
+            blog_viewing_post: false,
             blog_scroll: 0,
             home_scroll: 0,
             links_scroll: 0,
@@ -442,6 +420,7 @@ impl App {
             tab_rects: Vec::new(),
             link_areas: Vec::new(),
             blog_item_areas: Vec::new(),
+            blog_back_area: Rect::default(),
             content_area: Rect::default(),
             blog_list_area: Rect::default(),
             blog_content_area: Rect::default(),
@@ -450,8 +429,8 @@ impl App {
             tab_glow_effect: None,
             tab_hover_effects: Vec::new(),
             last_hovered_tab: None,
-            banner_glow_effect: None,
-            banner_area: Rect::default(),
+            link_hover_effects: Vec::new(),
+            last_hovered_link: None,
         }
     }
 
@@ -499,6 +478,7 @@ impl App {
             self.page = page;
             self.tab_glow_effect = None;
             self.blog_scroll = 0;
+            self.blog_viewing_post = false;
             self.trigger_transition();
             // Focus/blur hidden input for REPL virtual keyboard
             if page == Page::Repl {
@@ -519,11 +499,20 @@ impl App {
     }
 
     fn trigger_link_effect(&mut self, area: Rect) {
-        let effect = fx::hsl_shift_fg(
-            [20.0, 10.0, 15.0],
-            (300, Interpolation::SineOut),
+        let dark = Color::Rgb(8, 9, 14);
+        let sweep = fx::sweep_in(
+            Motion::LeftToRight,
+            6,
+            2,
+            dark,
+            EffectTimer::from_ms(400, Interpolation::QuadOut),
         );
-        self.btn_effects.push((area, effect));
+        self.btn_effects.push((area, sweep));
+        let shift = fx::hsl_shift_fg(
+            [25.0, 12.0, 18.0],
+            (500, Interpolation::SineOut),
+        );
+        self.btn_effects.push((area, shift));
     }
 
     fn is_hovered(&self, area: Rect) -> bool {
@@ -626,17 +615,34 @@ impl App {
 
             // Check blog item clicks
             if self.page == Page::Blog {
+                // Check back button click (narrow mode)
+                if self.blog_back_area.width > 0
+                    && col >= self.blog_back_area.x
+                    && col < self.blog_back_area.right()
+                    && row >= self.blog_back_area.y
+                    && row < self.blog_back_area.bottom()
+                {
+                    self.blog_viewing_post = false;
+                    self.blog_scroll = 0;
+                    self.trigger_btn_effect(self.blog_back_area);
+                    self.trigger_transition();
+                    return;
+                }
+
                 for (i, area) in self.blog_item_areas.iter().enumerate() {
                     if col >= area.x
                         && col < area.right()
                         && row >= area.y
                         && row < area.bottom()
                         && i < BLOG_ENTRIES.len()
-                        && self.blog_index != i
                     {
-                        self.blog_index = i;
-                        self.trigger_btn_effect(*area);
-                        self.trigger_transition();
+                        if self.blog_index != i || !self.blog_viewing_post {
+                            self.blog_index = i;
+                            self.blog_viewing_post = true;
+                            self.blog_scroll = 0;
+                            self.trigger_btn_effect(*area);
+                            self.trigger_transition();
+                        }
                         return;
                     }
                 }
@@ -684,11 +690,14 @@ impl App {
                     self.repl_history.push((input, result));
                     self.repl_input.clear();
                     self.repl_cursor = 0;
-                    let total = self.repl_history.len() * 2;
-                    self.repl_scroll = total;
+                    self.repl_scroll = 0;
                 }
             }
             KeyCode::Char(c) => {
+                // Skip modifier-held keys (Ctrl+V paste is handled by JS paste event)
+                if key.ctrl || key.alt {
+                    return;
+                }
                 let byte_idx = self.byte_index();
                 self.repl_input.insert(byte_idx, c);
                 self.repl_cursor += 1;
@@ -722,48 +731,44 @@ impl App {
     }
 
     fn handle_blog_event(&mut self, key: KeyEvent) {
-        let in_list = self.blog_list_area.width > 0
-            && self.hover_row >= self.blog_list_area.y
-            && self.hover_row < self.blog_list_area.bottom();
-
-        match key.code {
-            KeyCode::Up => {
-                if in_list {
-                    if self.blog_index > 0 {
-                        self.blog_index -= 1;
-                        self.blog_scroll = 0;
-                        self.trigger_transition();
-                    }
-                } else {
+        if self.blog_viewing_post {
+            // Viewing a post: scroll content or go back
+            match key.code {
+                KeyCode::Up => {
                     self.blog_scroll = self.blog_scroll.saturating_sub(1);
                 }
-            }
-            KeyCode::Down => {
-                if in_list {
-                    if self.blog_index < BLOG_ENTRIES.len() - 1 {
-                        self.blog_index += 1;
-                        self.blog_scroll = 0;
-                        self.trigger_transition();
-                    }
-                } else {
+                KeyCode::Down => {
                     self.blog_scroll += 1;
                 }
-            }
-            KeyCode::Left => {
-                if self.blog_index > 0 {
-                    self.blog_index -= 1;
+                KeyCode::Left => {
+                    self.blog_viewing_post = false;
                     self.blog_scroll = 0;
                     self.trigger_transition();
                 }
+                _ => {}
             }
-            KeyCode::Right => {
-                if self.blog_index < BLOG_ENTRIES.len() - 1 {
-                    self.blog_index += 1;
+        } else {
+            // Viewing the list: navigate or select
+            match key.code {
+                KeyCode::Up => {
+                    if self.blog_index > 0 {
+                        self.blog_index -= 1;
+                        self.trigger_transition();
+                    }
+                }
+                KeyCode::Down => {
+                    if self.blog_index < BLOG_ENTRIES.len() - 1 {
+                        self.blog_index += 1;
+                        self.trigger_transition();
+                    }
+                }
+                KeyCode::Right => {
+                    self.blog_viewing_post = true;
                     self.blog_scroll = 0;
                     self.trigger_transition();
                 }
+                _ => {}
             }
-            _ => {}
         }
     }
 
@@ -858,9 +863,9 @@ impl App {
         // Render fire glow effect on the selected tab
         if let Some(selected_tab_rect) = self.tab_rects.get(self.page.index()).copied() {
             if self.tab_glow_effect.is_none() {
-                // Subtle warm hsl shift that ping-pongs for a fire-like glow
-                let fg_shift = [-330.0, 15.0, 10.0];
-                let timer = (1200, Interpolation::SineIn);
+                // Subtle warm copper/gold hsl shift
+                let fg_shift = [8.0, 10.0, 6.0];
+                let timer = (1800, Interpolation::SineIn);
                 let glow = fx::hsl_shift_fg(fg_shift, timer)
                     .with_filter(CellFilter::Text);
                 self.tab_glow_effect = Some(fx::repeating(fx::ping_pong(glow)));
@@ -937,19 +942,41 @@ impl App {
             }
         });
 
-        // Subtle continuous glow on banner when on Home page
-        if self.page == Page::Home && self.banner_area.width > 0 {
-            if self.banner_glow_effect.is_none() {
-                let fg_shift = [-330.0, 10.0, 8.0];
-                let timer = (2000, Interpolation::SineIn);
-                let glow = fx::hsl_shift_fg(fg_shift, timer)
-                    .with_filter(CellFilter::Text);
-                self.banner_glow_effect = Some(fx::repeating(fx::ping_pong(glow)));
+        // Link hover effects — triggers when a new link is hovered
+        if self.page == Page::Links {
+            let current_hovered_link = self.link_areas.iter().enumerate()
+                .find(|(_, r)| self.is_hovered(**r))
+                .map(|(i, _)| i);
+            if current_hovered_link != self.last_hovered_link {
+                if let Some(idx) = current_hovered_link {
+                    if let Some(link_rect) = self.link_areas.get(idx).copied() {
+                        let hover_fx = fx::fade_from(
+                            Color::Rgb(80, 90, 110),
+                            Color::Rgb(8, 9, 14),
+                            (400, Interpolation::QuadOut),
+                        );
+                        self.link_hover_effects.push((idx, hover_fx));
+                        // Also trigger a subtle hsl shift
+                        let shift_fx = fx::hsl_shift_fg(
+                            [15.0, 8.0, 10.0],
+                            (500, Interpolation::SineOut),
+                        );
+                        self.btn_effects.push((link_rect, shift_fx));
+                    }
+                }
+                self.last_hovered_link = current_hovered_link;
             }
-            if let Some(ref mut effect) = self.banner_glow_effect {
-                // Apply only to the banner area, not the entire content area
-                frame.render_effect(effect, self.banner_area, elapsed);
-            }
+            // Process link hover effects
+            self.link_hover_effects.retain_mut(|(idx, effect)| {
+                if effect.running() {
+                    if let Some(link_rect) = self.link_areas.get(*idx).copied() {
+                        frame.render_effect(effect, link_rect, elapsed);
+                    }
+                    true
+                } else {
+                    false
+                }
+            });
         }
 
         // Render cursor trail
@@ -1017,25 +1044,49 @@ impl App {
         // Compute individual tab click areas from the Tabs widget layout.
         // Use narrower dividers and less padding on mobile for compact layout.
         let divider_width: u16 = if is_narrow { 1 } else { 3 };
-        let tab_padding: u16 = if is_narrow { 0 } else { 2 };
-        let inner_x = area.x + 1;
+        let inner_x = area.x + 1; // after left border
         let tab_row = area.y + 1;
-        self.tab_rects.clear();
-        let mut pos = inner_x;
-        for p in &Page::ALL {
+
+        // First pass: compute tab positions relative to line start
+        let mut tab_offsets: Vec<(u16, u16)> = Vec::new(); // (offset_from_line_start, width)
+        let mut line_pos: u16 = 0;
+        for (i, p) in Page::ALL.iter().enumerate() {
+            if i > 0 {
+                line_pos += divider_width;
+            }
+            if !is_narrow {
+                line_pos += 1; // left space padding
+            }
             let title_len = p.title().len() as u16;
-            let total = title_len + tab_padding;
-            self.tab_rects.push(Rect::new(pos, tab_row, total, 1));
-            pos += total + divider_width;
+            tab_offsets.push((line_pos, title_len));
+            line_pos += title_len;
+            if !is_narrow {
+                line_pos += 1; // right space padding
+            }
         }
+        let total_line_width = line_pos;
 
         // Clamp horizontal scroll
-        let total_tab_width = self.tab_rects.last()
-            .map(|r| r.right().saturating_sub(area.x))
-            .unwrap_or(0);
-        let visible_width = area.width.saturating_sub(2);
-        let max_h_scroll = total_tab_width.saturating_sub(visible_width) as usize;
+        let inner_width = area.width.saturating_sub(2);
+        let max_h_scroll = total_line_width.saturating_sub(inner_width) as usize;
         self.tab_h_scroll = self.tab_h_scroll.min(max_h_scroll);
+
+        // Compute center offset (matching Paragraph's Alignment::Center behavior)
+        let center_offset = if inner_width > total_line_width {
+            (inner_width - total_line_width) / 2
+        } else {
+            0
+        };
+
+        // Build final tab_rects with center offset and scroll applied
+        self.tab_rects.clear();
+        for (offset, width) in &tab_offsets {
+            let x = inner_x
+                .saturating_add(center_offset)
+                .saturating_add(*offset)
+                .saturating_sub(self.tab_h_scroll as u16);
+            self.tab_rects.push(Rect::new(x, tab_row, *width, 1));
+        }
 
         let divider_str = if is_narrow { "│" } else { " │ " };
 
@@ -1071,12 +1122,13 @@ impl App {
 
         let tab_line = Line::from(spans);
         let tab_paragraph = Paragraph::new(tab_line)
+            .alignment(Alignment::Center)
             .scroll((0, self.tab_h_scroll as u16))
             .block(
                 Block::bordered()
                     .border_type(BorderType::Rounded)
                     .border_style(Color::Rgb(55, 60, 70))
-                    .title(" GRIFT.RS ")
+                    .title(Line::from(" GRIFT.RS ").alignment(Alignment::Center))
                     .title_style(Style::default().fg(Color::Rgb(207, 181, 59)).bold()),
             );
 
@@ -1084,110 +1136,56 @@ impl App {
     }
 
     fn render_home(&mut self, frame: &mut Frame, area: Rect) {
-        let is_narrow_area = area.width < NARROW_WIDTH_THRESHOLD + 4;
-        let bottom_hint = if is_narrow_area {
-            "│ swipe ↕ ↔ │"
-        } else {
-            "│ swipe/scroll to explore • tap tabs to navigate │"
-        };
-        let block = Block::bordered()
-            .border_type(BorderType::Rounded)
-            .border_style(Color::Rgb(55, 60, 70))
-            .title_bottom(
-                Line::from(bottom_hint)
-                    .alignment(Alignment::Right)
-                    .style(Style::default().fg(Color::Rgb(55, 60, 70))),
-            );
-
-        let inner = block.inner(area);
-        frame.render_widget(block, area);
-
-        let [scroll_area, nav_bar] =
-            Layout::vertical([Constraint::Min(1), Constraint::Length(3)]).areas(inner);
-
-        // Combine all sections into one scrollable text
         let mut lines: Vec<Line> = Vec::new();
 
-        // Banner (only on wider screens)
-        if area.width >= NARROW_WIDTH_THRESHOLD {
-            for l in BANNER.lines() {
-                lines.push(Line::styled(l, Style::default().fg(Color::Rgb(200, 200, 210)).bold()));
-            }
-            lines.push(Line::from(""));
-
-            // Description
-            lines.push(Line::styled("┌─ Grift ──────────────┐", Style::default().fg(Color::Rgb(184, 115, 51)).bold()));
-            for l in DESCRIPTION.lines() {
-                lines.push(Line::styled(l, Style::default().fg(Color::Rgb(170, 175, 185))));
-            }
-            lines.push(Line::from(""));
-        }
-
-        // About header
-        lines.push(Line::styled("┌─ About ──────────────┐", Style::default().fg(Color::Rgb(200, 200, 210)).bold()));
-        for l in ABOUT.lines() {
-            lines.push(Line::styled(l, Style::default().fg(Color::Rgb(140, 145, 155))));
-        }
+        // Grift section
+        lines.push(Line::styled("── Grift ──", Style::default().fg(Color::Rgb(207, 181, 59)).bold()));
         lines.push(Line::from(""));
-
-        // Lisp header
-        lines.push(Line::styled("┌─ Lisp ───────────────┐", Style::default().fg(Color::Rgb(207, 181, 59)).bold()));
-        for l in LISP_INFO.lines() {
+        for l in DESCRIPTION.lines() {
             lines.push(Line::styled(l, Style::default().fg(Color::Rgb(170, 175, 185))));
         }
         lines.push(Line::from(""));
 
-        // Vau calculus header
-        lines.push(Line::styled("┌─ Vau Calculus ───────┐", Style::default().fg(Color::Rgb(184, 115, 51)).bold()));
+        // Vau Calculus / Fexprs section
+        lines.push(Line::styled("── Fexprs & Vau Calculus ──", Style::default().fg(Color::Rgb(184, 115, 51)).bold()));
+        lines.push(Line::from(""));
         for l in VAU_INFO.lines() {
             lines.push(Line::styled(l, Style::default().fg(Color::Rgb(170, 175, 185))));
         }
         lines.push(Line::from(""));
 
-        // Rust header
-        lines.push(Line::styled("┌─ Rust ───────────────┐", Style::default().fg(Color::Rgb(222, 165, 132)).bold()));
-        for l in RUST_INFO.lines() {
+        // First-Class Everything section
+        lines.push(Line::styled("── First-Class Everything ──", Style::default().fg(Color::Rgb(200, 200, 210)).bold()));
+        lines.push(Line::from(""));
+        for l in FIRST_CLASS_INFO.lines() {
             lines.push(Line::styled(l, Style::default().fg(Color::Rgb(170, 175, 185))));
         }
         lines.push(Line::from(""));
 
-        // gold.silver.copper header
-        lines.push(Line::styled("┌─ gold.silver.copper ─┐", Style::default().fg(Color::Rgb(207, 181, 59)).bold()));
-        for l in GSC_INFO.lines() {
+        // Implementation section
+        lines.push(Line::styled("── Implementation ──", Style::default().fg(Color::Rgb(222, 165, 132)).bold()));
+        lines.push(Line::from(""));
+        for l in IMPL_INFO.lines() {
             lines.push(Line::styled(l, Style::default().fg(Color::Rgb(170, 175, 185))));
         }
 
-        let total_lines = lines.len();
-        let visible_height = scroll_area.height.saturating_sub(2) as usize;
-        let max_scroll = total_lines.saturating_sub(visible_height);
-        self.home_scroll = self.home_scroll.min(max_scroll);
-
-        let home_content = Paragraph::new(Text::from(lines))
-            .wrap(Wrap { trim: false })
-            .scroll((self.home_scroll as u16, 0))
-            .block(
-                Block::bordered()
-                    .border_type(BorderType::Rounded)
-                    .border_style(Color::Rgb(40, 44, 52)),
-            );
-        frame.render_widget(home_content, scroll_area);
-
-        // Scroll navigation arrows
-        self.render_scroll_arrows(frame, nav_bar, self.home_scroll, max_scroll);
-
-        // Track banner area for glow effect
-        self.banner_area = scroll_area;
+        let mut scroll = self.home_scroll;
+        self.render_scrollable_content(
+            frame, area, lines, &mut scroll,
+            None,
+            None,
+            "swipe ↕ ↔",
+        );
+        self.home_scroll = scroll;
     }
 
     fn render_repl(&self, frame: &mut Frame, area: Rect) {
-        let is_narrow_area = area.width < NARROW_WIDTH_THRESHOLD + 4;
-        let bottom_hint = if is_narrow_area { "│ type + Enter │" } else { "│ Type expressions and press Enter to evaluate │" };
         let block = Block::bordered()
             .border_type(BorderType::Rounded)
             .border_style(Color::Rgb(55, 60, 70))
             .title(" Grift REPL ".bold().fg(Color::Rgb(184, 115, 51)))
             .title_bottom(
-                Line::from(bottom_hint)
+                Line::from("│ type + Enter │")
                     .alignment(Alignment::Center)
                     .style(Style::default().fg(Color::Rgb(55, 60, 70))),
             );
@@ -1195,12 +1193,27 @@ impl App {
         let inner = block.inner(area);
         frame.render_widget(block, area);
 
-        let [history_area, input_area] =
-            Layout::vertical([Constraint::Min(1), Constraint::Length(3)]).areas(inner);
+        let [input_area, history_area] =
+            Layout::vertical([Constraint::Length(3), Constraint::Min(1)]).areas(inner);
 
-        // History
+        // Input (at the top)
+        let input_display = format!("Λ> {}", self.repl_input);
+        let input = Paragraph::new(input_display.as_str())
+            .style(Style::default().fg(Color::Rgb(200, 200, 210)))
+            .block(
+                Block::bordered()
+                    .border_type(BorderType::Rounded)
+                    .border_style(Color::Rgb(184, 115, 51))
+                    .title(" Input ".bold().fg(Color::Rgb(184, 115, 51))),
+            );
+        frame.render_widget(input, input_area);
+
+        // Blinking block cursor
+        self.render_blinking_cursor(frame, input_area.x + 1 + 3 + self.repl_cursor as u16, input_area.y + 1, input_area.right() - 1);
+
+        // History (newest first)
         let mut history_lines: Vec<Line> = Vec::new();
-        for (input, output) in &self.repl_history {
+        for (input, output) in self.repl_history.iter().rev() {
             history_lines.push(Line::from(vec![
                 Span::styled(
                     "Λ> ",
@@ -1225,12 +1238,14 @@ impl App {
             ));
         }
 
-        let visible_height = history_area.height as usize;
-        let total_lines = history_lines.len();
-        let max_scroll = total_lines.saturating_sub(visible_height);
+        let visible_height = history_area.height.saturating_sub(2) as usize;
+        let content_width = history_area.width.saturating_sub(2) as usize;
+        let total_wrapped = Self::wrapped_line_count(&history_lines, content_width);
+        let max_scroll = total_wrapped.saturating_sub(visible_height);
         let scroll = self.repl_scroll.min(max_scroll);
 
         let history = Paragraph::new(Text::from(history_lines))
+            .wrap(Wrap { trim: false })
             .scroll((scroll as u16, 0))
             .block(
                 Block::bordered()
@@ -1239,21 +1254,6 @@ impl App {
                     .title(" Output ".fg(Color::Rgb(160, 165, 175))),
             );
         frame.render_widget(history, history_area);
-
-        // Input
-        let input_display = format!("Λ> {}", self.repl_input);
-        let input = Paragraph::new(input_display.as_str())
-            .style(Style::default().fg(Color::Rgb(200, 200, 210)))
-            .block(
-                Block::bordered()
-                    .border_type(BorderType::Rounded)
-                    .border_style(Color::Rgb(184, 115, 51))
-                    .title(" Input ".bold().fg(Color::Rgb(184, 115, 51))),
-            );
-        frame.render_widget(input, input_area);
-
-        // Blinking block cursor
-        self.render_blinking_cursor(frame, input_area.x + 1 + 3 + self.repl_cursor as u16, input_area.y + 1, input_area.right() - 1);
     }
 
     fn render_blinking_cursor(&self, frame: &mut Frame, cursor_x: u16, cursor_y: u16, max_x: u16) {
@@ -1280,33 +1280,17 @@ impl App {
     }
 
     fn render_docs(&mut self, frame: &mut Frame, area: Rect) {
-        let is_narrow_area = area.width < NARROW_WIDTH_THRESHOLD + 4;
-        let bottom_hint = if is_narrow_area { "│ swipe ↕ │" } else { "│ swipe or scroll to explore │" };
-        let block = Block::bordered()
-            .border_type(BorderType::Rounded)
-            .border_style(Color::Rgb(55, 60, 70))
-            .title(" Documentation ".bold().fg(Color::Rgb(200, 200, 210)))
-            .title_bottom(
-                Line::from(bottom_hint)
-                    .alignment(Alignment::Center)
-                    .style(Style::default().fg(Color::Rgb(55, 60, 70))),
-            );
-
-        let inner = block.inner(area);
-        frame.render_widget(block, area);
-
-        let [scroll_area, nav_bar] =
-            Layout::vertical([Constraint::Min(1), Constraint::Length(3)]).areas(inner);
-
         // Combine all doc sections into one scrollable text
         let all_docs = [DOC_BASICS, DOC_FORMS, DOC_ADVANCED];
         let mut lines: Vec<Line> = Vec::new();
+        // Account for outer block borders (2) + inner block borders (2) + side padding (4)
+        let separator_width = area.width.saturating_sub(8) as usize;
 
         for (idx, doc) in all_docs.iter().enumerate() {
             if idx > 0 {
                 lines.push(Line::from(""));
                 lines.push(Line::styled(
-                    "━".repeat(scroll_area.width.saturating_sub(4) as usize),
+                    "━".repeat(separator_width),
                     Style::default().fg(Color::Rgb(55, 60, 70)),
                 ));
                 lines.push(Line::from(""));
@@ -1362,34 +1346,87 @@ impl App {
             }
         }
 
-        let total_lines = lines.len();
-        let visible_height = scroll_area.height.saturating_sub(2) as usize;
-        let max_scroll = total_lines.saturating_sub(visible_height);
-        self.doc_scroll = self.doc_scroll.min(max_scroll);
-
-        let content = Paragraph::new(Text::from(lines))
-            .wrap(Wrap { trim: false })
-            .scroll((self.doc_scroll as u16, 0))
-            .block(
-                Block::bordered()
-                    .border_type(BorderType::Rounded)
-                    .border_style(Color::Rgb(40, 44, 52))
-                    .title(" Grift Language Reference ".bold().fg(Color::Rgb(184, 115, 51))),
-            );
-        frame.render_widget(content, scroll_area);
-
-        self.render_scroll_arrows(frame, nav_bar, self.doc_scroll, max_scroll);
+        let mut scroll = self.doc_scroll;
+        self.render_scrollable_content(
+            frame, area, lines, &mut scroll,
+            Some(" Documentation ".bold().fg(Color::Rgb(200, 200, 210)).into()),
+            Some(" Grift Language Reference ".bold().fg(Color::Rgb(184, 115, 51)).into()),
+            "swipe ↕",
+        );
+        self.doc_scroll = scroll;
     }
 
     fn render_blog(&mut self, frame: &mut Frame, area: Rect) {
-        let is_narrow_area = area.width < NARROW_WIDTH_THRESHOLD + 4;
-        let bottom_hint = if is_narrow_area { "│ tap or swipe │" } else { "│ click a post or swipe │" };
+        self.blog_back_area = Rect::default();
+
+        if self.blog_viewing_post {
+            // Show post content with a back button
+            let block = Block::bordered()
+                .border_type(BorderType::Rounded)
+                .border_style(Color::Rgb(55, 60, 70))
+                .title(" Blog ".bold().fg(Color::Rgb(200, 200, 210)));
+
+            let inner = block.inner(area);
+            frame.render_widget(block, area);
+
+            let [back_bar, scroll_area, nav_bar] =
+                Layout::vertical([Constraint::Length(1), Constraint::Min(1), Constraint::Length(1)]).areas(inner);
+
+            // Back button
+            let back_hovered = self.is_hovered(back_bar);
+            let back_style = if back_hovered {
+                Style::default().fg(Color::Rgb(255, 255, 255)).bold()
+            } else {
+                Style::default().fg(Color::Rgb(184, 115, 51))
+            };
+            frame.render_widget(
+                Paragraph::new("◄ Back to posts").style(back_style),
+                back_bar,
+            );
+            self.blog_back_area = back_bar;
+
+            // Blog content — scrollable
+            self.blog_list_area = Rect::default();
+            self.blog_item_areas.clear();
+            if let Some((title, date, content)) = BLOG_ENTRIES.get(self.blog_index) {
+                let mut lines = vec![
+                    Line::styled(*title, Style::default().fg(Color::Rgb(220, 225, 235)).bold()),
+                    Line::styled(*date, Style::default().fg(Color::Rgb(75, 80, 90))),
+                    Line::from(""),
+                ];
+                for line in content.lines() {
+                    lines.push(Line::styled(line, Style::default().fg(Color::Rgb(170, 175, 185))));
+                }
+
+                let visible_height = scroll_area.height.saturating_sub(2) as usize;
+                let content_width = scroll_area.width.saturating_sub(2) as usize;
+                let total_wrapped = Self::wrapped_line_count(&lines, content_width);
+                let max_scroll = total_wrapped.saturating_sub(visible_height);
+                self.blog_scroll = self.blog_scroll.min(max_scroll);
+
+                let blog = Paragraph::new(Text::from(lines))
+                    .wrap(Wrap { trim: false })
+                    .scroll((self.blog_scroll as u16, 0))
+                    .block(
+                        Block::bordered()
+                            .border_type(BorderType::Rounded)
+                            .border_style(Color::Rgb(40, 44, 52)),
+                    );
+                frame.render_widget(blog, scroll_area);
+                self.blog_content_area = scroll_area;
+
+                self.render_scroll_arrows(frame, nav_bar, self.blog_scroll, max_scroll, "swipe ↕");
+            }
+            return;
+        }
+
+        // Show scrollable list of blog titles
         let block = Block::bordered()
             .border_type(BorderType::Rounded)
             .border_style(Color::Rgb(55, 60, 70))
             .title(" Blog ".bold().fg(Color::Rgb(200, 200, 210)))
             .title_bottom(
-                Line::from(bottom_hint)
+                Line::from("│ tap a post │")
                     .alignment(Alignment::Center)
                     .style(Style::default().fg(Color::Rgb(55, 60, 70))),
             );
@@ -1397,24 +1434,17 @@ impl App {
         let inner = block.inner(area);
         frame.render_widget(block, area);
 
-        // Vertical layout — list on top, scrollable content below
-        let list_height = (BLOG_ENTRIES.len() as u16 * 2) + 2;
-        let [list_area, content_area] =
-            Layout::vertical([Constraint::Length(list_height), Constraint::Min(1)]).areas(inner);
-
-        // Track zones for independent scrolling
-        self.blog_list_area = list_area;
-        self.blog_content_area = content_area;
-
-        // Blog list
         let list_block = Block::bordered()
             .border_type(BorderType::Rounded)
             .border_style(Color::Rgb(40, 44, 52))
             .title(" Posts ".fg(Color::Rgb(200, 200, 210)));
 
-        let list_inner = list_block.inner(list_area);
+        let list_inner = list_block.inner(inner);
 
         self.blog_item_areas.clear();
+        self.blog_list_area = inner;
+        self.blog_content_area = Rect::default();
+
         for i in 0..BLOG_ENTRIES.len() {
             let item_y = list_inner.y + (i as u16 * 2);
             if item_y + 2 <= list_inner.bottom() {
@@ -1452,62 +1482,34 @@ impl App {
             .collect();
 
         let list = List::new(items).block(list_block);
-        frame.render_widget(list, list_area);
-
-        // Blog content — scrollable
-        if let Some((title, date, content)) = BLOG_ENTRIES.get(self.blog_index) {
-            let mut lines = vec![
-                Line::styled(*title, Style::default().fg(Color::Rgb(220, 225, 235)).bold()),
-                Line::styled(*date, Style::default().fg(Color::Rgb(75, 80, 90))),
-                Line::from(""),
-            ];
-            for line in content.lines() {
-                lines.push(Line::styled(line, Style::default().fg(Color::Rgb(170, 175, 185))));
-            }
-
-            let total_lines = lines.len();
-            let visible_height = content_area.height.saturating_sub(2) as usize;
-            let max_scroll = total_lines.saturating_sub(visible_height);
-            self.blog_scroll = self.blog_scroll.min(max_scroll);
-
-            let blog = Paragraph::new(Text::from(lines))
-                .wrap(Wrap { trim: false })
-                .scroll((self.blog_scroll as u16, 0))
-                .block(
-                    Block::bordered()
-                        .border_type(BorderType::Rounded)
-                        .border_style(Color::Rgb(40, 44, 52)),
-                );
-            frame.render_widget(blog, content_area);
-        }
+        frame.render_widget(list, inner);
     }
 
     fn render_links(&mut self, frame: &mut Frame, area: Rect) {
-        let is_narrow_area = area.width < NARROW_WIDTH_THRESHOLD + 4;
-        let bottom_hint = if is_narrow_area { "│ tap to open │" } else { "│ click a link to open │" };
         let block = Block::bordered()
             .border_type(BorderType::Rounded)
             .border_style(Color::Rgb(55, 60, 70))
-            .title(" Links ".bold().fg(Color::Rgb(200, 200, 210)))
-            .title_bottom(
-                Line::from(bottom_hint)
-                    .alignment(Alignment::Center)
-                    .style(Style::default().fg(Color::Rgb(55, 60, 70))),
-            );
+            .title(" Links ".bold().fg(Color::Rgb(200, 200, 210)));
 
         let inner = block.inner(area);
         frame.render_widget(block, area);
 
         let [scroll_area, nav_bar] =
-            Layout::vertical([Constraint::Min(1), Constraint::Length(3)]).areas(inner);
+            Layout::vertical([Constraint::Min(1), Constraint::Length(1)]).areas(inner);
 
         // Build all links + info as one scrollable text
         let mut lines: Vec<Line> = Vec::new();
         lines.push(Line::styled("Repositories & Resources", Style::default().fg(Color::Rgb(200, 200, 210)).bold()));
         lines.push(Line::styled("────────────────────────", Style::default().fg(Color::Rgb(140, 145, 155))));
 
-        for (label, _url) in LINKS.iter() {
-            lines.push(Line::styled(format!("  {label}"), Style::default().fg(Color::Rgb(160, 175, 195))));
+        for (i, (label, _url)) in LINKS.iter().enumerate() {
+            let hovered = self.link_areas.get(i).is_some_and(|r| self.is_hovered(*r));
+            let style = if hovered {
+                Style::default().fg(Color::Rgb(160, 175, 195)).add_modifier(Modifier::REVERSED)
+            } else {
+                Style::default().fg(Color::Rgb(160, 175, 195))
+            };
+            lines.push(Line::styled(format!("  {label}"), style));
         }
 
         lines.push(Line::from(""));
@@ -1523,9 +1525,10 @@ impl App {
         lines.push(Line::from("  Terminal UI in your browser.".fg(Color::Rgb(100, 105, 115))));
         lines.push(Line::from("  Ratzilla + TachyonFX + WASM.".fg(Color::Rgb(100, 105, 115))));
 
-        let total_lines = lines.len();
         let visible_height = scroll_area.height.saturating_sub(2) as usize;
-        let max_scroll = total_lines.saturating_sub(visible_height);
+        let content_width = scroll_area.width.saturating_sub(2) as usize;
+        let total_wrapped = Self::wrapped_line_count(&lines, content_width);
+        let max_scroll = total_wrapped.saturating_sub(visible_height);
         self.links_scroll = self.links_scroll.min(max_scroll);
 
         // Track clickable link areas in scroll view
@@ -1552,13 +1555,133 @@ impl App {
             .block(links_block);
         frame.render_widget(content, scroll_area);
 
-        self.render_scroll_arrows(frame, nav_bar, self.links_scroll, max_scroll);
+        self.render_scroll_arrows(frame, nav_bar, self.links_scroll, max_scroll, "tap to open");
     }
 
-    fn render_scroll_arrows(&mut self, frame: &mut Frame, nav_bar: Rect, scroll: usize, max_scroll: usize) {
-        // Use wider arrow buttons on narrow screens for easier tapping
-        let arrow_width = if nav_bar.width < NARROW_WIDTH_THRESHOLD { 10 } else { 8 };
-        let [up_area, info_area, down_area] = Layout::horizontal([
+    /// Compute total display rows after wrapping lines to the given width.
+    ///
+    /// Simulates ratatui's `WordWrapper` with `trim: false` to produce an
+    /// accurate count that matches what `Paragraph::wrap(Wrap { trim: false })`
+    /// will actually render.
+    fn wrapped_line_count(lines: &[Line], wrap_width: usize) -> usize {
+        if wrap_width == 0 {
+            return lines.len();
+        }
+        let max_w = wrap_width;
+
+        lines.iter().map(|line| {
+            let w = line.width();
+            if w <= max_w {
+                return 1;
+            }
+
+            // Collect text from all spans for word-wrap simulation
+            let text: String = line.iter().map(|span| span.content.as_ref()).collect();
+
+            let mut count: usize = 0;
+            let mut line_w: usize = 0;
+            let mut word_w: usize = 0;
+            let mut ws_w: usize = 0;
+            let mut pending_empty = true;
+            let mut non_ws_prev = false;
+
+            for ch in text.chars() {
+                let is_ws = ch.is_whitespace();
+                let sym_w = UnicodeWidthChar::width(ch).unwrap_or(0);
+
+                // Skip characters wider than the line (matching ratatui's WordWrapper)
+                if sym_w > max_w { continue; }
+
+                let word_found = non_ws_prev && is_ws;
+                let untrimmed_overflow = pending_empty
+                    && (word_w + ws_w + sym_w > max_w);
+
+                if word_found || untrimmed_overflow {
+                    line_w += ws_w + word_w;
+                    pending_empty = line_w == 0;
+                    ws_w = 0;
+                    word_w = 0;
+                }
+
+                let line_full = line_w >= max_w;
+                let pending_overflow = sym_w > 0
+                    && (line_w + ws_w + word_w >= max_w);
+
+                if line_full || pending_overflow {
+                    count += 1;
+                    pending_empty = true;
+                    line_w = 0;
+                    ws_w = 0;
+
+                    if is_ws {
+                        non_ws_prev = false;
+                        continue;
+                    }
+                }
+
+                if is_ws {
+                    ws_w += sym_w;
+                } else {
+                    word_w += sym_w;
+                }
+
+                non_ws_prev = !is_ws;
+            }
+
+            count + 1
+        }).sum()
+    }
+
+    fn render_scrollable_content(
+        &mut self,
+        frame: &mut Frame,
+        area: Rect,
+        lines: Vec<Line<'static>>,
+        scroll: &mut usize,
+        outer_title: Option<Line<'static>>,
+        inner_title: Option<Line<'static>>,
+        hint: &str,
+    ) -> Rect {
+        let mut block = Block::bordered()
+            .border_type(BorderType::Rounded)
+            .border_style(Color::Rgb(55, 60, 70));
+        if let Some(title) = outer_title {
+            block = block.title(title);
+        }
+
+        let inner = block.inner(area);
+        frame.render_widget(block, area);
+
+        let [scroll_area, nav_bar] =
+            Layout::vertical([Constraint::Min(1), Constraint::Length(1)]).areas(inner);
+
+        let visible_height = scroll_area.height.saturating_sub(2) as usize;
+        let content_width = scroll_area.width.saturating_sub(2) as usize;
+        let total_wrapped = Self::wrapped_line_count(&lines, content_width);
+        let max_scroll = total_wrapped.saturating_sub(visible_height);
+        *scroll = (*scroll).min(max_scroll);
+
+        let mut content_block = Block::bordered()
+            .border_type(BorderType::Rounded)
+            .border_style(Color::Rgb(40, 44, 52));
+        if let Some(title) = inner_title {
+            content_block = content_block.title(title);
+        }
+
+        let content = Paragraph::new(Text::from(lines))
+            .wrap(Wrap { trim: false })
+            .scroll((*scroll as u16, 0))
+            .block(content_block);
+        frame.render_widget(content, scroll_area);
+
+        self.render_scroll_arrows(frame, nav_bar, *scroll, max_scroll, hint);
+
+        scroll_area
+    }
+
+    fn render_scroll_arrows(&mut self, frame: &mut Frame, nav_bar: Rect, scroll: usize, max_scroll: usize, hint: &str) {
+        let arrow_width: u16 = 3;
+        let [up_area, center_area, down_area] = Layout::horizontal([
             Constraint::Length(arrow_width),
             Constraint::Min(1),
             Constraint::Length(arrow_width),
@@ -1575,73 +1698,45 @@ impl App {
         let down_hovered = can_down && self.is_hovered(down_area);
 
         let up_style = if up_hovered {
-            Style::default().fg(Color::Rgb(255, 255, 255)).bold().add_modifier(Modifier::REVERSED)
+            Style::default().fg(Color::Rgb(255, 255, 255)).bold()
         } else if can_up {
-            Style::default().fg(Color::Rgb(200, 200, 210)).bold()
+            Style::default().fg(Color::Rgb(140, 145, 155))
         } else {
-            Style::default().fg(Color::Rgb(45, 48, 56))
+            Style::default().fg(Color::Rgb(35, 38, 46))
         };
         let down_style = if down_hovered {
-            Style::default().fg(Color::Rgb(255, 255, 255)).bold().add_modifier(Modifier::REVERSED)
+            Style::default().fg(Color::Rgb(255, 255, 255)).bold()
         } else if can_down {
-            Style::default().fg(Color::Rgb(200, 200, 210)).bold()
+            Style::default().fg(Color::Rgb(140, 145, 155))
         } else {
-            Style::default().fg(Color::Rgb(45, 48, 56))
+            Style::default().fg(Color::Rgb(35, 38, 46))
         };
 
-        let up_border = if up_hovered { Color::Rgb(200, 200, 210) } else if can_up { Color::Rgb(80, 85, 95) } else { Color::Rgb(40, 44, 52) };
-        let down_border = if down_hovered { Color::Rgb(200, 200, 210) } else if can_down { Color::Rgb(80, 85, 95) } else { Color::Rgb(40, 44, 52) };
-
         frame.render_widget(
-            Paragraph::new("  ▲").style(up_style).block(
-                Block::bordered().border_type(BorderType::Rounded).border_style(up_border),
-            ),
+            Paragraph::new(" ▲ ").style(up_style).alignment(Alignment::Center),
             up_area,
         );
-
-        // Scroll position indicator
-        let indicator = if max_scroll > 0 {
-            format!(" {}/{} ", scroll + 1, max_scroll + 1)
-        } else {
-            " ─ ".to_string()
-        };
         frame.render_widget(
-            Paragraph::new(indicator)
-                .alignment(Alignment::Center)
-                .style(Style::default().fg(Color::Rgb(100, 105, 115)))
-                .block(
-                    Block::bordered().border_type(BorderType::Rounded).border_style(Color::Rgb(40, 44, 52)),
-                ),
-            info_area,
+            Paragraph::new(" ▼ ").style(down_style).alignment(Alignment::Center),
+            down_area,
         );
 
+        // Center area: hint + scroll position
+        let indicator = if max_scroll > 0 {
+            format!("{}/{}", scroll + 1, max_scroll + 1)
+        } else {
+            "─".to_string()
+        };
+        let center_text = format!("{hint} │ {indicator}");
         frame.render_widget(
-            Paragraph::new("  ▼").style(down_style).block(
-                Block::bordered().border_type(BorderType::Rounded).border_style(down_border),
-            ),
-            down_area,
+            Paragraph::new(center_text)
+                .alignment(Alignment::Center)
+                .style(Style::default().fg(Color::Rgb(75, 80, 90))),
+            center_area,
         );
     }
 
     fn render_showcase(&mut self, frame: &mut Frame, area: Rect) {
-        let is_narrow_area = area.width < NARROW_WIDTH_THRESHOLD + 4;
-        let bottom_hint = if is_narrow_area { "│ swipe ↕ │" } else { "│ swipe or scroll to explore │" };
-        let block = Block::bordered()
-            .border_type(BorderType::Rounded)
-            .border_style(Color::Rgb(55, 60, 70))
-            .title(" Mobile Showcase ".bold().fg(Color::Rgb(207, 181, 59)))
-            .title_bottom(
-                Line::from(bottom_hint)
-                    .alignment(Alignment::Center)
-                    .style(Style::default().fg(Color::Rgb(55, 60, 70))),
-            );
-
-        let inner = block.inner(area);
-        frame.render_widget(block, area);
-
-        let [scroll_area, nav_bar] =
-            Layout::vertical([Constraint::Min(1), Constraint::Length(3)]).areas(inner);
-
         // Render showcase content with syntax highlighting for headers
         let lines: Vec<Line> = SHOWCASE_INFO
             .lines()
@@ -1681,29 +1776,23 @@ impl App {
             })
             .collect();
 
-        let total_lines = lines.len();
-        let visible_height = scroll_area.height.saturating_sub(2) as usize;
-        let max_scroll = total_lines.saturating_sub(visible_height);
-        self.showcase_scroll = self.showcase_scroll.min(max_scroll);
-
-        let content = Paragraph::new(Text::from(lines))
-            .wrap(Wrap { trim: false })
-            .scroll((self.showcase_scroll as u16, 0))
-            .block(
-                Block::bordered()
-                    .border_type(BorderType::Rounded)
-                    .border_style(Color::Rgb(40, 44, 52))
-                    .title(" Ratzilla & Grift ".bold().fg(Color::Rgb(184, 115, 51))),
-            );
-        frame.render_widget(content, scroll_area);
-
-        // Scroll navigation arrows
-        self.render_scroll_arrows(frame, nav_bar, self.showcase_scroll, max_scroll);
+        let mut scroll = self.showcase_scroll;
+        self.render_scrollable_content(
+            frame, area, lines, &mut scroll,
+            Some(" Mobile Showcase ".bold().fg(Color::Rgb(207, 181, 59)).into()),
+            Some(" Ratzilla & Grift ".bold().fg(Color::Rgb(184, 115, 51)).into()),
+            "swipe ↕",
+        );
+        self.showcase_scroll = scroll;
     }
 }
 
 fn open_url(url: &str) {
-    let _ = ratzilla::utils::open_url(url, true);
+    // Open in a new background tab using web_sys directly (avoids JS string interpolation)
+    if let Some(window) = web_sys::window() {
+        let _ = window.open_with_url_and_target_and_features(url, "_blank", "noopener");
+        let _ = window.focus();
+    }
 }
 
 fn main() -> std::io::Result<()> {
