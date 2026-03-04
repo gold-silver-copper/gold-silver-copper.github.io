@@ -1023,7 +1023,7 @@ impl App {
         self.tab_rects.clear();
         let mut pos = inner_x;
         for p in &Page::ALL {
-            let title_len = p.title().len() as u16 + 2;
+            let title_len = p.title().len() as u16;
             let total = title_len + tab_padding;
             self.tab_rects.push(Rect::new(pos, tab_row, total, 1));
             pos += total + divider_width;
