@@ -1552,6 +1552,7 @@ impl App {
         self.render_scroll_arrows(frame, nav_bar, self.links_scroll, max_scroll, "tap to open");
     }
 
+    /// Compute total display rows after wrapping lines to the given width.
     fn wrapped_line_count(lines: &[Line], wrap_width: usize) -> usize {
         if wrap_width == 0 {
             return lines.len();
