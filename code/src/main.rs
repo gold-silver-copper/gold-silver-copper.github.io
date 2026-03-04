@@ -1868,9 +1868,7 @@ impl App {
                 if key.code == KeyCode::Esc {
                     // For Blog post view, first exit to title list (stay focused)
                     if self.page == Page::Blog && self.blog_viewing_post {
-                        self.blog_viewing_post = false;
-                        self.blog_scroll = 0;
-                        self.trigger_transition();
+                        self.blog_exit_post();
                         return;
                     }
                     self.focus_mode = FocusMode::Outer;
@@ -2001,13 +1999,22 @@ impl App {
             }
 
             // Click outside content area while focused — return to outer mode
+            // On REPL page: only unfocus if tapping ABOVE the keyboard (tab bar),
+            // not to the side or below it
             if self.focus_mode == FocusMode::Focused
                 && (col < self.content_area.x
                     || col >= self.content_area.right()
                     || row < self.content_area.y
                     || row >= self.content_area.bottom())
             {
-                self.focus_mode = FocusMode::Outer;
+                if self.page == Page::Repl {
+                    // Only unfocus when tapping above the content area (tab bar region)
+                    if row < self.content_area.y {
+                        self.focus_mode = FocusMode::Outer;
+                    }
+                } else {
+                    self.focus_mode = FocusMode::Outer;
+                }
                 return;
             }
 
@@ -2038,10 +2045,8 @@ impl App {
                     && row >= self.blog_back_area.y
                     && row < self.blog_back_area.bottom()
                 {
-                    self.blog_viewing_post = false;
-                    self.blog_scroll = 0;
                     self.trigger_btn_effect(self.blog_back_area);
-                    self.trigger_transition();
+                    self.blog_exit_post();
                     return;
                 }
 
@@ -2052,13 +2057,8 @@ impl App {
                         && row < area.bottom()
                         && i < BLOG_ENTRIES.len()
                     {
-                        if self.blog_index != i || !self.blog_viewing_post {
-                            self.blog_index = i;
-                            self.blog_viewing_post = true;
-                            self.blog_scroll = 0;
-                            self.trigger_btn_effect(*area);
-                            self.trigger_transition();
-                        }
+                        self.trigger_btn_effect(*area);
+                        self.blog_open_post(i);
                         return;
                     }
                 }
@@ -2199,9 +2199,7 @@ impl App {
                     self.blog_scroll += 1;
                 }
                 KeyCode::Left => {
-                    self.blog_viewing_post = false;
-                    self.blog_scroll = 0;
-                    self.trigger_transition();
+                    self.blog_exit_post();
                 }
                 _ => {}
             }
@@ -2209,41 +2207,53 @@ impl App {
             // Title list mode: Up/Down navigate titles, Enter/Right opens post
             match key.code {
                 KeyCode::Up => {
-                    if self.blog_index > 0 {
-                        self.prev_blog_index = self.blog_index;
-                        self.blog_index -= 1;
-                        self.blog_scroll = 0;
-                        // Minor fade effect on old title (fade out) and new title (fade in)
-                        self.blog_nav_effect = Some(fx::fade_from(
-                            Color::Rgb(60, 65, 75),
-                            Color::Rgb(8, 9, 14),
-                            EffectTimer::from_ms(250, Interpolation::QuadOut),
-                        ));
-                    }
+                    self.blog_select(self.blog_index.saturating_sub(1));
                 }
                 KeyCode::Down => {
-                    if self.blog_index + 1 < BLOG_ENTRIES.len() {
-                        self.prev_blog_index = self.blog_index;
-                        self.blog_index += 1;
-                        self.blog_scroll = 0;
-                        // Minor fade effect on old title (fade out) and new title (fade in)
-                        self.blog_nav_effect = Some(fx::fade_from(
-                            Color::Rgb(60, 65, 75),
-                            Color::Rgb(8, 9, 14),
-                            EffectTimer::from_ms(250, Interpolation::QuadOut),
-                        ));
-                    }
+                    let next = (self.blog_index + 1).min(BLOG_ENTRIES.len().saturating_sub(1));
+                    self.blog_select(next);
                 }
                 KeyCode::Enter | KeyCode::Right => {
-                    if !BLOG_ENTRIES.is_empty() {
-                        self.blog_viewing_post = true;
-                        self.blog_scroll = 0;
-                        self.trigger_transition();
-                    }
+                    self.blog_open_post(self.blog_index);
                 }
                 _ => {}
             }
         }
+    }
+
+    /// Unified blog post selection — used by both keyboard and mouse/tap
+    fn blog_select(&mut self, index: usize) {
+        if index >= BLOG_ENTRIES.len() || index == self.blog_index {
+            return;
+        }
+        self.prev_blog_index = self.blog_index;
+        self.blog_index = index;
+        self.blog_scroll = 0;
+        self.blog_nav_effect = Some(fx::fade_from(
+            Color::Rgb(60, 65, 75),
+            Color::Rgb(8, 9, 14),
+            EffectTimer::from_ms(250, Interpolation::QuadOut),
+        ));
+    }
+
+    /// Unified blog post open — used by both keyboard and mouse/tap
+    fn blog_open_post(&mut self, index: usize) {
+        if index >= BLOG_ENTRIES.len() {
+            return;
+        }
+        if self.blog_index != index {
+            self.blog_select(index);
+        }
+        self.blog_viewing_post = true;
+        self.blog_scroll = 0;
+        self.trigger_transition();
+    }
+
+    /// Unified blog post exit — used by both keyboard and mouse/tap
+    fn blog_exit_post(&mut self) {
+        self.blog_viewing_post = false;
+        self.blog_scroll = 0;
+        self.trigger_transition();
     }
 
     fn handle_keyboard_tap(&mut self, display_name: &str) {
@@ -2255,7 +2265,7 @@ impl App {
                 let key = KeyEvent { code: KeyCode::Backspace, ctrl: false, alt: false, shift: false };
                 self.handle_repl_event(key);
             }
-            "↵" => {
+            "ENTER" => {
                 let key = KeyEvent { code: KeyCode::Enter, ctrl: false, alt: false, shift: false };
                 self.handle_repl_event(key);
             }
@@ -2349,8 +2359,8 @@ impl App {
         self.grid_rows = full_area.height;
 
         // Center the main content with margins to show animated background border
-        // Use smaller margins on narrow screens (phones) for better usability
-        let h_margin = (full_area.width / MARGIN_DIVISOR).min(2);
+        // Use 1-tile border on narrow screens (<80 tiles) for better usability
+        let h_margin = if full_area.width < 80 { 1 } else { (full_area.width / MARGIN_DIVISOR).min(2) };
         let v_margin = (full_area.height / MARGIN_DIVISOR).min(1);
 
         let [_, center_v, _] = Layout::vertical([
@@ -3615,7 +3625,29 @@ impl App {
         } else {
             "─".to_string()
         };
-        let center_text = format!("{hint} │ {indicator}");
+        let available = center_area.width as usize;
+        let full_text = format!("{hint} │ {indicator}");
+        let center_text = if full_text.chars().count() <= available {
+            full_text
+        } else {
+            // Progressively drop hint segments (split by │) from the left until it fits
+            let segments: Vec<&str> = hint.split('│').collect();
+            let mut trimmed_hint = hint.to_string();
+            for drop_count in 1..segments.len() {
+                trimmed_hint = segments[drop_count..].iter().map(|s| s.trim()).collect::<Vec<_>>().join(" │ ");
+                let candidate = format!("{trimmed_hint} │ {indicator}");
+                if candidate.chars().count() <= available {
+                    break;
+                }
+            }
+            let candidate = format!("{trimmed_hint} │ {indicator}");
+            if candidate.chars().count() <= available {
+                candidate
+            } else {
+                // Last resort: just show indicator
+                indicator.clone()
+            }
+        };
         frame.render_widget(
             Paragraph::new(center_text)
                 .alignment(Alignment::Center)
