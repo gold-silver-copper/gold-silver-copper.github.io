@@ -23,12 +23,7 @@
       style="position:fixed;opacity:0;width:1px;height:1px;top:-9999px;left:-9999px;pointer-events:none;"
       autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
       inputmode="text" enterkeyhint="send" />
-    <!-- Send button for REPL (visible when keyboard active) -->
-    <button id="repl-send-btn"
-      style="display:none;position:fixed;bottom:8px;right:8px;z-index:9999;padding:6px 16px;
-      background:#b87333;color:#fff;border:none;border-radius:4px;font-size:14px;
-      font-family:'Fira Code',monospace;cursor:pointer;opacity:0.9;"
-      >Send</button>
+
     <script>
       // Mobile interaction support: swipe gestures, mousewheel, momentum scrolling, zone-aware scrolling
       (function() {
@@ -203,11 +198,17 @@
         if (window.visualViewport) {
           window.visualViewport.addEventListener('resize', function() {
             var c = getCanvas();
+            var vv = window.visualViewport;
             if (c) {
-              var vv = window.visualViewport;
               c.style.height = vv.height + 'px';
               c.style.width = vv.width + 'px';
             }
+            document.body.style.height = vv.height + 'px';
+            document.body.style.width = vv.width + 'px';
+          });
+          window.visualViewport.addEventListener('scroll', function() {
+            var vv = window.visualViewport;
+            document.body.style.transform = 'translateY(' + (-vv.offsetTop) + 'px)';
           });
         }
 
@@ -215,11 +216,9 @@
         // Expose a global function that Rust can call to focus/blur the hidden input
         var replInput = null;
         var replInputInitialized = false;
-        var sendBtn = null;
         function initReplInput() {
           if (replInputInitialized) return;
           replInput = document.getElementById('repl-keyboard-input');
-          sendBtn = document.getElementById('repl-send-btn');
           if (!replInput) return;
           replInputInitialized = true;
           // Forward input events as key events to canvas
@@ -250,15 +249,6 @@
               e.preventDefault();
             }
           });
-          // Send button dispatches Enter
-          if (sendBtn) {
-            sendBtn.addEventListener('click', function(e) {
-              e.preventDefault();
-              e.stopPropagation();
-              dispatchKey('Enter');
-              if (replInput) replInput.focus();
-            });
-          }
         }
         window._focusReplInput = function() {
           initReplInput();
@@ -271,9 +261,6 @@
             replInput.style.pointerEvents = 'auto';
             replInput.focus();
           }
-          if (sendBtn) {
-            sendBtn.style.display = 'block';
-          }
         };
         window._blurReplInput = function() {
           initReplInput();
@@ -285,16 +272,11 @@
             replInput.style.height = '1px';
             replInput.style.pointerEvents = 'none';
           }
-          if (sendBtn) {
-            sendBtn.style.display = 'none';
-          }
         };
 
         // Tap-to-focus: when user taps in the lower portion of the screen while on REPL,
         // focus the hidden input to bring up virtual keyboard
         document.addEventListener('click', function(e) {
-          // Don't intercept send button clicks
-          if (e.target && e.target.id === 'repl-send-btn') return;
           var winH = window.innerHeight || 600;
           if (e.clientY > winH * replInputZoneThreshold) {
             // Check if the REPL tab might be active by seeing if hidden input should focus
