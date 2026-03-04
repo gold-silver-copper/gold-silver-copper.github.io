@@ -3161,8 +3161,10 @@ impl App {
                 entries_area.width.saturating_sub(2),
                 1,
             );
-            let code_display = if code_line.len() > code_area.width as usize {
-                format!("{}…", &code_line[..code_area.width.saturating_sub(2) as usize])
+            let max_chars = code_area.width.saturating_sub(2) as usize;
+            let code_display = if code_line.chars().count() > code_area.width as usize {
+                let truncated: String = code_line.chars().take(max_chars).collect();
+                format!("{}…", truncated)
             } else {
                 code_line.to_string()
             };
