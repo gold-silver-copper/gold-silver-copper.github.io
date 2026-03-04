@@ -7,16 +7,13 @@
     <meta name="mobile-web-app-capable" content="yes">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/firacode/6.2.0/fira_code.min.css">
     <title>GRIFT.RS – Personal Website &amp; Grift Demo</title>
-    <link rel="stylesheet" href="/./style-f21e1f6eecc150fc.css">
+    <link rel="stylesheet" href="/./style-29422d563ca3f4fc.css">
   
-<link rel="preload" href="/./grift-site-dc1c2200736b6f81_bg.wasm" as="fetch" type="application/wasm" crossorigin="">
-<link rel="modulepreload" href="/./grift-site-dc1c2200736b6f81.js"></head>
+<link rel="preload" href="/./grift-site-e2e77d5d07c79b5a_bg.wasm" as="fetch" type="application/wasm" crossorigin="">
+<link rel="modulepreload" href="/./grift-site-e2e77d5d07c79b5a.js"></head>
   <body>
     <!-- Hidden input for mobile virtual keyboard (REPL) -->
-    <input id="repl-keyboard-input" type="text"
-      style="position:fixed;opacity:0;width:1px;height:1px;top:-9999px;left:-9999px;pointer-events:none;"
-      autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
-      inputmode="text" enterkeyhint="done" />
+    <input id="repl-keyboard-input" type="text" style="position:fixed;opacity:0;width:1px;height:1px;top:-9999px;left:-9999px;pointer-events:none;" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" inputmode="text" enterkeyhint="done">
     <script>
       // Mobile interaction support: swipe gestures, mousewheel, momentum scrolling, zone-aware scrolling
       (function() {
@@ -159,6 +156,7 @@
         }, { passive: false });
 
         // REPL virtual keyboard support: focus hidden input on tap to open keyboard
+        // Expose a global function that Rust can call to focus/blur the hidden input
         var replInput = null;
         var replInputInitialized = false;
         function initReplInput() {
@@ -166,6 +164,7 @@
           replInput = document.getElementById('repl-keyboard-input');
           if (!replInput) return;
           replInputInitialized = true;
+          // Forward input events as key events (added once)
           replInput.addEventListener('input', function(e) {
             var data = e.data;
             if (data) {
@@ -210,6 +209,7 @@
         document.addEventListener('click', function(e) {
           var winH = window.innerHeight || 600;
           if (e.clientY > winH * replInputZoneThreshold) {
+            // Check if the REPL tab might be active by seeing if hidden input should focus
             if (window._replTabActive) {
               window._focusReplInput();
             }
@@ -220,4 +220,4 @@
     </script>
   
 
-<script type="module">import init from '/./grift-site-dc1c2200736b6f81.js';init('/./grift-site-dc1c2200736b6f81_bg.wasm');</script></body></html>
+<script type="module">import init from '/./grift-site-e2e77d5d07c79b5a.js';init('/./grift-site-e2e77d5d07c79b5a_bg.wasm');</script></body></html>
