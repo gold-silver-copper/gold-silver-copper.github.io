@@ -15,7 +15,7 @@
       href="https://cdnjs.cloudflare.com/ajax/libs/firacode/6.2.0/fira_code.min.css"
     />
     <title>GRIFT.RS – Personal Website & Grift Demo</title>
-    <link rel="stylesheet" href="/style-40370b022b4ccfcd.css" integrity="sha384-sQFR+IhO0J0gNMSZn7LT/jpr4uMQIigV7Rt+nJ6XdmiMlhouz9EvXIVMC0YAiw0z"/>
+    <link rel="stylesheet" href="/style-40370b022b4ccfcd.css" integrity="sha384-nDZiS13PYLP5ARtmUG9DB91FJ9P6VopMjWiID4W7siD16IXlT5dWmZOQYinP7fDQ"/>
   <link rel="modulepreload" href="/grift-site-4387008adb8ce35a.js" crossorigin="anonymous" integrity="sha384-MVtG0eKKlmuNltSMs5Fhzs6XeJW4M1p+wnSKlmNkacHO1XzWA+L53YUpggu0/iAd"><link rel="preload" href="/grift-site-4387008adb8ce35a_bg.wasm" crossorigin="anonymous" integrity="sha384-8+u1hOFVPq7/kHLieEAI4NcPcbriwsuJOFVAZtJEAlDt0fLSpmhrb8BtcLr+/Fwv" as="fetch" type="application/wasm"></head>
   <body>
     <!-- Hidden input for mobile virtual keyboard (REPL) -->
@@ -23,12 +23,7 @@
       style="position:fixed;opacity:0;width:1px;height:1px;top:-9999px;left:-9999px;pointer-events:none;"
       autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
       inputmode="text" enterkeyhint="send" />
-    <!-- Send button for REPL (visible when keyboard active) -->
-    <button id="repl-send-btn"
-      style="display:none;position:fixed;bottom:8px;right:8px;z-index:9999;padding:6px 16px;
-      background:#b87333;color:#fff;border:none;border-radius:4px;font-size:14px;
-      font-family:'Fira Code',monospace;cursor:pointer;opacity:0.9;"
-      >Send</button>
+
     <script>
       // Mobile interaction support: swipe gestures, mousewheel, momentum scrolling, zone-aware scrolling
       (function() {
@@ -202,12 +197,18 @@
         // Visual viewport API: handle virtual keyboard appearance
         if (window.visualViewport) {
           window.visualViewport.addEventListener('resize', function() {
+            var vv = window.visualViewport;
             var c = getCanvas();
             if (c) {
-              var vv = window.visualViewport;
               c.style.height = vv.height + 'px';
               c.style.width = vv.width + 'px';
             }
+            document.body.style.height = vv.height + 'px';
+            document.body.style.width = vv.width + 'px';
+          });
+          window.visualViewport.addEventListener('scroll', function() {
+            var vv = window.visualViewport;
+            document.body.style.transform = 'translateY(' + (-vv.offsetTop) + 'px)';
           });
         }
 
@@ -215,11 +216,9 @@
         // Expose a global function that Rust can call to focus/blur the hidden input
         var replInput = null;
         var replInputInitialized = false;
-        var sendBtn = null;
         function initReplInput() {
           if (replInputInitialized) return;
           replInput = document.getElementById('repl-keyboard-input');
-          sendBtn = document.getElementById('repl-send-btn');
           if (!replInput) return;
           replInputInitialized = true;
           // Forward input events as key events to canvas
@@ -250,15 +249,6 @@
               e.preventDefault();
             }
           });
-          // Send button dispatches Enter
-          if (sendBtn) {
-            sendBtn.addEventListener('click', function(e) {
-              e.preventDefault();
-              e.stopPropagation();
-              dispatchKey('Enter');
-              if (replInput) replInput.focus();
-            });
-          }
         }
         window._focusReplInput = function() {
           initReplInput();
@@ -271,9 +261,6 @@
             replInput.style.pointerEvents = 'auto';
             replInput.focus();
           }
-          if (sendBtn) {
-            sendBtn.style.display = 'block';
-          }
         };
         window._blurReplInput = function() {
           initReplInput();
@@ -285,16 +272,11 @@
             replInput.style.height = '1px';
             replInput.style.pointerEvents = 'none';
           }
-          if (sendBtn) {
-            sendBtn.style.display = 'none';
-          }
         };
 
         // Tap-to-focus: when user taps in the lower portion of the screen while on REPL,
         // focus the hidden input to bring up virtual keyboard
         document.addEventListener('click', function(e) {
-          // Don't intercept send button clicks
-          if (e.target && e.target.id === 'repl-send-btn') return;
           var winH = window.innerHeight || 600;
           if (e.clientY > winH * replInputZoneThreshold) {
             // Check if the REPL tab might be active by seeing if hidden input should focus

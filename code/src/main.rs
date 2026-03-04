@@ -360,6 +360,7 @@ struct App {
     doc_scroll: usize,
     // Blog state
     blog_index: usize,
+    blog_viewing_post: bool,
     // Scroll state for scrollable pages
     home_scroll: usize,
     links_scroll: usize,
@@ -388,6 +389,7 @@ struct App {
     tab_rects: Vec<Rect>,
     link_areas: Vec<Rect>,
     blog_item_areas: Vec<Rect>,
+    blog_back_area: Rect,
     // Zone detection areas
     content_area: Rect,
     blog_list_area: Rect,
@@ -424,6 +426,7 @@ impl App {
             lisp,
             doc_scroll: 0,
             blog_index: 0,
+            blog_viewing_post: false,
             blog_scroll: 0,
             home_scroll: 0,
             links_scroll: 0,
@@ -445,6 +448,7 @@ impl App {
             tab_rects: Vec::new(),
             link_areas: Vec::new(),
             blog_item_areas: Vec::new(),
+            blog_back_area: Rect::default(),
             content_area: Rect::default(),
             blog_list_area: Rect::default(),
             blog_content_area: Rect::default(),
@@ -504,6 +508,7 @@ impl App {
             self.page = page;
             self.tab_glow_effect = None;
             self.blog_scroll = 0;
+            self.blog_viewing_post = false;
             self.trigger_transition();
             // Focus/blur hidden input for REPL virtual keyboard
             if page == Page::Repl {
@@ -640,17 +645,34 @@ impl App {
 
             // Check blog item clicks
             if self.page == Page::Blog {
+                // Check back button click (narrow mode)
+                if self.blog_back_area.width > 0
+                    && col >= self.blog_back_area.x
+                    && col < self.blog_back_area.right()
+                    && row >= self.blog_back_area.y
+                    && row < self.blog_back_area.bottom()
+                {
+                    self.blog_viewing_post = false;
+                    self.blog_scroll = 0;
+                    self.trigger_btn_effect(self.blog_back_area);
+                    self.trigger_transition();
+                    return;
+                }
+
                 for (i, area) in self.blog_item_areas.iter().enumerate() {
                     if col >= area.x
                         && col < area.right()
                         && row >= area.y
                         && row < area.bottom()
                         && i < BLOG_ENTRIES.len()
-                        && self.blog_index != i
                     {
-                        self.blog_index = i;
-                        self.trigger_btn_effect(*area);
-                        self.trigger_transition();
+                        if self.blog_index != i || !self.blog_viewing_post {
+                            self.blog_index = i;
+                            self.blog_viewing_post = true;
+                            self.blog_scroll = 0;
+                            self.trigger_btn_effect(*area);
+                            self.trigger_transition();
+                        }
                         return;
                     }
                 }
@@ -736,6 +758,53 @@ impl App {
     }
 
     fn handle_blog_event(&mut self, key: KeyEvent) {
+        let is_narrow = self.content_area.width < NARROW_WIDTH_THRESHOLD + 4;
+
+        if is_narrow && self.blog_viewing_post {
+            // In narrow mode, viewing a post: scroll content or go back
+            match key.code {
+                KeyCode::Up => {
+                    self.blog_scroll = self.blog_scroll.saturating_sub(1);
+                }
+                KeyCode::Down => {
+                    self.blog_scroll += 1;
+                }
+                KeyCode::Left => {
+                    self.blog_viewing_post = false;
+                    self.blog_scroll = 0;
+                    self.trigger_transition();
+                }
+                _ => {}
+            }
+            return;
+        }
+
+        if is_narrow && !self.blog_viewing_post {
+            // In narrow mode, viewing the list: navigate or select
+            match key.code {
+                KeyCode::Up => {
+                    if self.blog_index > 0 {
+                        self.blog_index -= 1;
+                        self.trigger_transition();
+                    }
+                }
+                KeyCode::Down => {
+                    if self.blog_index < BLOG_ENTRIES.len() - 1 {
+                        self.blog_index += 1;
+                        self.trigger_transition();
+                    }
+                }
+                KeyCode::Right => {
+                    self.blog_viewing_post = true;
+                    self.blog_scroll = 0;
+                    self.trigger_transition();
+                }
+                _ => {}
+            }
+            return;
+        }
+
+        // Wide mode: original behavior
         let in_list = self.blog_list_area.width > 0
             && self.hover_row >= self.blog_list_area.y
             && self.hover_row < self.blog_list_area.bottom();
@@ -1273,6 +1342,7 @@ impl App {
         let scroll = self.repl_scroll.min(max_scroll);
 
         let history = Paragraph::new(Text::from(history_lines))
+            .wrap(Wrap { trim: false })
             .scroll((scroll as u16, 0))
             .block(
                 Block::bordered()
@@ -1420,7 +1490,138 @@ impl App {
 
     fn render_blog(&mut self, frame: &mut Frame, area: Rect) {
         let is_narrow_area = area.width < NARROW_WIDTH_THRESHOLD + 4;
-        let bottom_hint = if is_narrow_area { "│ tap or swipe │" } else { "│ click a post or swipe │" };
+
+        self.blog_back_area = Rect::default();
+
+        if is_narrow_area && self.blog_viewing_post {
+            // Narrow mode: show only the post content with a back button
+            let block = Block::bordered()
+                .border_type(BorderType::Rounded)
+                .border_style(Color::Rgb(55, 60, 70))
+                .title(" Blog ".bold().fg(Color::Rgb(200, 200, 210)));
+
+            let inner = block.inner(area);
+            frame.render_widget(block, area);
+
+            let [back_bar, scroll_area, nav_bar] =
+                Layout::vertical([Constraint::Length(1), Constraint::Min(1), Constraint::Length(1)]).areas(inner);
+
+            // Back button
+            let back_hovered = self.is_hovered(back_bar);
+            let back_style = if back_hovered {
+                Style::default().fg(Color::Rgb(255, 255, 255)).bold()
+            } else {
+                Style::default().fg(Color::Rgb(184, 115, 51))
+            };
+            frame.render_widget(
+                Paragraph::new("◄ Back to posts").style(back_style),
+                back_bar,
+            );
+            self.blog_back_area = back_bar;
+
+            // Blog content — scrollable
+            self.blog_list_area = Rect::default();
+            self.blog_item_areas.clear();
+            if let Some((title, date, content)) = BLOG_ENTRIES.get(self.blog_index) {
+                let mut lines = vec![
+                    Line::styled(*title, Style::default().fg(Color::Rgb(220, 225, 235)).bold()),
+                    Line::styled(*date, Style::default().fg(Color::Rgb(75, 80, 90))),
+                    Line::from(""),
+                ];
+                for line in content.lines() {
+                    lines.push(Line::styled(line, Style::default().fg(Color::Rgb(170, 175, 185))));
+                }
+
+                let total_lines = lines.len();
+                let visible_height = scroll_area.height.saturating_sub(2) as usize;
+                let max_scroll = total_lines.saturating_sub(visible_height);
+                self.blog_scroll = self.blog_scroll.min(max_scroll);
+
+                let blog = Paragraph::new(Text::from(lines))
+                    .wrap(Wrap { trim: false })
+                    .scroll((self.blog_scroll as u16, 0))
+                    .block(
+                        Block::bordered()
+                            .border_type(BorderType::Rounded)
+                            .border_style(Color::Rgb(40, 44, 52)),
+                    );
+                frame.render_widget(blog, scroll_area);
+                self.blog_content_area = scroll_area;
+
+                self.render_scroll_arrows(frame, nav_bar, self.blog_scroll, max_scroll, "swipe ↕");
+            }
+            return;
+        }
+
+        if is_narrow_area && !self.blog_viewing_post {
+            // Narrow mode: show only the scrollable list of blog titles
+            let block = Block::bordered()
+                .border_type(BorderType::Rounded)
+                .border_style(Color::Rgb(55, 60, 70))
+                .title(" Blog ".bold().fg(Color::Rgb(200, 200, 210)))
+                .title_bottom(
+                    Line::from("│ tap a post │")
+                        .alignment(Alignment::Center)
+                        .style(Style::default().fg(Color::Rgb(55, 60, 70))),
+                );
+
+            let inner = block.inner(area);
+            frame.render_widget(block, area);
+
+            let list_block = Block::bordered()
+                .border_type(BorderType::Rounded)
+                .border_style(Color::Rgb(40, 44, 52))
+                .title(" Posts ".fg(Color::Rgb(200, 200, 210)));
+
+            let list_inner = list_block.inner(inner);
+
+            self.blog_item_areas.clear();
+            self.blog_list_area = inner;
+            self.blog_content_area = Rect::default();
+
+            for i in 0..BLOG_ENTRIES.len() {
+                let item_y = list_inner.y + (i as u16 * 2);
+                if item_y + 2 <= list_inner.bottom() {
+                    self.blog_item_areas.push(Rect::new(
+                        list_inner.x,
+                        item_y,
+                        list_inner.width,
+                        2,
+                    ));
+                }
+            }
+
+            let items: Vec<ListItem> = BLOG_ENTRIES
+                .iter()
+                .enumerate()
+                .map(|(i, (title, date, _))| {
+                    let hovered = self
+                        .blog_item_areas
+                        .get(i)
+                        .is_some_and(|r| self.is_hovered(*r));
+                    let style = if i == self.blog_index {
+                        Style::default().fg(Color::Rgb(230, 232, 240)).bold()
+                    } else if hovered {
+                        Style::default().fg(Color::Rgb(200, 200, 210))
+                    } else {
+                        Style::default().fg(Color::Rgb(140, 145, 155))
+                    };
+                    let marker = if i == self.blog_index { "> " } else if hovered { "~ " } else { "  " };
+                    ListItem::new(vec![
+                        Line::from(format!("{marker}{title}")).style(style),
+                        Line::from(format!("  {date}"))
+                            .style(Style::default().fg(Color::Rgb(75, 80, 90))),
+                    ])
+                })
+                .collect();
+
+            let list = List::new(items).block(list_block);
+            frame.render_widget(list, inner);
+            return;
+        }
+
+        // Wide mode: list on top, scrollable content below (original layout)
+        let bottom_hint = "│ click a post or swipe │";
         let block = Block::bordered()
             .border_type(BorderType::Rounded)
             .border_style(Color::Rgb(55, 60, 70))

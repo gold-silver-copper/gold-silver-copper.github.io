@@ -58,10 +58,17 @@ canvas {
   font-size: 16px; /* Prevent iOS zoom on focus */
 }
 
-/* Send button for REPL virtual keyboard */
-#repl-send-btn {
-  touch-action: manipulation;
-  -webkit-tap-highlight-color: transparent;
+/* Remove focus outlines globally (canvas-based app) */
+*:focus,
+*:focus-visible {
+  outline: none;
+}
+
+canvas:focus,
+canvas:focus-visible,
+body:focus,
+body:focus-visible {
+  outline: none;
 }
 
 /* Hide scrollbars globally */
