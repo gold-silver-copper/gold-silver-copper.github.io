@@ -11,6 +11,7 @@ use ratzilla::ratatui::Frame;
 use ratzilla::backend::webgl2::WebGl2BackendOptions;
 use ratzilla::WebGl2Backend;
 use ratzilla::WebRenderer;
+use unicode_width::UnicodeWidthChar;
 
 use tachyonfx::fx::{self};
 use tachyonfx::{CellFilter, Duration, Effect, EffectRenderer, EffectTimer, Interpolation, Motion};
@@ -1558,13 +1559,76 @@ impl App {
     }
 
     /// Compute total display rows after wrapping lines to the given width.
+    ///
+    /// Simulates ratatui's `WordWrapper` with `trim: false` to produce an
+    /// accurate count that matches what `Paragraph::wrap(Wrap { trim: false })`
+    /// will actually render.
     fn wrapped_line_count(lines: &[Line], wrap_width: usize) -> usize {
         if wrap_width == 0 {
             return lines.len();
         }
+        let max_w = wrap_width;
+
         lines.iter().map(|line| {
             let w = line.width();
-            if w == 0 { 1 } else { (w + wrap_width - 1) / wrap_width }
+            if w <= max_w {
+                return 1;
+            }
+
+            // Collect text from all spans for word-wrap simulation
+            let text: String = line.iter().map(|span| span.content.as_ref()).collect();
+
+            let mut count: usize = 0;
+            let mut line_w: usize = 0;
+            let mut word_w: usize = 0;
+            let mut ws_w: usize = 0;
+            let mut pending_empty = true;
+            let mut non_ws_prev = false;
+
+            for ch in text.chars() {
+                let is_ws = ch.is_whitespace();
+                let sym_w = UnicodeWidthChar::width(ch).unwrap_or(0);
+
+                // Skip characters wider than the line (matching ratatui's WordWrapper)
+                if sym_w > max_w { continue; }
+
+                let word_found = non_ws_prev && is_ws;
+                let untrimmed_overflow = pending_empty
+                    && (word_w + ws_w + sym_w > max_w);
+
+                if word_found || untrimmed_overflow {
+                    line_w += ws_w + word_w;
+                    pending_empty = line_w == 0;
+                    ws_w = 0;
+                    word_w = 0;
+                }
+
+                let line_full = line_w >= max_w;
+                let pending_overflow = sym_w > 0
+                    && (line_w + ws_w + word_w >= max_w);
+
+                if line_full || pending_overflow {
+                    count += 1;
+                    pending_empty = true;
+                    line_w = 0;
+                    ws_w = 0;
+
+                    if is_ws {
+                        non_ws_prev = false;
+                        continue;
+                    }
+                }
+
+                if is_ws {
+                    ws_w += sym_w;
+                } else {
+                    word_w += sym_w;
+                }
+
+                non_ws_prev = !is_ws;
+            }
+
+            count + 1
         }).sum()
     }
 
