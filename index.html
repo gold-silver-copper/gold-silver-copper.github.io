@@ -1,19 +1,34 @@
-<!DOCTYPE html><html lang="en"><head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <meta name="theme-color" content="#08090e">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="mobile-web-app-capable" content="yes">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/firacode/6.2.0/fira_code.min.css">
-    <title>GRIFT.RS – Personal Website &amp; Grift Demo</title>
-    <link rel="stylesheet" href="/./style-29422d563ca3f4fc.css">
-  
-<link rel="preload" href="/./grift-site-e2e77d5d07c79b5a_bg.wasm" as="fetch" type="application/wasm" crossorigin="">
-<link rel="modulepreload" href="/./grift-site-e2e77d5d07c79b5a.js"></head>
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
+    />
+    <meta name="theme-color" content="#08090e" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/firacode/6.2.0/fira_code.min.css"
+    />
+    <title>GRIFT.RS – Personal Website & Grift Demo</title>
+    <link rel="stylesheet" href="/style-40370b022b4ccfcd.css" integrity="sha384-sQFR+IhO0J0gNMSZn7LT/jpr4uMQIigV7Rt+nJ6XdmiMlhouz9EvXIVMC0YAiw0z"/>
+  <link rel="modulepreload" href="/grift-site-4387008adb8ce35a.js" crossorigin="anonymous" integrity="sha384-MVtG0eKKlmuNltSMs5Fhzs6XeJW4M1p+wnSKlmNkacHO1XzWA+L53YUpggu0/iAd"><link rel="preload" href="/grift-site-4387008adb8ce35a_bg.wasm" crossorigin="anonymous" integrity="sha384-8+u1hOFVPq7/kHLieEAI4NcPcbriwsuJOFVAZtJEAlDt0fLSpmhrb8BtcLr+/Fwv" as="fetch" type="application/wasm"></head>
   <body>
     <!-- Hidden input for mobile virtual keyboard (REPL) -->
-    <input id="repl-keyboard-input" type="text" style="position:fixed;opacity:0;width:1px;height:1px;top:-9999px;left:-9999px;pointer-events:none;" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" inputmode="text" enterkeyhint="done">
+    <input id="repl-keyboard-input" type="text"
+      style="position:fixed;opacity:0;width:1px;height:1px;top:-9999px;left:-9999px;pointer-events:none;"
+      autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
+      inputmode="text" enterkeyhint="send" />
+    <!-- Send button for REPL (visible when keyboard active) -->
+    <button id="repl-send-btn"
+      style="display:none;position:fixed;bottom:8px;right:8px;z-index:9999;padding:6px 16px;
+      background:#b87333;color:#fff;border:none;border-radius:4px;font-size:14px;
+      font-family:'Fira Code',monospace;cursor:pointer;opacity:0.9;"
+      >Send</button>
     <script>
       // Mobile interaction support: swipe gestures, mousewheel, momentum scrolling, zone-aware scrolling
       (function() {
@@ -35,6 +50,23 @@
         document.addEventListener('contextmenu', function(e) {
           e.preventDefault();
         });
+
+        // Helper: get the ratzilla canvas element (lazily cached)
+        var _canvas = null;
+        function getCanvas() {
+          if (!_canvas) {
+            _canvas = document.querySelector('canvas') || document.querySelector('.ratzilla');
+          }
+          return _canvas;
+        }
+
+        // Helper: dispatch a key event to the canvas (where ratzilla listens)
+        function dispatchKey(key) {
+          var c = getCanvas();
+          if (c) {
+            c.dispatchEvent(new KeyboardEvent('keydown', { key: key, bubbles: true }));
+          }
+        }
 
         // Helper: detect if touch is in the tab bar zone (top portion of screen)
         function getTouchZone(clientY) {
@@ -74,16 +106,14 @@
           if (touchZone === 'tabs') {
             // In tab zone: horizontal movement scrolls tabs
             if (Math.abs(deltaX) > touchScrollThreshold) {
-              var key = deltaX > 0 ? 'ArrowLeft' : 'ArrowRight';
-              document.dispatchEvent(new KeyboardEvent('keydown', { key: key, bubbles: true }));
+              dispatchKey(deltaX > 0 ? 'ArrowLeft' : 'ArrowRight');
               touchLastX = currentX;
               touchLastTime = now;
             }
           } else {
             // In content zone: vertical movement scrolls content
             if (Math.abs(deltaY) > touchScrollThreshold) {
-              var key = deltaY > 0 ? 'ArrowUp' : 'ArrowDown';
-              document.dispatchEvent(new KeyboardEvent('keydown', { key: key, bubbles: true }));
+              dispatchKey(deltaY > 0 ? 'ArrowUp' : 'ArrowDown');
               touchLastY = currentY;
               touchLastTime = now;
             }
@@ -102,8 +132,7 @@
 
           if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > minSwipeDistance) {
             // Horizontal swipe in content zone — dispatch arrow key for navigation
-            var key = dx > 0 ? 'ArrowLeft' : 'ArrowRight';
-            document.dispatchEvent(new KeyboardEvent('keydown', { key: key, bubbles: true }));
+            dispatchKey(dx > 0 ? 'ArrowLeft' : 'ArrowRight');
           } else if (Math.abs(velocityY) > 0.3) {
             // Momentum scrolling — continue scrolling with deceleration
             var v = velocityY;
@@ -114,8 +143,7 @@
                 momentumId = null;
                 return;
               }
-              var key = v > 0 ? 'ArrowUp' : 'ArrowDown';
-              document.dispatchEvent(new KeyboardEvent('keydown', { key: key, bubbles: true }));
+              dispatchKey(v > 0 ? 'ArrowUp' : 'ArrowDown');
               momentumId = setTimeout(throttledStep, 66);
             };
             throttledStep();
@@ -132,15 +160,10 @@
         }, { passive: true });
 
         // Mousewheel support — scroll content with wheel
-        var ratzillaCanvas = null;
         document.addEventListener('wheel', function(e) {
-          // Only intercept wheel events on the ratzilla canvas
-          if (!ratzillaCanvas) {
-            ratzillaCanvas = document.querySelector('canvas') || document.querySelector('.ratzilla');
-          }
-          if (ratzillaCanvas && ratzillaCanvas.contains(e.target)) {
-            var key = e.deltaY > 0 ? 'ArrowDown' : 'ArrowUp';
-            document.dispatchEvent(new KeyboardEvent('keydown', { key: key, bubbles: true }));
+          var c = getCanvas();
+          if (c && (c.contains(e.target) || e.target === c)) {
+            dispatchKey(e.deltaY > 0 ? 'ArrowDown' : 'ArrowUp');
             e.preventDefault();
           }
         }, { passive: false });
@@ -155,43 +178,101 @@
           lastTap = now;
         }, { passive: false });
 
+        // Dynamic window resize: force canvas to recalculate on resize/orientation change
+        function handleResize() {
+          var c = getCanvas();
+          if (c) {
+            // Force canvas CSS dimensions to match viewport
+            var w = window.innerWidth;
+            var h = window.innerHeight;
+            c.style.width = w + 'px';
+            c.style.height = h + 'px';
+          }
+          // Also resize body to match
+          document.body.style.width = window.innerWidth + 'px';
+          document.body.style.height = window.innerHeight + 'px';
+        }
+        window.addEventListener('resize', handleResize);
+        window.addEventListener('orientationchange', function() {
+          // Delay to let the browser settle after orientation change
+          setTimeout(handleResize, 100);
+          setTimeout(handleResize, 300);
+        });
+
+        // Visual viewport API: handle virtual keyboard appearance
+        if (window.visualViewport) {
+          window.visualViewport.addEventListener('resize', function() {
+            var c = getCanvas();
+            if (c) {
+              var vv = window.visualViewport;
+              c.style.height = vv.height + 'px';
+              c.style.width = vv.width + 'px';
+            }
+          });
+        }
+
         // REPL virtual keyboard support: focus hidden input on tap to open keyboard
         // Expose a global function that Rust can call to focus/blur the hidden input
         var replInput = null;
         var replInputInitialized = false;
+        var sendBtn = null;
         function initReplInput() {
           if (replInputInitialized) return;
           replInput = document.getElementById('repl-keyboard-input');
+          sendBtn = document.getElementById('repl-send-btn');
           if (!replInput) return;
           replInputInitialized = true;
-          // Forward input events as key events (added once)
+          // Forward input events as key events to canvas
           replInput.addEventListener('input', function(e) {
             var data = e.data;
             if (data) {
               for (var i = 0; i < data.length; i++) {
-                document.dispatchEvent(new KeyboardEvent('keydown', {
-                  key: data[i], bubbles: true
-                }));
+                dispatchKey(data[i]);
+              }
+            } else if (e.inputType === 'deleteContentBackward') {
+              dispatchKey('Backspace');
+            }
+            replInput.value = '';
+          });
+          // Handle composition events (swipe typing, predictive text)
+          replInput.addEventListener('compositionend', function(e) {
+            var data = e.data;
+            if (data) {
+              for (var i = 0; i < data.length; i++) {
+                dispatchKey(data[i]);
               }
             }
             replInput.value = '';
           });
           replInput.addEventListener('keydown', function(e) {
             if (e.key === 'Enter' || e.key === 'Backspace') {
-              document.dispatchEvent(new KeyboardEvent('keydown', {
-                key: e.key, bubbles: true
-              }));
+              dispatchKey(e.key);
               e.preventDefault();
             }
           });
+          // Send button dispatches Enter
+          if (sendBtn) {
+            sendBtn.addEventListener('click', function(e) {
+              e.preventDefault();
+              e.stopPropagation();
+              dispatchKey('Enter');
+              if (replInput) replInput.focus();
+            });
+          }
         }
         window._focusReplInput = function() {
           initReplInput();
           if (replInput) {
             replInput.style.top = '0';
             replInput.style.left = '0';
+            replInput.style.width = '70%';
+            replInput.style.height = '40px';
+            replInput.style.opacity = '0';
             replInput.style.pointerEvents = 'auto';
             replInput.focus();
+          }
+          if (sendBtn) {
+            sendBtn.style.display = 'block';
           }
         };
         window._blurReplInput = function() {
@@ -200,13 +281,20 @@
             replInput.blur();
             replInput.style.top = '-9999px';
             replInput.style.left = '-9999px';
+            replInput.style.width = '1px';
+            replInput.style.height = '1px';
             replInput.style.pointerEvents = 'none';
+          }
+          if (sendBtn) {
+            sendBtn.style.display = 'none';
           }
         };
 
         // Tap-to-focus: when user taps in the lower portion of the screen while on REPL,
         // focus the hidden input to bring up virtual keyboard
         document.addEventListener('click', function(e) {
+          // Don't intercept send button clicks
+          if (e.target && e.target.id === 'repl-send-btn') return;
           var winH = window.innerHeight || 600;
           if (e.clientY > winH * replInputZoneThreshold) {
             // Check if the REPL tab might be active by seeing if hidden input should focus
@@ -219,5 +307,15 @@
       })();
     </script>
   
+<script type="module">
+import init, * as bindings from '/grift-site-4387008adb8ce35a.js';
+const wasm = await init({ module_or_path: '/grift-site-4387008adb8ce35a_bg.wasm' });
 
-<script type="module">import init from '/./grift-site-e2e77d5d07c79b5a.js';init('/./grift-site-e2e77d5d07c79b5a_bg.wasm');</script></body></html>
+
+window.wasmBindings = bindings;
+
+
+dispatchEvent(new CustomEvent("TrunkApplicationStarted", {detail: {wasm}}));
+
+</script></body>
+</html>
