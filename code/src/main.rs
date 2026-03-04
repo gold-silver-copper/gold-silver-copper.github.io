@@ -17,6 +17,10 @@ use std::collections::HashSet;
 use tvk::virtual_key::VirtualKey;
 use tvk::layout::lisp_keyboard_layout;
 
+use md_tui::nodes::textcomponent::TextNode;
+use md_tui::nodes::word::WordType;
+use md_tui::nodes::root::Component;
+
 use tachyonfx::fx::{self};
 use tachyonfx::dsl::EffectDsl;
 use tachyonfx::{CellFilter, Duration, Effect, EffectRenderer, EffectTimer, Interpolation, Motion};
@@ -1420,98 +1424,42 @@ const BLOG_ENTRIES: &[(&str, &str, &str)] = &[
     (
         "Welcome to gold.silver.copper",
         "2025-01-15",
-        "Hi! I'm gold.silver.copper — a software developer passionate\n\
-         about programming languages, systems programming, and Rust.\n\
-         \n\
-         This site serves as my personal blog, project showcase, and\n\
-         an interactive demo of Grift, my Lisp interpreter.\n\
-         \n\
-         Everything you see here is rendered as a terminal UI in your\n\
-         browser using Ratzilla + TachyonFX + WebAssembly.",
+        include_str!("../blog/01-welcome.md"),
     ),
     (
         "Building Grift: A Minimalistic Lisp",
         "2025-02-01",
-        "Grift implements Kernel-style vau calculus with first-class\n\
-         operatives that subsume both functions and macros.\n\
-         \n\
-         Key design goals:\n\
-         - Zero unsafe code (#![forbid(unsafe_code)])\n\
-         - No heap allocation (arena-only memory)\n\
-         - Runs on bare-metal embedded systems\n\
-         - Compiles to WebAssembly\n\
-         \n\
-         All values live in a fixed-size arena with const-generic\n\
-         capacity and mark-and-sweep garbage collection.",
+        include_str!("../blog/02-building-grift.md"),
     ),
     (
         "Vau Calculus Explained",
         "2025-03-10",
-        "Unlike traditional Lisps, Grift uses vau calculus where\n\
-         operatives receive their arguments unevaluated along with\n\
-         the caller's environment. This makes operatives strictly\n\
-         more powerful than macros — they can choose whether and\n\
-         when to evaluate each argument.\n\
-         \n\
-         ($vau (x) env-param body) creates an operative that\n\
-         captures the formal parameter tree, environment parameter,\n\
-         and body expression as a closure.",
+        include_str!("../blog/03-vau-calculus.md"),
     ),
     (
         "Terminal UIs in the Browser",
         "2025-04-20",
-        "This website is built entirely with Ratzilla, which brings\n\
-         Ratatui's terminal UI framework to the browser via WASM.\n\
-         \n\
-         TachyonFX adds shader-like visual effects — the background\n\
-         animation, page transitions, and link click effects are all\n\
-         powered by tachyonfx running in WebAssembly.\n\
-         \n\
-         No JavaScript framework. No DOM manipulation. Just Rust\n\
-         rendering a terminal buffer to a canvas element.",
+        include_str!("../blog/04-terminal-uis-browser.md"),
     ),
     (
         "Unified Layout Design",
         "2025-05-15",
-        "Traditional responsive design uses breakpoints to switch between \
-         mobile and desktop layouts. This site takes a different approach: \
-         there is only one layout that works everywhere. The terminal grid \
-         scales naturally to any screen size, and touch gestures work \
-         alongside mouse and keyboard input. No media queries, no \
-         breakpoints, no separate code paths. The same Rust code renders \
-         identically on a phone, tablet, or ultrawide monitor.",
+        include_str!("../blog/05-unified-layout.md"),
     ),
     (
         "WebAssembly Performance",
         "2025-06-01",
-        "Compiling Rust to WebAssembly gives near-native performance in \
-         the browser. Grift's arena allocator avoids garbage collection \
-         pauses entirely — memory is managed through a mark-and-sweep \
-         collector that runs on the fixed-size arena. Combined with \
-         Ratzilla's WebGL2 renderer, the UI maintains smooth 60fps \
-         animation even on mid-range mobile devices.",
+        include_str!("../blog/06-wasm-performance.md"),
     ),
     (
         "TachyonFX: Shader Effects for TUIs",
         "2025-07-10",
-        "TachyonFX brings shader-like visual effects to terminal UIs. \
-         Effects like fade, sweep, slide, coalesce, and HSL shift can \
-         be composed with combinators like ping_pong and repeating. \
-         Each effect operates on a rectangular cell region and tracks \
-         its own timing via EffectTimer. The library integrates with \
-         Ratatui's rendering pipeline through the EffectRenderer trait, \
-         making it easy to add polish to any terminal application.",
+        include_str!("../blog/07-tachyonfx.md"),
     ),
     (
         "Arena Allocation in Grift",
         "2025-08-05",
-        "Grift uses a fixed-size arena for all allocations. The arena \
-         is a contiguous array of cells, each holding a Lisp value. \
-         Const generics set the capacity at compile time — no runtime \
-         overhead, no dynamic allocation, no unsafe code. A mark-and-sweep \
-         garbage collector reclaims unreachable cells. This design makes \
-         Grift suitable for embedded systems with no heap and for WASM \
-         targets where memory management must be predictable.",
+        include_str!("../blog/08-arena-allocation.md"),
     ),
 ];
 
@@ -1555,6 +1503,117 @@ enum ScrollTarget {
     Home,
     About,
     Docs,
+}
+
+/// Convert a markdown string into styled ratatui Lines using md-tui parser.
+fn md_to_lines(content: &str, width: u16) -> Vec<Line<'static>> {
+    let mut root = md_tui::parser::parse_markdown(None, content, width);
+    root.transform(width);
+    let mut lines: Vec<Line<'static>> = Vec::new();
+
+    for component in root.children() {
+        match component {
+            Component::TextComponent(tc) => {
+                let kind = tc.kind();
+                match kind {
+                    TextNode::Heading => {
+                        let heading_level = tc.meta_info()
+                            .iter()
+                            .find_map(|w| match w.kind() {
+                                WordType::MetaInfo(md_tui::nodes::word::MetaData::HeadingLevel(l)) => Some(l),
+                                _ => None,
+                            })
+                            .unwrap_or(1);
+                        let spans: Vec<Span<'static>> = tc.content()
+                            .iter()
+                            .flatten()
+                            .map(|w| md_word_to_span(w, heading_level))
+                            .collect();
+                        if !spans.is_empty() {
+                            lines.push(Line::from(spans).style(
+                                Style::default()
+                                    .fg(Color::Rgb(220, 225, 235))
+                                    .bold()
+                            ));
+                        }
+                    }
+                    TextNode::Paragraph | TextNode::Quote | TextNode::Task => {
+                        for word_line in tc.content() {
+                            let spans: Vec<Span<'static>> = word_line
+                                .iter()
+                                .map(|w| md_word_to_span(w, 0))
+                                .collect();
+                            lines.push(Line::from(spans));
+                        }
+                    }
+                    TextNode::List => {
+                        for word_line in tc.content() {
+                            let spans: Vec<Span<'static>> = word_line
+                                .iter()
+                                .map(|w| md_word_to_span(w, 0))
+                                .collect();
+                            lines.push(Line::from(spans));
+                        }
+                    }
+                    TextNode::CodeBlock => {
+                        for word_line in tc.content() {
+                            let spans: Vec<Span<'static>> = word_line
+                                .iter()
+                                .map(|w| md_word_to_span(w, 0))
+                                .collect();
+                            lines.push(Line::from(spans));
+                        }
+                    }
+                    TextNode::LineBreak => {
+                        lines.push(Line::from(""));
+                    }
+                    TextNode::HorizontalSeparator => {
+                        lines.push(Line::styled(
+                            "─".repeat(width.saturating_sub(4) as usize),
+                            Style::default().fg(Color::Rgb(55, 60, 70)),
+                        ));
+                    }
+                    _ => {
+                        // Fallback for other types
+                        for word_line in tc.content() {
+                            let spans: Vec<Span<'static>> = word_line
+                                .iter()
+                                .map(|w| md_word_to_span(w, 0))
+                                .collect();
+                            lines.push(Line::from(spans));
+                        }
+                    }
+                }
+            }
+            Component::Image(_) => {
+                // Images not supported in WASM, skip
+            }
+        }
+    }
+    lines
+}
+
+/// Convert a single md-tui Word into a styled ratatui Span.
+fn md_word_to_span(word: &md_tui::nodes::word::Word, heading_level: u8) -> Span<'static> {
+    let content = word.content().to_string();
+    match word.kind() {
+        WordType::Bold => Span::styled(content, Style::default().fg(Color::Rgb(220, 225, 235)).bold()),
+        WordType::Italic => Span::styled(content, Style::default().fg(Color::Rgb(184, 115, 51)).italic()),
+        WordType::BoldItalic => Span::styled(content, Style::default().fg(Color::Rgb(220, 225, 235)).bold().italic()),
+        WordType::Code => Span::styled(content, Style::default().fg(Color::Rgb(207, 181, 59)).bg(Color::Rgb(30, 32, 40))),
+        WordType::CodeBlock(color) => Span::styled(content, Style::default().fg(color)),
+        WordType::Link | WordType::FootnoteInline => Span::styled(content, Style::default().fg(Color::Rgb(100, 149, 237))),
+        WordType::Strikethrough => Span::styled(content, Style::default().fg(Color::Rgb(100, 105, 115)).add_modifier(Modifier::CROSSED_OUT)),
+        WordType::ListMarker => Span::styled(content, Style::default().fg(Color::Rgb(184, 115, 51))),
+        WordType::Normal | WordType::White => {
+            if heading_level > 0 {
+                Span::styled(content, Style::default().fg(Color::Rgb(220, 225, 235)).bold())
+            } else {
+                Span::styled(content, Style::default().fg(Color::Rgb(170, 175, 185)))
+            }
+        }
+        _ => Span::styled(content, Style::default().fg(Color::Rgb(170, 175, 185))),
+    }
 }
 
 struct App {
@@ -3185,20 +3244,14 @@ impl App {
         frame.render_widget(Paragraph::new("◄ Back to posts").style(back_style), back_bar);
         self.blog_back_area = back_bar;
 
-        // Post content
-        let (title, date, content) = match BLOG_ENTRIES.get(self.blog_index) {
+        // Post content — parse markdown via md-tui
+        let (_title, _date, content) = match BLOG_ENTRIES.get(self.blog_index) {
             Some(entry) => *entry,
             None => return,
         };
 
-        let mut lines = vec![
-            Line::styled(title, Style::default().fg(Color::Rgb(220, 225, 235)).bold()),
-            Line::styled(date, Style::default().fg(Color::Rgb(75, 80, 90))),
-            Line::from(""),
-        ];
-        for line in content.lines() {
-            lines.push(Line::styled(line, Style::default().fg(Color::Rgb(170, 175, 185))));
-        }
+        let content_width = scroll_area.width.saturating_sub(4);
+        let lines = md_to_lines(content, content_width);
 
         let visible_height = scroll_area.height.saturating_sub(2) as usize;
         let content_width = scroll_area.width.saturating_sub(2) as usize;
@@ -3285,7 +3338,13 @@ impl App {
         for &line_idx in &entry_line_indices {
             if line_idx >= self.blog_scroll {
                 let visible_row = (line_idx - self.blog_scroll) as u16;
-                if visible_row < content_inner.height {
+                if visible_row + 1 < content_inner.height {
+                    // Touch target covers both title and date rows for mobile usability
+                    self.blog_item_areas.push(Rect::new(
+                        content_inner.x, content_inner.y + visible_row,
+                        content_inner.width, 2,
+                    ));
+                } else if visible_row < content_inner.height {
                     self.blog_item_areas.push(Rect::new(
                         content_inner.x, content_inner.y + visible_row,
                         content_inner.width, 1,

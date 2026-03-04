@@ -469,7 +469,7 @@ fn transform_codeblock(component: &mut TextComponent) {
     let content = component.content_as_lines().join("");
 
     #[allow(unused_variables)]
-    let mut new_content = Vec::new();
+    let mut new_content: Vec<Word> = Vec::new();
 
     if language.is_empty() {
         component.content.insert(
