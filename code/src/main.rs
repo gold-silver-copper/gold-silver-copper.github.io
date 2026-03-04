@@ -693,6 +693,10 @@ impl App {
                 }
             }
             KeyCode::Char(c) => {
+                // Skip modifier-held keys (Ctrl+V paste is handled by JS paste event)
+                if key.ctrl || key.alt {
+                    return;
+                }
                 let byte_idx = self.byte_index();
                 self.repl_input.insert(byte_idx, c);
                 self.repl_cursor += 1;
@@ -1233,9 +1237,10 @@ impl App {
             ));
         }
 
-        let visible_height = history_area.height as usize;
-        let total_lines = history_lines.len();
-        let max_scroll = total_lines.saturating_sub(visible_height);
+        let visible_height = history_area.height.saturating_sub(2) as usize;
+        let content_width = history_area.width.saturating_sub(2) as usize;
+        let total_wrapped = Self::wrapped_line_count(&history_lines, content_width);
+        let max_scroll = total_wrapped.saturating_sub(visible_height);
         let scroll = self.repl_scroll.min(max_scroll);
 
         let history = Paragraph::new(Text::from(history_lines))

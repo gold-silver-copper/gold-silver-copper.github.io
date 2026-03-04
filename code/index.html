@@ -284,12 +284,32 @@
 
         // Tap-to-focus: when user taps while on REPL,
         // focus the hidden input to bring up virtual keyboard
+        // Only focus when tapping below the tab zone (prevents keyboard
+        // from blocking tab switching in horizontal mobile mode)
         document.addEventListener('click', function(e) {
             if (window._replTabActive) {
-              window._focusReplInput();
+              var zone = getTouchZone(e.clientY);
+              if (zone !== 'tabs') {
+                window._focusReplInput();
+              }
             }
         });
         window._replTabActive = false;
+
+        // Paste support: handle Ctrl+V / Cmd+V by forwarding pasted text to the canvas
+        document.addEventListener('paste', function(e) {
+          if (window._replTabActive) {
+            e.preventDefault();
+            var text = (e.clipboardData || window.clipboardData).getData('text');
+            if (text) {
+              // Strip newlines and normalize whitespace — REPL is single-line input
+              text = text.replace(/[\r\n]+/g, ' ').replace(/\s+/g, ' ').trim();
+              for (var i = 0; i < text.length; i++) {
+                dispatchKey(text[i]);
+              }
+            }
+          }
+        });
       })();
     </script>
   </body>
