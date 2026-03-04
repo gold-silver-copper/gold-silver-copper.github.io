@@ -1251,13 +1251,13 @@ impl App {
 
         // History (newest first)
         let mut history_lines: Vec<Line> = Vec::new();
-        for (input_str, output) in self.repl_history.iter().rev() {
+        for (input, output) in self.repl_history.iter().rev() {
             history_lines.push(Line::from(vec![
                 Span::styled(
                     "Λ> ",
                     Style::default().fg(Color::Rgb(184, 115, 51)).bold(),
                 ),
-                Span::styled(input_str.as_str(), Style::default().fg(Color::Rgb(200, 200, 210))),
+                Span::styled(input.as_str(), Style::default().fg(Color::Rgb(200, 200, 210))),
             ]));
             history_lines.push(Line::from(vec![Span::styled(
                 format!("  => {output}"),
@@ -1320,6 +1320,7 @@ impl App {
         // Combine all doc sections into one scrollable text
         let all_docs = [DOC_BASICS, DOC_FORMS, DOC_ADVANCED];
         let mut lines: Vec<Line> = Vec::new();
+        // Account for outer block borders (2) + inner block borders (2) + side padding (4)
         let separator_width = area.width.saturating_sub(8) as usize;
 
         for (idx, doc) in all_docs.iter().enumerate() {
