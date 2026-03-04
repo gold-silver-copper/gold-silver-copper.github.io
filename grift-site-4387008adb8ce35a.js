@@ -368,6 +368,9 @@ function __wbg_get_imports() {
         __wbg_fillText_1dc46f4b313cd668: function() { return handleError(function (arg0, arg1, arg2, arg3, arg4) {
             arg0.fillText(getStringFromWasm0(arg1, arg2), arg3, arg4);
         }, arguments); },
+        __wbg_focus_d27d2a5b7d270d18: function() { return handleError(function (arg0) {
+            arg0.focus();
+        }, arguments); },
         __wbg_getAttribute_cf830fef39b6ba0e: function(arg0, arg1, arg2, arg3) {
             const ret = arg1.getAttribute(getStringFromWasm0(arg2, arg3));
             var ptr1 = isLikeNone(ret) ? 0 : passStringToWasm0(ret, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
@@ -595,6 +598,10 @@ function __wbg_get_imports() {
             const ret = arg0.offsetY;
             return ret;
         },
+        __wbg_open_891ac0b929710544: function() { return handleError(function (arg0, arg1, arg2, arg3, arg4, arg5, arg6) {
+            const ret = arg0.open(getStringFromWasm0(arg1, arg2), getStringFromWasm0(arg3, arg4), getStringFromWasm0(arg5, arg6));
+            return isLikeNone(ret) ? 0 : addToExternrefTable0(ret);
+        }, arguments); },
         __wbg_performance_28be169151161678: function(arg0) {
             const ret = arg0.performance;
             return isLikeNone(ret) ? 0 : addToExternrefTable0(ret);

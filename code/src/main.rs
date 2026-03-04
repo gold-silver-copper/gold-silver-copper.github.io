@@ -1725,9 +1725,11 @@ impl App {
 }
 
 fn open_url(url: &str) {
-    // Open in a new background tab
-    let js = format!("(function(){{var w=window.open('{}','_blank','noopener');if(w)w.blur();window.focus()}})()", url);
-    let _ = web_sys::js_sys::eval(&js);
+    // Open in a new background tab using web_sys directly (avoids JS string interpolation)
+    if let Some(window) = web_sys::window() {
+        let _ = window.open_with_url_and_target_and_features(url, "_blank", "noopener");
+        let _ = window.focus();
+    }
 }
 
 fn main() -> std::io::Result<()> {
