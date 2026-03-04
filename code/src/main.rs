@@ -1039,25 +1039,49 @@ impl App {
         // Compute individual tab click areas from the Tabs widget layout.
         // Use narrower dividers and less padding on mobile for compact layout.
         let divider_width: u16 = if is_narrow { 1 } else { 3 };
-        let tab_padding: u16 = if is_narrow { 0 } else { 2 };
-        let inner_x = area.x + 1;
+        let inner_x = area.x + 1; // after left border
         let tab_row = area.y + 1;
-        self.tab_rects.clear();
-        let mut pos = inner_x;
-        for p in &Page::ALL {
+
+        // First pass: compute tab positions relative to line start
+        let mut tab_offsets: Vec<(u16, u16)> = Vec::new(); // (offset_from_line_start, width)
+        let mut line_pos: u16 = 0;
+        for (i, p) in Page::ALL.iter().enumerate() {
+            if i > 0 {
+                line_pos += divider_width;
+            }
+            if !is_narrow {
+                line_pos += 1; // left space padding
+            }
             let title_len = p.title().len() as u16;
-            let total = title_len + tab_padding;
-            self.tab_rects.push(Rect::new(pos, tab_row, total, 1));
-            pos += total + divider_width;
+            tab_offsets.push((line_pos, title_len));
+            line_pos += title_len;
+            if !is_narrow {
+                line_pos += 1; // right space padding
+            }
         }
+        let total_line_width = line_pos;
 
         // Clamp horizontal scroll
-        let total_tab_width = self.tab_rects.last()
-            .map(|r| r.right().saturating_sub(area.x))
-            .unwrap_or(0);
-        let visible_width = area.width.saturating_sub(2);
-        let max_h_scroll = total_tab_width.saturating_sub(visible_width) as usize;
+        let inner_width = area.width.saturating_sub(2);
+        let max_h_scroll = total_line_width.saturating_sub(inner_width) as usize;
         self.tab_h_scroll = self.tab_h_scroll.min(max_h_scroll);
+
+        // Compute center offset (matching Paragraph's Alignment::Center behavior)
+        let center_offset = if inner_width > total_line_width {
+            (inner_width - total_line_width) / 2
+        } else {
+            0
+        };
+
+        // Build final tab_rects with center offset and scroll applied
+        self.tab_rects.clear();
+        for (offset, width) in &tab_offsets {
+            let x = inner_x
+                .saturating_add(center_offset)
+                .saturating_add(*offset)
+                .saturating_sub(self.tab_h_scroll as u16);
+            self.tab_rects.push(Rect::new(x, tab_row, *width, 1));
+        }
 
         let divider_str = if is_narrow { "│" } else { " │ " };
 
@@ -1110,7 +1134,7 @@ impl App {
         let mut lines: Vec<Line> = Vec::new();
 
         // Grift section
-        lines.push(Line::styled("── Grift ──", Style::default().fg(Color::Rgb(207, 181, 59)).bold()).alignment(Alignment::Center));
+        lines.push(Line::styled("── Grift ──", Style::default().fg(Color::Rgb(207, 181, 59)).bold()));
         lines.push(Line::from(""));
         for l in DESCRIPTION.lines() {
             lines.push(Line::styled(l, Style::default().fg(Color::Rgb(170, 175, 185))));
@@ -1118,7 +1142,7 @@ impl App {
         lines.push(Line::from(""));
 
         // Vau Calculus / Fexprs section
-        lines.push(Line::styled("── Fexprs & Vau Calculus ──", Style::default().fg(Color::Rgb(184, 115, 51)).bold()).alignment(Alignment::Center));
+        lines.push(Line::styled("── Fexprs & Vau Calculus ──", Style::default().fg(Color::Rgb(184, 115, 51)).bold()));
         lines.push(Line::from(""));
         for l in VAU_INFO.lines() {
             lines.push(Line::styled(l, Style::default().fg(Color::Rgb(170, 175, 185))));
@@ -1126,7 +1150,7 @@ impl App {
         lines.push(Line::from(""));
 
         // First-Class Everything section
-        lines.push(Line::styled("── First-Class Everything ──", Style::default().fg(Color::Rgb(200, 200, 210)).bold()).alignment(Alignment::Center));
+        lines.push(Line::styled("── First-Class Everything ──", Style::default().fg(Color::Rgb(200, 200, 210)).bold()));
         lines.push(Line::from(""));
         for l in FIRST_CLASS_INFO.lines() {
             lines.push(Line::styled(l, Style::default().fg(Color::Rgb(170, 175, 185))));
@@ -1134,7 +1158,7 @@ impl App {
         lines.push(Line::from(""));
 
         // Implementation section
-        lines.push(Line::styled("── Implementation ──", Style::default().fg(Color::Rgb(222, 165, 132)).bold()).alignment(Alignment::Center));
+        lines.push(Line::styled("── Implementation ──", Style::default().fg(Color::Rgb(222, 165, 132)).bold()));
         lines.push(Line::from(""));
         for l in IMPL_INFO.lines() {
             lines.push(Line::styled(l, Style::default().fg(Color::Rgb(170, 175, 185))));
@@ -1368,9 +1392,10 @@ impl App {
                     lines.push(Line::styled(line, Style::default().fg(Color::Rgb(170, 175, 185))));
                 }
 
-                let total_lines = lines.len();
                 let visible_height = scroll_area.height.saturating_sub(2) as usize;
-                let max_scroll = total_lines.saturating_sub(visible_height);
+                let content_width = scroll_area.width.saturating_sub(2) as usize;
+                let total_wrapped = Self::wrapped_line_count(&lines, content_width);
+                let max_scroll = total_wrapped.saturating_sub(visible_height);
                 self.blog_scroll = self.blog_scroll.min(max_scroll);
 
                 let blog = Paragraph::new(Text::from(lines))
@@ -1494,9 +1519,10 @@ impl App {
         lines.push(Line::from("  Terminal UI in your browser.".fg(Color::Rgb(100, 105, 115))));
         lines.push(Line::from("  Ratzilla + TachyonFX + WASM.".fg(Color::Rgb(100, 105, 115))));
 
-        let total_lines = lines.len();
         let visible_height = scroll_area.height.saturating_sub(2) as usize;
-        let max_scroll = total_lines.saturating_sub(visible_height);
+        let content_width = scroll_area.width.saturating_sub(2) as usize;
+        let total_wrapped = Self::wrapped_line_count(&lines, content_width);
+        let max_scroll = total_wrapped.saturating_sub(visible_height);
         self.links_scroll = self.links_scroll.min(max_scroll);
 
         // Track clickable link areas in scroll view
@@ -1526,6 +1552,17 @@ impl App {
         self.render_scroll_arrows(frame, nav_bar, self.links_scroll, max_scroll, "tap to open");
     }
 
+    /// Compute total display rows after wrapping lines to the given width.
+    fn wrapped_line_count(lines: &[Line], wrap_width: usize) -> usize {
+        if wrap_width == 0 {
+            return lines.len();
+        }
+        lines.iter().map(|line| {
+            let w = line.width();
+            if w == 0 { 1 } else { (w + wrap_width - 1) / wrap_width }
+        }).sum()
+    }
+
     fn render_scrollable_content(
         &mut self,
         frame: &mut Frame,
@@ -1549,9 +1586,10 @@ impl App {
         let [scroll_area, nav_bar] =
             Layout::vertical([Constraint::Min(1), Constraint::Length(1)]).areas(inner);
 
-        let total_lines = lines.len();
         let visible_height = scroll_area.height.saturating_sub(2) as usize;
-        let max_scroll = total_lines.saturating_sub(visible_height);
+        let content_width = scroll_area.width.saturating_sub(2) as usize;
+        let total_wrapped = Self::wrapped_line_count(&lines, content_width);
+        let max_scroll = total_wrapped.saturating_sub(visible_height);
         *scroll = (*scroll).min(max_scroll);
 
         let mut content_block = Block::bordered()
