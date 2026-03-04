@@ -6,7 +6,7 @@ use ratzilla::event::{KeyCode, KeyEvent, MouseButton, MouseEvent, MouseEventKind
 use ratzilla::ratatui::layout::{Alignment, Constraint, Layout, Position, Rect};
 use ratzilla::ratatui::style::{Color, Modifier, Style, Stylize};
 use ratzilla::ratatui::text::{Line, Span, Text};
-use ratzilla::ratatui::widgets::{Block, BorderType, List, ListItem, Paragraph, Wrap};
+use ratzilla::ratatui::widgets::{Block, BorderType, Paragraph, Wrap};
 use ratzilla::ratatui::Frame;
 use ratzilla::backend::webgl2::WebGl2BackendOptions;
 use ratzilla::WebGl2Backend;
@@ -1519,12 +1519,10 @@ enum Page {
     Blog,
     About,
     Effects,
-    Clock,
-    Matrix,
 }
 
 impl Page {
-    const ALL: [Page; 8] = [Page::Home, Page::Repl, Page::Docs, Page::Blog, Page::About, Page::Effects, Page::Clock, Page::Matrix];
+    const ALL: [Page; 6] = [Page::Home, Page::Repl, Page::Docs, Page::Blog, Page::About, Page::Effects];
 
     fn title(self) -> &'static str {
         match self {
@@ -1534,8 +1532,6 @@ impl Page {
             Page::Blog => "Blog",
             Page::About => "About",
             Page::Effects => "Effects",
-            Page::Clock => "Clock",
-            Page::Matrix => "Matrix",
         }
     }
 
@@ -1549,14 +1545,6 @@ enum ScrollTarget {
     Home,
     About,
     Docs,
-}
-
-struct MatrixColumn {
-    head: u16,    // current head row position
-    length: u16,  // trail length
-    speed: u16,   // ticks per step
-    counter: u16, // tick counter
-    chars: Vec<char>, // characters in this column
 }
 
 struct App {
@@ -1621,9 +1609,6 @@ struct App {
     dsl_effects_scroll: usize,
     dsl_effects_cache: Vec<Option<Effect>>,
     frame_elapsed: Duration,
-    // Matrix rain state
-    matrix_columns: Vec<MatrixColumn>,
-    matrix_initialized: bool,
 }
 
 impl App {
@@ -1673,8 +1658,6 @@ impl App {
             dsl_effects_scroll: 0,
             dsl_effects_cache: Vec::new(),
             frame_elapsed: Duration::from_millis(0),
-            matrix_columns: Vec::new(),
-            matrix_initialized: false,
         }
     }
 
@@ -1709,18 +1692,6 @@ impl App {
                 EffectTimer::from_ms(500, Interpolation::QuadOut),
             ),
             Page::Effects => fx::coalesce(EffectTimer::from_ms(500, Interpolation::SineOut)),
-            Page::Clock => fx::fade_from(
-                dark,
-                dark,
-                EffectTimer::from_ms(400, Interpolation::CubicOut),
-            ),
-            Page::Matrix => fx::sweep_in(
-                Motion::UpToDown,
-                12,
-                2,
-                dark,
-                EffectTimer::from_ms(600, Interpolation::QuadOut),
-            ),
         };
         self.transition_effect = Some(effect);
     }
@@ -1731,6 +1702,14 @@ impl App {
             self.tab_glow_effect = None;
             self.blog_scroll = 0;
             self.blog_viewing_post = false;
+            // Clear stale click areas from previous page to prevent phantom clicks on mobile
+            self.link_areas.clear();
+            self.blog_item_areas.clear();
+            self.blog_back_area = Rect::default();
+            self.scroll_up_area = Rect::default();
+            self.scroll_down_area = Rect::default();
+            self.blog_list_area = Rect::default();
+            self.blog_content_area = Rect::default();
             self.trigger_transition();
             // Focus/blur hidden input for REPL virtual keyboard
             if page == Page::Repl {
@@ -1745,6 +1724,9 @@ impl App {
         let idx = self.page.index();
         if idx > 0 {
             self.switch_page(Page::ALL[idx - 1]);
+        } else {
+            // Wrap around to last tab
+            self.switch_page(Page::ALL[Page::ALL.len() - 1]);
         }
     }
 
@@ -1752,6 +1734,9 @@ impl App {
         let idx = self.page.index();
         if idx + 1 < Page::ALL.len() {
             self.switch_page(Page::ALL[idx + 1]);
+        } else {
+            // Wrap around to first tab
+            self.switch_page(Page::ALL[0]);
         }
     }
 
@@ -1815,7 +1800,6 @@ impl App {
             Page::Home => self.handle_scroll_event(key, ScrollTarget::Home),
             Page::About => self.handle_scroll_event(key, ScrollTarget::About),
             Page::Effects => self.handle_effects_event(key),
-            Page::Clock | Page::Matrix => self.handle_demo_tab_event(key),
         }
     }
 
@@ -1999,7 +1983,7 @@ impl App {
 
     fn handle_blog_event(&mut self, key: KeyEvent) {
         if self.blog_viewing_post {
-            // Viewing a post: scroll content or go back
+            // Viewing a post: scroll content, left goes back to list, right goes to next tab
             match key.code {
                 KeyCode::Up => {
                     self.blog_scroll = self.blog_scroll.saturating_sub(1);
@@ -2012,27 +1996,25 @@ impl App {
                     self.blog_scroll = 0;
                     self.trigger_transition();
                 }
+                KeyCode::Right => {
+                    self.switch_to_next_tab();
+                }
                 _ => {}
             }
         } else {
-            // Viewing the list: navigate or select
+            // Viewing the list: Up/Down scroll, Left goes to prev tab, Right is unused (tap to select)
             match key.code {
                 KeyCode::Up => {
-                    if self.blog_index > 0 {
-                        self.blog_index -= 1;
-                        self.trigger_transition();
-                    }
+                    self.blog_scroll = self.blog_scroll.saturating_sub(1);
                 }
                 KeyCode::Down => {
-                    if self.blog_index < BLOG_ENTRIES.len() - 1 {
-                        self.blog_index += 1;
-                        self.trigger_transition();
-                    }
+                    self.blog_scroll += 1;
+                }
+                KeyCode::Left => {
+                    self.switch_to_prev_tab();
                 }
                 KeyCode::Right => {
-                    self.blog_viewing_post = true;
-                    self.blog_scroll = 0;
-                    self.trigger_transition();
+                    self.switch_to_next_tab();
                 }
                 _ => {}
             }
@@ -2072,20 +2054,6 @@ impl App {
             KeyCode::Down => {
                 self.dsl_effects_scroll += step;
             }
-            KeyCode::Left => {
-                // Jump back by one full page of entries
-                self.dsl_effects_scroll = self.dsl_effects_scroll.saturating_sub(20);
-            }
-            KeyCode::Right => {
-                // Jump forward by one full page of entries
-                self.dsl_effects_scroll += 20;
-            }
-            _ => {}
-        }
-    }
-
-    fn handle_demo_tab_event(&mut self, key: KeyEvent) {
-        match key.code {
             KeyCode::Left => {
                 self.switch_to_prev_tab();
             }
@@ -2182,14 +2150,10 @@ impl App {
         if current_hovered_tab != self.last_hovered_tab {
             if let Some(idx) = current_hovered_tab {
                 if self.tab_rects.get(idx).is_some() {
-                    let sweep = fx::sweep_in(
-                        Motion::LeftToRight,
-                        6,
-                        2,
-                        Color::Rgb(8, 9, 14),
-                        EffectTimer::from_ms(350, Interpolation::QuadOut),
+                    let dissolve = fx::dissolve(
+                        EffectTimer::from_ms(400, Interpolation::QuadOut),
                     );
-                    self.tab_hover_effects.push((idx, sweep));
+                    self.tab_hover_effects.push((idx, dissolve));
                     if let Some(tab_rect) = self.tab_rects.get(idx).copied() {
                         let shift = fx::hsl_shift_fg(
                             [20.0, 10.0, 14.0],
@@ -2220,8 +2184,6 @@ impl App {
             Page::Blog => self.render_blog(frame, content_area),
             Page::About => self.render_about(frame, content_area),
             Page::Effects => self.render_effects(frame, content_area),
-            Page::Clock => self.render_clock(frame, content_area),
-            Page::Matrix => self.render_matrix(frame, content_area),
         }
 
         // Process transition effects
@@ -2376,14 +2338,24 @@ impl App {
             0
         };
 
-        // Build final tab_rects with center offset and scroll applied
+        // Build final tab_rects with center offset and scroll applied, clipped to visible area
+        let visible_left = inner_x;
+        let visible_right = inner_x.saturating_add(inner_width);
         self.tab_rects.clear();
         for (offset, width) in &tab_offsets {
-            let x = inner_x
-                .saturating_add(center_offset)
-                .saturating_add(*offset)
-                .saturating_sub(self.tab_h_scroll as u16);
-            self.tab_rects.push(Rect::new(x, tab_row, *width, 1));
+            let raw_x = (inner_x as i32)
+                + (center_offset as i32)
+                + (*offset as i32)
+                - (self.tab_h_scroll as i32);
+            let raw_right = raw_x + (*width as i32);
+            let clipped_x = (raw_x.max(visible_left as i32) as u16).min(visible_right);
+            let clipped_right = (raw_right.max(visible_left as i32) as u16).min(visible_right);
+            if clipped_right > clipped_x {
+                self.tab_rects.push(Rect::new(clipped_x, tab_row, clipped_right - clipped_x, 1));
+            } else {
+                // Tab is fully scrolled out of view — push empty rect to preserve indexing
+                self.tab_rects.push(Rect::default());
+            }
         }
 
         let mut spans: Vec<Span> = Vec::new();
@@ -2403,7 +2375,7 @@ impl App {
             let style = if is_selected {
                 Style::default().fg(fg).bold().add_modifier(Modifier::REVERSED)
             } else if hovered {
-                Style::default().fg(fg).bold().add_modifier(Modifier::UNDERLINED)
+                Style::default().fg(fg).bold()
             } else {
                 Style::default().fg(fg)
             };
@@ -2424,6 +2396,9 @@ impl App {
             );
 
         frame.render_widget(tab_paragraph, area);
+
+        // Render horizontal scrollbar on the tab bar bottom border if tabs overflow
+        self.render_horizontal_scrollbar(frame, area, self.tab_h_scroll, max_h_scroll);
     }
 
     fn render_home(&mut self, frame: &mut Frame, area: Rect) {
@@ -2576,6 +2551,9 @@ impl App {
                     .title(" Output ".fg(Color::Rgb(160, 165, 175))),
             );
         frame.render_widget(history, history_area);
+
+        // Render vertical scrollbar on REPL output if it overflows
+        self.render_vertical_scrollbar(frame, history_area, scroll, max_scroll);
     }
 
     fn render_blinking_cursor(&self, frame: &mut Frame, cursor_x: u16, cursor_y: u16, max_x: u16) {
@@ -2737,74 +2715,72 @@ impl App {
                 frame.render_widget(blog, scroll_area);
                 self.blog_content_area = scroll_area;
 
+                // Render vertical scrollbar on blog post content
+                self.render_vertical_scrollbar(frame, scroll_area, self.blog_scroll, max_scroll);
+
                 self.render_scroll_arrows(frame, nav_bar, self.blog_scroll, max_scroll, "swipe ↕");
             }
             return;
         }
 
-        // Show scrollable list of blog titles
-        let block = Block::bordered()
-            .border_type(BorderType::Rounded)
-            .border_style(Color::Rgb(55, 60, 70))
-            .title(" Blog ".bold().fg(Color::Rgb(200, 200, 210)))
-            .title_bottom(
-                Line::from("│ tap a post │")
-                    .alignment(Alignment::Center)
-                    .style(Style::default().fg(Color::Rgb(55, 60, 70))),
-            );
-
-        let inner = block.inner(area);
-        frame.render_widget(block, area);
-
-        let list_block = Block::bordered()
-            .border_type(BorderType::Rounded)
-            .border_style(Color::Rgb(40, 44, 52))
-            .title(" Posts ".fg(Color::Rgb(200, 200, 210)));
-
-        let list_inner = list_block.inner(inner);
-
-        self.blog_item_areas.clear();
-        self.blog_list_area = inner;
+        // Show scrollable list of blog titles as clickable buttons
+        self.blog_list_area = area;
         self.blog_content_area = Rect::default();
 
-        for i in 0..BLOG_ENTRIES.len() {
-            let item_y = list_inner.y + (i as u16 * 2);
-            if item_y + 2 <= list_inner.bottom() {
-                self.blog_item_areas.push(Rect::new(
-                    list_inner.x,
-                    item_y,
-                    list_inner.width,
-                    2,
-                ));
-            }
+        let mut lines: Vec<Line> = Vec::new();
+        let mut blog_line_indices: Vec<usize> = Vec::new(); // line index for each blog entry
+
+        for (i, (title, date, _)) in BLOG_ENTRIES.iter().enumerate() {
+            blog_line_indices.push(lines.len());
+            let hovered = self
+                .blog_item_areas
+                .get(i)
+                .is_some_and(|r| self.is_hovered(*r));
+            let style = if hovered {
+                Style::default().fg(Color::Rgb(255, 255, 255)).bold().add_modifier(Modifier::REVERSED)
+            } else {
+                Style::default().fg(Color::Rgb(200, 200, 210)).bold()
+            };
+            let marker = if hovered { "▸ " } else { "  " };
+            lines.push(Line::from(format!("{marker}{title}")).style(style));
+            lines.push(Line::styled(format!("    {date}"), Style::default().fg(Color::Rgb(75, 80, 90))));
+            lines.push(Line::from(""));
         }
 
-        let items: Vec<ListItem> = BLOG_ENTRIES
-            .iter()
-            .enumerate()
-            .map(|(i, (title, date, _))| {
-                let hovered = self
-                    .blog_item_areas
-                    .get(i)
-                    .is_some_and(|r| self.is_hovered(*r));
-                let style = if i == self.blog_index {
-                    Style::default().fg(Color::Rgb(230, 232, 240)).bold()
-                } else if hovered {
-                    Style::default().fg(Color::Rgb(200, 200, 210))
-                } else {
-                    Style::default().fg(Color::Rgb(140, 145, 155))
-                };
-                let marker = if i == self.blog_index { "> " } else if hovered { "~ " } else { "  " };
-                ListItem::new(vec![
-                    Line::from(format!("{marker}{title}")).style(style),
-                    Line::from(format!("  {date}"))
-                        .style(Style::default().fg(Color::Rgb(75, 80, 90))),
-                ])
-            })
-            .collect();
+        let mut scroll = self.blog_scroll;
+        let scroll_area = self.render_scrollable_content(
+            frame, area, lines, &mut scroll,
+            Some(" Blog ".bold().fg(Color::Rgb(200, 200, 210)).into()),
+            Some(" Posts — tap to read ".bold().fg(Color::Rgb(184, 115, 51)).into()),
+            "swipe ↕ │ tap a post",
+        );
+        self.blog_scroll = scroll;
 
-        let list = List::new(items).block(list_block);
-        frame.render_widget(list, inner);
+        // Compute click areas for blog titles relative to the scroll position
+        let content_block = Block::bordered()
+            .border_type(BorderType::Rounded)
+            .border_style(Color::Rgb(40, 44, 52));
+        let content_inner = content_block.inner(scroll_area);
+
+        self.blog_item_areas.clear();
+        for &line_idx in blog_line_indices.iter() {
+            if line_idx >= self.blog_scroll {
+                let visible_row = (line_idx - self.blog_scroll) as u16;
+                if visible_row < content_inner.height {
+                    // Click area covers the title line (1 row)
+                    self.blog_item_areas.push(Rect::new(
+                        content_inner.x,
+                        content_inner.y + visible_row,
+                        content_inner.width,
+                        1,
+                    ));
+                } else {
+                    self.blog_item_areas.push(Rect::default());
+                }
+            } else {
+                self.blog_item_areas.push(Rect::default());
+            }
+        }
     }
 
     fn render_about(&mut self, frame: &mut Frame, area: Rect) {
@@ -2833,13 +2809,13 @@ impl App {
         lines.push(Line::styled("────────────", Style::default().fg(Color::Rgb(140, 145, 155))));
 
         // Link lines: each link label is on its own line, followed by a description line
-        // We track the line index where each link label appears for click tracking
-        let links_start_line = lines.len();
+        // We track the logical line index where each link label appears for click tracking
+        let mut link_line_indices: Vec<usize> = Vec::new();
         for (label, _url, desc) in LINKS.iter() {
+            link_line_indices.push(lines.len());
             lines.push(Line::styled(format!("  {label}"), Style::default().fg(Color::Rgb(160, 175, 195))));
             lines.push(Line::styled(format!("    — {desc}"), Style::default().fg(Color::Rgb(110, 115, 125))));
         }
-        let _links_end_line = lines.len();
 
         lines.push(Line::from(""));
 
@@ -2887,6 +2863,23 @@ impl App {
         lines.push(Line::styled("  • Single codebase for all screen sizes", Style::default().fg(Color::Rgb(170, 175, 185))));
         lines.push(Line::styled("  • Full offline capability once cached by the browser", Style::default().fg(Color::Rgb(170, 175, 185))));
 
+        // Precompute visual row offsets for link labels BEFORE lines is consumed by render.
+        // We need the content width from the layout to do wrapped-line calculation.
+        let block_for_layout = Block::bordered()
+            .border_type(BorderType::Rounded)
+            .border_style(Color::Rgb(55, 60, 70));
+        let inner_for_layout = block_for_layout.inner(area);
+        let [scroll_area_for_layout, _] =
+            Layout::vertical([Constraint::Min(1), Constraint::Length(1)]).areas(inner_for_layout);
+        let content_width = scroll_area_for_layout.width.saturating_sub(2) as usize;
+
+        // Compute visual (wrapped) row for each link label line
+        let mut link_visual_rows: Vec<usize> = Vec::new();
+        for &line_idx in &link_line_indices {
+            let visual_row = Self::wrapped_line_count(&lines[..line_idx], content_width);
+            link_visual_rows.push(visual_row);
+        }
+
         // Use render_scrollable_content which handles the bordered block, scroll, and nav bar
         let mut scroll = self.about_scroll;
         self.render_scrollable_content(
@@ -2899,27 +2892,25 @@ impl App {
 
         // Track clickable link areas inside the scrollable view
         // The scrollable content is rendered inside a double-bordered area
-        let block = Block::bordered()
-            .border_type(BorderType::Rounded)
-            .border_style(Color::Rgb(55, 60, 70));
-        let inner = block.inner(area);
-        let [scroll_area, _nav_bar] =
-            Layout::vertical([Constraint::Min(1), Constraint::Length(1)]).areas(inner);
         let content_block = Block::bordered()
             .border_type(BorderType::Rounded)
             .border_style(Color::Rgb(40, 44, 52));
-        let content_inner = content_block.inner(scroll_area);
+        let content_inner = content_block.inner(scroll_area_for_layout);
 
         self.link_areas.clear();
-        for i in 0..LINKS.len() {
-            // Each link takes 2 lines (label + description), starting at links_start_line
-            let line_idx = links_start_line + i * 2;
-            if line_idx >= self.about_scroll {
-                let visible_row = (line_idx - self.about_scroll) as u16;
+        for &visual_row in &link_visual_rows {
+            if visual_row >= self.about_scroll {
+                let visible_row = (visual_row - self.about_scroll) as u16;
                 if visible_row < content_inner.height {
                     let link_area = Rect::new(content_inner.x, content_inner.y + visible_row, content_inner.width, 1);
                     self.link_areas.push(link_area);
+                } else {
+                    // Off-screen below: push empty rect to preserve index mapping
+                    self.link_areas.push(Rect::default());
                 }
+            } else {
+                // Off-screen above: push empty rect to preserve index mapping
+                self.link_areas.push(Rect::default());
             }
         }
 
@@ -3060,6 +3051,9 @@ impl App {
             .block(content_block);
         frame.render_widget(content, scroll_area);
 
+        // Render vertical scrollbar on the right border if content overflows
+        self.render_vertical_scrollbar(frame, scroll_area, *scroll, max_scroll);
+
         self.render_scroll_arrows(frame, nav_bar, *scroll, max_scroll, hint);
 
         scroll_area
@@ -3120,6 +3114,75 @@ impl App {
                 .style(Style::default().fg(Color::Rgb(75, 80, 90))),
             center_area,
         );
+    }
+
+    /// Render a vertical scrollbar on the right border of the given area.
+    /// Only renders if the content overflows (max_scroll > 0).
+    fn render_vertical_scrollbar(&self, frame: &mut Frame, area: Rect, scroll: usize, max_scroll: usize) {
+        if max_scroll == 0 || area.height < 4 {
+            return; // Content fits — no scrollbar needed
+        }
+        let track_height = area.height.saturating_sub(2) as usize; // exclude top/bottom border
+        if track_height == 0 {
+            return;
+        }
+        // Compute thumb size and position
+        let thumb_size = (track_height * track_height / (track_height + max_scroll)).max(1);
+        let thumb_pos = if max_scroll > 0 {
+            scroll * (track_height - thumb_size) / max_scroll
+        } else {
+            0
+        };
+        let bar_x = area.right().saturating_sub(1); // right border column
+        let buf = frame.buffer_mut();
+        for i in 0..track_height {
+            let y = area.y + 1 + i as u16; // skip top border
+            let pos = Position::new(bar_x, y);
+            if let Some(cell) = buf.cell_mut(pos) {
+                if i >= thumb_pos && i < thumb_pos + thumb_size {
+                    // Thumb: bright scrollbar indicator
+                    cell.set_char('┃');
+                    cell.set_fg(Color::Rgb(140, 145, 160));
+                } else {
+                    // Track: subtle indicator
+                    cell.set_char('│');
+                    cell.set_fg(Color::Rgb(35, 38, 46));
+                }
+            }
+        }
+    }
+
+    /// Render a horizontal scrollbar on the bottom border of the given area.
+    /// Only renders if the content overflows (max_h_scroll > 0).
+    fn render_horizontal_scrollbar(&self, frame: &mut Frame, area: Rect, scroll: usize, max_scroll: usize) {
+        if max_scroll == 0 || area.width < 4 {
+            return; // Content fits — no scrollbar needed
+        }
+        let track_width = area.width.saturating_sub(2) as usize; // exclude left/right border
+        if track_width == 0 {
+            return;
+        }
+        let thumb_size = (track_width * track_width / (track_width + max_scroll)).max(1);
+        let thumb_pos = if max_scroll > 0 {
+            scroll * (track_width - thumb_size) / max_scroll
+        } else {
+            0
+        };
+        let bar_y = area.bottom().saturating_sub(1); // bottom border row
+        let buf = frame.buffer_mut();
+        for i in 0..track_width {
+            let x = area.x + 1 + i as u16; // skip left border
+            let pos = Position::new(x, bar_y);
+            if let Some(cell) = buf.cell_mut(pos) {
+                if i >= thumb_pos && i < thumb_pos + thumb_size {
+                    cell.set_char('━');
+                    cell.set_fg(Color::Rgb(140, 145, 160));
+                } else {
+                    cell.set_char('─');
+                    cell.set_fg(Color::Rgb(35, 38, 46));
+                }
+            }
+        }
     }
 
     /// Get (category, title, dsl_src) for the given global index into the
@@ -3282,225 +3345,6 @@ impl App {
             "swipe ↕ │ ◄► page",
         );
     }
-
-    fn render_clock(&self, frame: &mut Frame, area: Rect) {
-        // Get current time from browser via js_sys
-        let date = web_sys::js_sys::Date::new_0();
-        let hours = date.get_hours();
-        let minutes = date.get_minutes();
-        let seconds = date.get_seconds();
-
-        let time_str = format!("{:02}:{:02}:{:02}", hours, minutes, seconds);
-
-        // Large ASCII digit font (3x5 per digit)
-        const DIGITS: [&[&str; 5]; 10] = [
-            &[" ▄▄ ", "█  █", "█  █", "█  █", " ▀▀ "], // 0
-            &["  █ ", " ██ ", "  █ ", "  █ ", " ▄█▄"], // 1
-            &[" ▄▄ ", "   █", " ▄▄ ", "█   ", " ▀▀▀"], // 2
-            &[" ▄▄ ", "   █", " ▄▄ ", "   █", " ▀▀ "], // 3
-            &["█  █", "█  █", " ▀▀█", "   █", "   ▀"], // 4
-            &[" ▀▀▀", "█   ", " ▀▀ ", "   █", " ▀▀ "], // 5
-            &[" ▄▄ ", "█   ", "█▄▄ ", "█  █", " ▀▀ "], // 6
-            &[" ▀▀▀", "   █", "  █ ", " █  ", " ▀  "], // 7
-            &[" ▄▄ ", "█  █", " ▄▄ ", "█  █", " ▀▀ "], // 8
-            &[" ▄▄ ", "█  █", " ▀▀█", "   █", " ▀▀ "], // 9
-        ];
-        const COLON: [&str; 5] = ["  ", "▄ ", "  ", "▄ ", "  "];
-
-        // Build 5 rows of the big clock display
-        let mut big_lines: Vec<String> = vec![String::new(); 5];
-        for ch in time_str.chars() {
-            if ch == ':' {
-                for (row, line) in big_lines.iter_mut().enumerate() {
-                    line.push_str(COLON[row]);
-                }
-            } else if let Some(d) = ch.to_digit(10) {
-                let glyph = DIGITS[d as usize];
-                for (row, line) in big_lines.iter_mut().enumerate() {
-                    line.push_str(glyph[row]);
-                    line.push(' ');
-                }
-            }
-        }
-
-        let mut lines: Vec<Line> = Vec::new();
-        lines.push(Line::from(""));
-
-        // Color cycle based on bg_tick for a subtle animated effect
-        let hue = (self.bg_tick % 360) as f64;
-        let r = (128.0 + 80.0 * (hue * std::f64::consts::PI / 180.0).sin()) as u8;
-        let g = (128.0 + 80.0 * ((hue + 120.0) * std::f64::consts::PI / 180.0).sin()) as u8;
-        let b = (128.0 + 80.0 * ((hue + 240.0) * std::f64::consts::PI / 180.0).sin()) as u8;
-
-        for big_line in &big_lines {
-            lines.push(Line::styled(
-                big_line.clone(),
-                Style::default().fg(Color::Rgb(r, g, b)).bold(),
-            ));
-        }
-
-        lines.push(Line::from(""));
-
-        // Date display
-        const DAY_NAMES: [&str; 7] = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-        const MONTH_NAMES: [&str; 12] = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
-                           "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-        let day_of_week = date.get_day() as usize;
-        let month = date.get_month() as usize;
-        let day = date.get_date();
-        let year = date.get_full_year();
-
-        let date_str = format!(
-            "{}  {} {} {}",
-            DAY_NAMES.get(day_of_week).unwrap_or(&"???"),
-            MONTH_NAMES.get(month).unwrap_or(&"???"),
-            day,
-            year
-        );
-        lines.push(Line::styled(
-            date_str,
-            Style::default().fg(Color::Rgb(207, 181, 59)).bold(),
-        ));
-        lines.push(Line::from(""));
-
-        // UTC offset
-        let tz_offset = date.get_timezone_offset();
-        let tz_hours = -(tz_offset as i32) / 60;
-        let tz_mins = ((tz_offset as i32).unsigned_abs()) % 60;
-        let tz_str = format!("UTC {:+}:{:02}", tz_hours, tz_mins);
-        lines.push(Line::styled(
-            tz_str,
-            Style::default().fg(Color::Rgb(140, 145, 155)),
-        ));
-        lines.push(Line::from(""));
-
-        // Unix timestamp
-        let unix_ms = date.get_time() as u64;
-        lines.push(Line::styled(
-            format!("Unix: {}", unix_ms / 1000),
-            Style::default().fg(Color::Rgb(100, 105, 115)),
-        ));
-
-        let text = Text::from(lines);
-        let block = Block::bordered()
-            .border_type(BorderType::Rounded)
-            .border_style(Color::Rgb(55, 60, 70))
-            .title(Line::from(" Clock ").alignment(Alignment::Center))
-            .title_style(Style::default().fg(Color::Rgb(207, 181, 59)).bold());
-
-        let paragraph = Paragraph::new(text)
-            .alignment(Alignment::Center)
-            .block(block);
-
-        frame.render_widget(paragraph, area);
-    }
-
-    fn render_matrix(&mut self, frame: &mut Frame, area: Rect) {
-        const MATRIX_SPECIAL: [char; 10] = ['@', '#', '$', '%', '&', '*', '+', '=', '~', '^'];
-
-        fn matrix_char(seed: u64) -> char {
-            match seed % 3 {
-                0 => (0x30 + (seed.wrapping_mul(7) % 10) as u8) as char, // 0-9
-                1 => (0x41 + (seed.wrapping_mul(11) % 26) as u8) as char, // A-Z
-                _ => MATRIX_SPECIAL[(seed % 10) as usize],
-            }
-        }
-
-        let width = area.width.saturating_sub(2) as usize;
-        let height = area.height.saturating_sub(2) as usize;
-
-        if width == 0 || height == 0 {
-            return;
-        }
-
-        // Initialize or resize matrix columns
-        if !self.matrix_initialized || self.matrix_columns.len() != width {
-            self.matrix_columns.clear();
-            for i in 0..width {
-                let seed = (i as u64).wrapping_mul(2654435761) ^ self.bg_tick;
-                let speed = 1 + (seed % 3) as u16;
-                let length = 4 + (seed.wrapping_mul(7) % 12) as u16;
-                let head = (seed.wrapping_mul(13) % height as u64) as u16;
-                let mut chars = Vec::new();
-                for j in 0..length {
-                    let ch_seed = seed.wrapping_mul(31).wrapping_add(j as u64);
-                    chars.push(matrix_char(ch_seed));
-                }
-                self.matrix_columns.push(MatrixColumn {
-                    head,
-                    length,
-                    speed,
-                    counter: 0,
-                    chars,
-                });
-            }
-            self.matrix_initialized = true;
-        }
-
-        // Update column positions
-        for (i, col) in self.matrix_columns.iter_mut().enumerate() {
-            col.counter += 1;
-            if col.counter >= col.speed {
-                col.counter = 0;
-                col.head += 1;
-                if col.head > height as u16 + col.length {
-                    col.head = 0;
-                    // Regenerate chars for variety
-                    let seed = (i as u64).wrapping_mul(2654435761) ^ self.bg_tick;
-                    col.length = 4 + (seed.wrapping_mul(7) % 12) as u16;
-                    col.speed = 1 + (seed % 3) as u16;
-                    col.chars.clear();
-                    for j in 0..col.length {
-                        let ch_seed = seed.wrapping_mul(31).wrapping_add(j as u64);
-                        col.chars.push(matrix_char(ch_seed));
-                    }
-                }
-            }
-        }
-
-        // Render block border
-        let block = Block::bordered()
-            .border_type(BorderType::Rounded)
-            .border_style(Color::Rgb(55, 60, 70))
-            .title(Line::from(" Matrix Rain ").alignment(Alignment::Center))
-            .title_style(Style::default().fg(Color::Rgb(0, 255, 65)).bold());
-        frame.render_widget(block, area);
-
-        // Render matrix rain into the inner area
-        let inner = Rect::new(area.x + 1, area.y + 1, area.width.saturating_sub(2), area.height.saturating_sub(2));
-        let buf = frame.buffer_mut();
-
-        for (col_idx, col) in self.matrix_columns.iter().enumerate() {
-            if col_idx >= inner.width as usize {
-                break;
-            }
-            let x = inner.x + col_idx as u16;
-            for trail_pos in 0..col.length {
-                let row = col.head as i32 - trail_pos as i32;
-                if row < 0 || row >= inner.height as i32 {
-                    continue;
-                }
-                let y = inner.y + row as u16;
-                let pos = Position::new(x, y);
-                if let Some(cell) = buf.cell_mut(pos) {
-                    let ch = col.chars.get(trail_pos as usize).copied().unwrap_or('0');
-                    cell.set_char(ch);
-                    if trail_pos == 0 {
-                        // Head: bright white-green
-                        cell.set_fg(Color::Rgb(200, 255, 200));
-                        cell.set_bg(Color::Rgb(0, 40, 0));
-                    } else {
-                        // Trail: fade from green to dark green
-                        let fade = 255 - (trail_pos as u16 * 255 / col.length as u16).min(255);
-                        let g = (fade as u8).max(30);
-                        let r = (fade as u8 / 8).min(20);
-                        cell.set_fg(Color::Rgb(r, g, 0));
-                        cell.set_bg(Color::Rgb(0, (g / 12).min(15), 0));
-                    }
-                }
-            }
-        }
-    }
 }
 
 fn open_url(url: &str) {
@@ -3514,7 +3358,7 @@ fn open_url(url: &str) {
         .replace('"', "\\\"")
         .replace('\n', "\\n")
         .replace('\r', "\\r");
-    let js = format!("setTimeout(function(){{window.open('{}','_blank','noopener')}},0)", escaped);
+    let js = format!("setTimeout(function(){{window.open('{}','_blank','noopener')}},500)", escaped);
     let _ = web_sys::js_sys::eval(&js);
 }
 

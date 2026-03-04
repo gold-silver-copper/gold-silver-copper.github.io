@@ -183,14 +183,10 @@
             }));
           }
           document.addEventListener('touchstart', function(e) {
-            if (getTouchZone(e.changedTouches[0].clientY) !== 'tabs') {
-              touchToMouse('mousedown', e.changedTouches[0]);
-            }
+            touchToMouse('mousedown', e.changedTouches[0]);
           }, { passive: true });
           document.addEventListener('touchmove', function(e) {
-            if (getTouchZone(e.changedTouches[0].clientY) !== 'tabs') {
-              touchToMouse('mousemove', e.changedTouches[0]);
-            }
+            touchToMouse('mousemove', e.changedTouches[0]);
           }, { passive: true });
           document.addEventListener('touchend', function(e) {
             touchToMouse('mouseup', e.changedTouches[0]);
