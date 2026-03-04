@@ -6,7 +6,7 @@ use ratzilla::event::{KeyCode, KeyEvent, MouseButton, MouseEvent, MouseEventKind
 use ratzilla::ratatui::layout::{Alignment, Constraint, Layout, Position, Rect};
 use ratzilla::ratatui::style::{Color, Modifier, Style, Stylize};
 use ratzilla::ratatui::text::{Line, Span, Text};
-use ratzilla::ratatui::widgets::{Block, BorderType, List, ListItem, Paragraph, Wrap};
+use ratzilla::ratatui::widgets::{Block, BorderType, Paragraph, Wrap};
 use ratzilla::ratatui::Frame;
 use ratzilla::backend::webgl2::WebGl2BackendOptions;
 use ratzilla::WebGl2Backend;
@@ -1731,6 +1731,14 @@ impl App {
             self.tab_glow_effect = None;
             self.blog_scroll = 0;
             self.blog_viewing_post = false;
+            // Clear stale click areas from previous page to prevent phantom clicks on mobile
+            self.link_areas.clear();
+            self.blog_item_areas.clear();
+            self.blog_back_area = Rect::default();
+            self.scroll_up_area = Rect::default();
+            self.scroll_down_area = Rect::default();
+            self.blog_list_area = Rect::default();
+            self.blog_content_area = Rect::default();
             self.trigger_transition();
             // Focus/blur hidden input for REPL virtual keyboard
             if page == Page::Repl {
@@ -2015,24 +2023,13 @@ impl App {
                 _ => {}
             }
         } else {
-            // Viewing the list: navigate or select
+            // Viewing the list: arrow keys scroll only, tap/click selects
             match key.code {
                 KeyCode::Up => {
-                    if self.blog_index > 0 {
-                        self.blog_index -= 1;
-                        self.trigger_transition();
-                    }
+                    self.blog_scroll = self.blog_scroll.saturating_sub(1);
                 }
                 KeyCode::Down => {
-                    if self.blog_index < BLOG_ENTRIES.len() - 1 {
-                        self.blog_index += 1;
-                        self.trigger_transition();
-                    }
-                }
-                KeyCode::Right => {
-                    self.blog_viewing_post = true;
-                    self.blog_scroll = 0;
-                    self.trigger_transition();
+                    self.blog_scroll += 1;
                 }
                 _ => {}
             }
@@ -2376,14 +2373,24 @@ impl App {
             0
         };
 
-        // Build final tab_rects with center offset and scroll applied
+        // Build final tab_rects with center offset and scroll applied, clipped to visible area
+        let visible_left = inner_x;
+        let visible_right = inner_x.saturating_add(inner_width);
         self.tab_rects.clear();
         for (offset, width) in &tab_offsets {
-            let x = inner_x
-                .saturating_add(center_offset)
-                .saturating_add(*offset)
-                .saturating_sub(self.tab_h_scroll as u16);
-            self.tab_rects.push(Rect::new(x, tab_row, *width, 1));
+            let raw_x = (inner_x as i32)
+                + (center_offset as i32)
+                + (*offset as i32)
+                - (self.tab_h_scroll as i32);
+            let raw_right = raw_x + (*width as i32);
+            let clipped_x = (raw_x.max(visible_left as i32) as u16).min(visible_right);
+            let clipped_right = (raw_right.max(visible_left as i32) as u16).min(visible_right);
+            if clipped_right > clipped_x {
+                self.tab_rects.push(Rect::new(clipped_x, tab_row, clipped_right - clipped_x, 1));
+            } else {
+                // Tab is fully scrolled out of view — push empty rect to preserve indexing
+                self.tab_rects.push(Rect::default());
+            }
         }
 
         let mut spans: Vec<Span> = Vec::new();
@@ -2424,6 +2431,9 @@ impl App {
             );
 
         frame.render_widget(tab_paragraph, area);
+
+        // Render horizontal scrollbar on the tab bar bottom border if tabs overflow
+        self.render_horizontal_scrollbar(frame, area, self.tab_h_scroll, max_h_scroll);
     }
 
     fn render_home(&mut self, frame: &mut Frame, area: Rect) {
@@ -2576,6 +2586,9 @@ impl App {
                     .title(" Output ".fg(Color::Rgb(160, 165, 175))),
             );
         frame.render_widget(history, history_area);
+
+        // Render vertical scrollbar on REPL output if it overflows
+        self.render_vertical_scrollbar(frame, history_area, scroll, max_scroll);
     }
 
     fn render_blinking_cursor(&self, frame: &mut Frame, cursor_x: u16, cursor_y: u16, max_x: u16) {
@@ -2737,74 +2750,73 @@ impl App {
                 frame.render_widget(blog, scroll_area);
                 self.blog_content_area = scroll_area;
 
+                // Render vertical scrollbar on blog post content
+                self.render_vertical_scrollbar(frame, scroll_area, self.blog_scroll, max_scroll);
+
                 self.render_scroll_arrows(frame, nav_bar, self.blog_scroll, max_scroll, "swipe ↕");
             }
             return;
         }
 
-        // Show scrollable list of blog titles
-        let block = Block::bordered()
-            .border_type(BorderType::Rounded)
-            .border_style(Color::Rgb(55, 60, 70))
-            .title(" Blog ".bold().fg(Color::Rgb(200, 200, 210)))
-            .title_bottom(
-                Line::from("│ tap a post │")
-                    .alignment(Alignment::Center)
-                    .style(Style::default().fg(Color::Rgb(55, 60, 70))),
-            );
-
-        let inner = block.inner(area);
-        frame.render_widget(block, area);
-
-        let list_block = Block::bordered()
-            .border_type(BorderType::Rounded)
-            .border_style(Color::Rgb(40, 44, 52))
-            .title(" Posts ".fg(Color::Rgb(200, 200, 210)));
-
-        let list_inner = list_block.inner(inner);
-
-        self.blog_item_areas.clear();
-        self.blog_list_area = inner;
+        // Show scrollable list of blog titles as clickable buttons
+        self.blog_list_area = area;
         self.blog_content_area = Rect::default();
 
-        for i in 0..BLOG_ENTRIES.len() {
-            let item_y = list_inner.y + (i as u16 * 2);
-            if item_y + 2 <= list_inner.bottom() {
-                self.blog_item_areas.push(Rect::new(
-                    list_inner.x,
-                    item_y,
-                    list_inner.width,
-                    2,
-                ));
-            }
+        let mut lines: Vec<Line> = Vec::new();
+        let mut blog_line_indices: Vec<usize> = Vec::new(); // line index for each blog entry
+
+        for (i, (title, date, _)) in BLOG_ENTRIES.iter().enumerate() {
+            blog_line_indices.push(lines.len());
+            let hovered = self
+                .blog_item_areas
+                .get(i)
+                .is_some_and(|r| self.is_hovered(*r));
+            let style = if hovered {
+                Style::default().fg(Color::Rgb(255, 255, 255)).bold().add_modifier(Modifier::REVERSED)
+            } else {
+                Style::default().fg(Color::Rgb(200, 200, 210)).bold()
+            };
+            let marker = if hovered { "▸ " } else { "  " };
+            lines.push(Line::from(format!("{marker}{title}")).style(style));
+            lines.push(Line::styled(format!("    {date}"), Style::default().fg(Color::Rgb(75, 80, 90))));
+            lines.push(Line::from(""));
         }
 
-        let items: Vec<ListItem> = BLOG_ENTRIES
-            .iter()
-            .enumerate()
-            .map(|(i, (title, date, _))| {
-                let hovered = self
-                    .blog_item_areas
-                    .get(i)
-                    .is_some_and(|r| self.is_hovered(*r));
-                let style = if i == self.blog_index {
-                    Style::default().fg(Color::Rgb(230, 232, 240)).bold()
-                } else if hovered {
-                    Style::default().fg(Color::Rgb(200, 200, 210))
-                } else {
-                    Style::default().fg(Color::Rgb(140, 145, 155))
-                };
-                let marker = if i == self.blog_index { "> " } else if hovered { "~ " } else { "  " };
-                ListItem::new(vec![
-                    Line::from(format!("{marker}{title}")).style(style),
-                    Line::from(format!("  {date}"))
-                        .style(Style::default().fg(Color::Rgb(75, 80, 90))),
-                ])
-            })
-            .collect();
+        let mut scroll = self.blog_scroll;
+        let scroll_area = self.render_scrollable_content(
+            frame, area, lines, &mut scroll,
+            Some(" Blog ".bold().fg(Color::Rgb(200, 200, 210)).into()),
+            Some(" Posts — tap to read ".bold().fg(Color::Rgb(184, 115, 51)).into()),
+            "swipe ↕ │ tap a post",
+        );
+        self.blog_scroll = scroll;
 
-        let list = List::new(items).block(list_block);
-        frame.render_widget(list, inner);
+        // Compute click areas for blog titles relative to the scroll position
+        let content_block = Block::bordered()
+            .border_type(BorderType::Rounded)
+            .border_style(Color::Rgb(40, 44, 52));
+        let content_inner = content_block.inner(scroll_area);
+
+        self.blog_item_areas.clear();
+        for (i, &line_idx) in blog_line_indices.iter().enumerate() {
+            if line_idx >= self.blog_scroll {
+                let visible_row = (line_idx - self.blog_scroll) as u16;
+                if visible_row < content_inner.height {
+                    // Click area covers the title line (1 row)
+                    self.blog_item_areas.push(Rect::new(
+                        content_inner.x,
+                        content_inner.y + visible_row,
+                        content_inner.width,
+                        1,
+                    ));
+                } else {
+                    self.blog_item_areas.push(Rect::default());
+                }
+            } else {
+                self.blog_item_areas.push(Rect::default());
+            }
+            let _ = i; // suppress unused warning
+        }
     }
 
     fn render_about(&mut self, frame: &mut Frame, area: Rect) {
@@ -3060,6 +3072,9 @@ impl App {
             .block(content_block);
         frame.render_widget(content, scroll_area);
 
+        // Render vertical scrollbar on the right border if content overflows
+        self.render_vertical_scrollbar(frame, scroll_area, *scroll, max_scroll);
+
         self.render_scroll_arrows(frame, nav_bar, *scroll, max_scroll, hint);
 
         scroll_area
@@ -3120,6 +3135,77 @@ impl App {
                 .style(Style::default().fg(Color::Rgb(75, 80, 90))),
             center_area,
         );
+    }
+
+    /// Render a vertical scrollbar on the right border of the given area.
+    /// Only renders if the content overflows (max_scroll > 0).
+    fn render_vertical_scrollbar(&self, frame: &mut Frame, area: Rect, scroll: usize, max_scroll: usize) {
+        if max_scroll == 0 || area.height < 4 {
+            return; // Content fits — no scrollbar needed
+        }
+        let track_height = area.height.saturating_sub(2) as usize; // exclude top/bottom border
+        if track_height == 0 {
+            return;
+        }
+        // Compute thumb size and position
+        let total_positions = max_scroll + 1;
+        let thumb_size = (track_height * track_height / (track_height + max_scroll)).max(1);
+        let thumb_pos = if max_scroll > 0 {
+            scroll * (track_height - thumb_size) / max_scroll
+        } else {
+            0
+        };
+        let bar_x = area.right().saturating_sub(1); // right border column
+        let buf = frame.buffer_mut();
+        let _ = total_positions;
+        for i in 0..track_height {
+            let y = area.y + 1 + i as u16; // skip top border
+            let pos = Position::new(bar_x, y);
+            if let Some(cell) = buf.cell_mut(pos) {
+                if i >= thumb_pos && i < thumb_pos + thumb_size {
+                    // Thumb: bright scrollbar indicator
+                    cell.set_char('┃');
+                    cell.set_fg(Color::Rgb(140, 145, 160));
+                } else {
+                    // Track: subtle indicator
+                    cell.set_char('│');
+                    cell.set_fg(Color::Rgb(35, 38, 46));
+                }
+            }
+        }
+    }
+
+    /// Render a horizontal scrollbar on the bottom border of the given area.
+    /// Only renders if the content overflows (max_h_scroll > 0).
+    fn render_horizontal_scrollbar(&self, frame: &mut Frame, area: Rect, scroll: usize, max_scroll: usize) {
+        if max_scroll == 0 || area.width < 4 {
+            return; // Content fits — no scrollbar needed
+        }
+        let track_width = area.width.saturating_sub(2) as usize; // exclude left/right border
+        if track_width == 0 {
+            return;
+        }
+        let thumb_size = (track_width * track_width / (track_width + max_scroll)).max(1);
+        let thumb_pos = if max_scroll > 0 {
+            scroll * (track_width - thumb_size) / max_scroll
+        } else {
+            0
+        };
+        let bar_y = area.bottom().saturating_sub(1); // bottom border row
+        let buf = frame.buffer_mut();
+        for i in 0..track_width {
+            let x = area.x + 1 + i as u16; // skip left border
+            let pos = Position::new(x, bar_y);
+            if let Some(cell) = buf.cell_mut(pos) {
+                if i >= thumb_pos && i < thumb_pos + thumb_size {
+                    cell.set_char('━');
+                    cell.set_fg(Color::Rgb(140, 145, 160));
+                } else {
+                    cell.set_char('─');
+                    cell.set_fg(Color::Rgb(35, 38, 46));
+                }
+            }
+        }
     }
 
     /// Get (category, title, dsl_src) for the given global index into the
@@ -3514,7 +3600,7 @@ fn open_url(url: &str) {
         .replace('"', "\\\"")
         .replace('\n', "\\n")
         .replace('\r', "\\r");
-    let js = format!("setTimeout(function(){{window.open('{}','_blank','noopener')}},0)", escaped);
+    let js = format!("setTimeout(function(){{window.open('{}','_blank','noopener')}},500)", escaped);
     let _ = web_sys::js_sys::eval(&js);
 }
 
