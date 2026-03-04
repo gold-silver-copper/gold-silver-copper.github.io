@@ -53,6 +53,9 @@ const LINKS: &[(&str, &str)] = &[
     ("Rust Programming Language", "https://www.rust-lang.org"),
     ("crates.io – Rust Package Registry", "https://crates.io"),
     ("Trunk – WASM bundler for Rust", "https://trunkrs.dev"),
+    ("Kernel Language (vau calculus)", "https://web.cs.wpi.edu/~jshutt/kernel.html"),
+    ("John Shutt – Vau Calculus Thesis", "https://web.cs.wpi.edu/~jshutt/dissertation/etd-090110-124904.pdf"),
+    ("Are We Web Yet? – Rust web ecosystem", "https://www.arewewebyet.org"),
 ];
 
 const DOC_BASICS: &str = "\
@@ -177,6 +180,28 @@ Tail-call optimization:\n\
   run in constant stack space. This applies to if, cond,\n\
   begin, let, and operative/applicative bodies.";
 
+const DOC_ERRORS: &str = "\
+Error Handling & Debugging\n\
+──────────────────────────\n\
+\n\
+Grift reports errors as readable messages:\n\
+  (/ 1 0)               => Error: DivisionByZero\n\
+  (car 42)              => Error: TypeMismatch\n\
+  undefined-sym          => Error: UnboundSymbol\n\
+\n\
+Common errors:\n\
+  TypeMismatch    — wrong argument type\n\
+  ArityMismatch   — wrong number of arguments\n\
+  UnboundSymbol   — symbol not defined in scope\n\
+  DivisionByZero  — division by zero\n\
+  ArenaFull       — arena capacity exceeded\n\
+\n\
+Debugging tips:\n\
+  1. Check types with predicates: number?, pair?, string?\n\
+  2. Inspect environments with get-current-environment\n\
+  3. Use begin to sequence debug prints\n\
+  4. Break complex expressions into smaller define! steps";
+
 const SHOWCASE_INFO: &str = "\
 Ratzilla & Grift — Mobile Showcase\n\
 ──────────────────────────────────\n\
@@ -238,7 +263,33 @@ Switch to the REPL tab and type Lisp expressions. The on-screen keyboard works �
   (define! x 42)\n\
   (* x x)\n\
 \n\
-The REPL runs a real Lisp interpreter (Grift) compiled to WebAssembly — not a simulation.";
+The REPL runs a real Lisp interpreter (Grift) compiled to WebAssembly — not a simulation.\n\
+\n\
+Accessibility & Tips\n\
+────────────────────\n\
+\n\
+  • Font: Fira Code is loaded for ligature-rich terminal rendering\n\
+  • Colors: High-contrast palette tested across OLED and LCD screens\n\
+  • No animations block interaction — all effects are non-blocking\n\
+  • Works without JavaScript frameworks or external API calls\n\
+  • Full offline capability once cached by the browser\n\
+\n\
+Performance Notes\n\
+─────────────────\n\
+\n\
+  • WebGL2 rendering at 60fps on modern devices\n\
+  • WASM binary is ~200KB compressed\n\
+  • No garbage collection pauses (arena allocator)\n\
+  • Minimal memory footprint — fixed arena with const generics\n\
+  • Touch event handlers use passive listeners for smooth scrolling";
+
+const EFFECT_SHOWCASE: &[&str] = &[
+    "FADE",
+    "SWEEP",
+    "SLIDE",
+    "COALESCE",
+    "SHIFT",
+];
 
 const BLOG_ENTRIES: &[(&str, &str, &str)] = &[
     (
@@ -315,6 +366,28 @@ const BLOG_ENTRIES: &[(&str, &str, &str)] = &[
          Ratzilla's WebGL2 renderer, the UI maintains smooth 60fps \
          animation even on mid-range mobile devices.",
     ),
+    (
+        "TachyonFX: Shader Effects for TUIs",
+        "2025-07-10",
+        "TachyonFX brings shader-like visual effects to terminal UIs. \
+         Effects like fade, sweep, slide, coalesce, and HSL shift can \
+         be composed with combinators like ping_pong and repeating. \
+         Each effect operates on a rectangular cell region and tracks \
+         its own timing via EffectTimer. The library integrates with \
+         Ratatui's rendering pipeline through the EffectRenderer trait, \
+         making it easy to add polish to any terminal application.",
+    ),
+    (
+        "Arena Allocation in Grift",
+        "2025-08-05",
+        "Grift uses a fixed-size arena for all allocations. The arena \
+         is a contiguous array of cells, each holding a Lisp value. \
+         Const generics set the capacity at compile time — no runtime \
+         overhead, no dynamic allocation, no unsafe code. A mark-and-sweep \
+         garbage collector reclaims unreachable cells. This design makes \
+         Grift suitable for embedded systems with no heap and for WASM \
+         targets where memory management must be predictable.",
+    ),
 ];
 
 #[derive(Clone, Copy, PartialEq)]
@@ -325,10 +398,11 @@ enum Page {
     Blog,
     Links,
     Showcase,
+    Effects,
 }
 
 impl Page {
-    const ALL: [Page; 6] = [Page::Home, Page::Repl, Page::Docs, Page::Blog, Page::Links, Page::Showcase];
+    const ALL: [Page; 7] = [Page::Home, Page::Repl, Page::Docs, Page::Blog, Page::Links, Page::Showcase, Page::Effects];
 
     fn title(self) -> &'static str {
         match self {
@@ -338,6 +412,7 @@ impl Page {
             Page::Blog => "Blog",
             Page::Links => "Links",
             Page::Showcase => "Mobile",
+            Page::Effects => "Effects",
         }
     }
 
@@ -413,6 +488,11 @@ struct App {
     last_hovered_tab: Option<usize>,
     link_hover_effects: Vec<(usize, Effect)>,
     last_hovered_link: Option<usize>,
+    // Effects showcase state
+    effects_index: usize,
+    effects_list: Vec<Effect>,
+    effects_cycle_tick: u64,
+    frame_elapsed: Duration,
 }
 
 impl App {
@@ -460,6 +540,10 @@ impl App {
             last_hovered_tab: None,
             link_hover_effects: Vec::new(),
             last_hovered_link: None,
+            effects_index: 0,
+            effects_list: Vec::new(),
+            effects_cycle_tick: 0,
+            frame_elapsed: Duration::from_millis(0),
         }
     }
 
@@ -498,6 +582,7 @@ impl App {
                 dark,
                 EffectTimer::from_ms(500, Interpolation::CubicOut),
             ),
+            Page::Effects => fx::coalesce(EffectTimer::from_ms(500, Interpolation::SineOut)),
         };
         self.transition_effect = Some(effect);
     }
@@ -578,6 +663,7 @@ impl App {
             Page::Home => self.handle_scroll_event(key, ScrollTarget::Home),
             Page::Links => self.handle_scroll_event(key, ScrollTarget::Links),
             Page::Showcase => self.handle_scroll_event(key, ScrollTarget::Showcase),
+            Page::Effects => self.handle_effects_event(key),
         }
     }
 
@@ -820,6 +906,25 @@ impl App {
         }
     }
 
+    fn handle_effects_event(&mut self, key: KeyEvent) {
+        let len = EFFECT_SHOWCASE.len();
+        match key.code {
+            KeyCode::Left | KeyCode::Up => {
+                if self.effects_index > 0 {
+                    self.effects_index -= 1;
+                } else {
+                    self.effects_index = len - 1;
+                }
+                self.effects_cycle_tick = 0;
+            }
+            KeyCode::Right | KeyCode::Down => {
+                self.effects_index = (self.effects_index + 1) % len;
+                self.effects_cycle_tick = 0;
+            }
+            _ => {}
+        }
+    }
+
     fn byte_index(&self) -> usize {
         self.repl_input
             .char_indices()
@@ -833,6 +938,7 @@ impl App {
         let elapsed_std = now - self.last_frame;
         self.last_frame = now;
         let elapsed = Duration::from_millis(elapsed_std.as_millis() as u32);
+        self.frame_elapsed = elapsed;
 
         self.bg_tick = self.bg_tick.wrapping_add(1);
         self.cursor_blink_tick = self.cursor_blink_tick.wrapping_add(1);
@@ -943,6 +1049,7 @@ impl App {
             Page::Blog => self.render_blog(frame, content_area),
             Page::Links => self.render_links(frame, content_area),
             Page::Showcase => self.render_showcase(frame, content_area),
+            Page::Effects => self.render_effects(frame, content_area),
         }
 
         // Process transition effects
@@ -1194,6 +1301,22 @@ impl App {
         lines.push(Line::from(""));
         let this_site = "Everything you see is a Rust terminal UI compiled to WebAssembly and rendered to an HTML canvas via Ratzilla. TachyonFX provides the animated background, page transitions, and hover effects. There is no HTML layout, no CSS styling, and no JavaScript framework — just a Rust application drawing characters to a terminal grid. The same layout works on every device and screen size.";
         lines.push(Line::styled(this_site, Style::default().fg(Color::Rgb(170, 175, 185))));
+        lines.push(Line::from(""));
+
+        // Getting Started section
+        lines.push(Line::styled("── Getting Started ──", Style::default().fg(Color::Rgb(184, 115, 51)).bold()));
+        lines.push(Line::from(""));
+        let getting_started = "Try Grift right now — switch to the REPL tab and type (+ 1 2). Browse the Docs tab for the full language reference. Check the Effects tab to see TachyonFX visual effects in action. All tabs are accessible via touch, mouse, or keyboard.";
+        lines.push(Line::styled(getting_started, Style::default().fg(Color::Rgb(170, 175, 185))));
+        lines.push(Line::from(""));
+
+        // Features at a Glance section
+        lines.push(Line::styled("── Features at a Glance ──", Style::default().fg(Color::Rgb(160, 175, 195)).bold()));
+        lines.push(Line::from(""));
+        let features = "• Interactive REPL with full Grift interpreter\n• Animated background and page transitions\n• Clickable tabs, links, and buttons\n• Mobile-first touch gesture support\n• Momentum scrolling and swipe navigation\n• Zero JavaScript frameworks — pure Rust + WASM";
+        for l in features.lines() {
+            lines.push(Line::styled(l, Style::default().fg(Color::Rgb(170, 175, 185))));
+        }
 
         let mut scroll = self.home_scroll;
         self.render_scrollable_content(
@@ -1307,7 +1430,7 @@ impl App {
 
     fn render_docs(&mut self, frame: &mut Frame, area: Rect) {
         // Combine all doc sections into one scrollable text
-        let all_docs = [DOC_BASICS, DOC_FORMS, DOC_ADVANCED, DOC_ENVIRONMENTS];
+        let all_docs = [DOC_BASICS, DOC_FORMS, DOC_ADVANCED, DOC_ENVIRONMENTS, DOC_ERRORS];
         let mut lines: Vec<Line> = Vec::new();
         // Account for outer block borders (2) + inner block borders (2) + side padding (4)
         let separator_width = area.width.saturating_sub(8) as usize;
@@ -1759,6 +1882,108 @@ impl App {
                 .alignment(Alignment::Center)
                 .style(Style::default().fg(Color::Rgb(75, 80, 90))),
             center_area,
+        );
+    }
+
+    fn create_showcase_effect(index: usize) -> Effect {
+        let dark = Color::Rgb(8, 9, 14);
+        match index {
+            0 => { // FADE
+                fx::repeating(fx::ping_pong(fx::fade_from(
+                    dark, dark,
+                    EffectTimer::from_ms(3000, Interpolation::CubicOut),
+                )))
+            }
+            1 => { // SWEEP
+                fx::repeating(fx::ping_pong(fx::sweep_in(
+                    Motion::LeftToRight, 10, 3, dark,
+                    EffectTimer::from_ms(3500, Interpolation::QuadOut),
+                )))
+            }
+            2 => { // SLIDE
+                fx::repeating(fx::ping_pong(fx::slide_in(
+                    Motion::UpToDown, 8, 3, dark,
+                    EffectTimer::from_ms(3500, Interpolation::CubicOut),
+                )))
+            }
+            3 => { // COALESCE
+                fx::repeating(fx::ping_pong(fx::coalesce(
+                    EffectTimer::from_ms(3000, Interpolation::SineOut),
+                )))
+            }
+            _ => { // SHIFT
+                fx::repeating(fx::ping_pong(fx::hsl_shift_fg(
+                    [30.0, 20.0, 25.0],
+                    (3000, Interpolation::SineOut),
+                )))
+            }
+        }
+    }
+
+    fn render_effects(&mut self, frame: &mut Frame, area: Rect) {
+        // Initialize effects if needed
+        if self.effects_list.len() != EFFECT_SHOWCASE.len() {
+            self.effects_list.clear();
+            for i in 0..EFFECT_SHOWCASE.len() {
+                self.effects_list.push(Self::create_showcase_effect(i));
+            }
+        }
+
+        // Auto-cycle every ~10 seconds (600 ticks at ~60fps)
+        self.effects_cycle_tick += 1;
+        if self.effects_cycle_tick >= 600 {
+            self.effects_cycle_tick = 0;
+            self.effects_index = (self.effects_index + 1) % EFFECT_SHOWCASE.len();
+        }
+
+        let elapsed = self.frame_elapsed;
+        let word = EFFECT_SHOWCASE[self.effects_index];
+
+        let block = Block::bordered()
+            .border_type(BorderType::Rounded)
+            .border_style(Color::Rgb(55, 60, 70))
+            .title(" TachyonFX Showcase ".bold().fg(Color::Rgb(207, 181, 59)));
+        let inner = block.inner(area);
+        frame.render_widget(block, area);
+
+        // Layout: center the 3-row effect container vertically
+        let v_center = inner.height / 2;
+        let container_y = inner.y + v_center.saturating_sub(1);
+        // Ensure container fits within inner area
+        let container_y = container_y.min(inner.bottom().saturating_sub(4));
+        let container = Rect::new(
+            inner.x + 2,
+            container_y,
+            inner.width.saturating_sub(4),
+            3,
+        );
+
+        // Render word centered in the middle row of the 3-tile container
+        let text = Paragraph::new(vec![
+            Line::from(""),
+            Line::styled(word, Style::default().fg(Color::Rgb(220, 225, 235)).bold()),
+            Line::from(""),
+        ]).alignment(Alignment::Center);
+        frame.render_widget(text, container);
+
+        // Apply the tachyonfx effect to the full 3-row container
+        if let Some(effect) = self.effects_list.get_mut(self.effects_index) {
+            frame.render_effect(effect, container, elapsed);
+        }
+
+        // Info bar at bottom
+        let nav = Rect::new(inner.x, inner.bottom().saturating_sub(1), inner.width, 1);
+        let info = format!(
+            "◄ {} / {} ► │ {} │ swipe ↔",
+            self.effects_index + 1,
+            EFFECT_SHOWCASE.len(),
+            word,
+        );
+        frame.render_widget(
+            Paragraph::new(info)
+                .alignment(Alignment::Center)
+                .style(Style::default().fg(Color::Rgb(140, 145, 155))),
+            nav,
         );
     }
 
