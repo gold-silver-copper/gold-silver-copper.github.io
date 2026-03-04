@@ -74,6 +74,7 @@ fn node_to_component(root: ParseRoot) -> ComponentRoot {
     ComponentRoot::new(name, children)
 }
 
+#[cfg(feature = "terminal")]
 fn is_url(url: &str) -> bool {
     url.starts_with("http://") || url.starts_with("https://")
 }

@@ -3087,6 +3087,7 @@ impl App {
             // Repeating passive silver glow effect on the keyboard area
             let elapsed = self.frame_elapsed;
             if self.keyboard_glow_effect.is_none() {
+                // [hue_shift, saturation_shift, lightness_shift]: neutral hue, slight desaturation, gentle brightness pulse
                 let glow = fx::hsl_shift_fg(
                     [0.0, -3.0, 8.0],
                     (3000, Interpolation::SineIn),
@@ -3338,7 +3339,7 @@ impl App {
         for &line_idx in &entry_line_indices {
             if line_idx >= self.blog_scroll {
                 let visible_row = (line_idx - self.blog_scroll) as u16;
-                if visible_row + 1 < content_inner.height {
+                if visible_row + 2 <= content_inner.height {
                     // Touch target covers both title and date rows for mobile usability
                     self.blog_item_areas.push(Rect::new(
                         content_inner.x, content_inner.y + visible_row,

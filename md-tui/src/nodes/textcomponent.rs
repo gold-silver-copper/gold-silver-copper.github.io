@@ -466,9 +466,10 @@ fn transform_codeblock(component: &mut TextComponent) {
 
     let highlight = highlight_code(language, &component.content_as_bytes());
 
+    #[allow(unused_variables)]
     let content = component.content_as_lines().join("");
 
-    #[allow(unused_variables)]
+    #[allow(unused_mut, unused_variables)]
     let mut new_content: Vec<Word> = Vec::new();
 
     if language.is_empty() {
