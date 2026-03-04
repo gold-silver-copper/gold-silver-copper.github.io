@@ -15,8 +15,8 @@
       href="https://cdnjs.cloudflare.com/ajax/libs/firacode/6.2.0/fira_code.min.css"
     />
     <title>GRIFT.RS – Personal Website & Grift Demo</title>
-    <link rel="stylesheet" href="/style-40370b022b4ccfcd.css" integrity="sha384-nDZiS13PYLP5ARtmUG9DB91FJ9P6VopMjWiID4W7siD16IXlT5dWmZOQYinP7fDQ"/>
-  <link rel="modulepreload" href="/grift-site-4387008adb8ce35a.js" crossorigin="anonymous" integrity="sha384-MVtG0eKKlmuNltSMs5Fhzs6XeJW4M1p+wnSKlmNkacHO1XzWA+L53YUpggu0/iAd"><link rel="preload" href="/grift-site-4387008adb8ce35a_bg.wasm" crossorigin="anonymous" integrity="sha384-8+u1hOFVPq7/kHLieEAI4NcPcbriwsuJOFVAZtJEAlDt0fLSpmhrb8BtcLr+/Fwv" as="fetch" type="application/wasm"></head>
+    <link rel="stylesheet" href="./style-83dfb1de860d8fe.css" integrity="sha384-nDZiS13PYLP5ARtmUG9DB91FJ9P6VopMjWiID4W7siD16IXlT5dWmZOQYinP7fDQ"/>
+  <link rel="modulepreload" href="./grift-site-5564abd34548b2bd.js" crossorigin="anonymous" integrity="sha384-ZPkyLTCYGvI3GiWwHFlse1zqib+VrNyAwPSuM5Q/u9BHic1I5kwbnxuq7JbRLGHf"><link rel="preload" href="./grift-site-5564abd34548b2bd_bg.wasm" crossorigin="anonymous" integrity="sha384-1XKT8ckt8KXmpKHVi40b2Ewl2X1z3/VfgsF5C3B50I7wXm3qqpVZkRzqUxhN7tqh" as="fetch" type="application/wasm"></head>
   <body>
     <!-- Hidden input for mobile virtual keyboard (REPL) -->
     <input id="repl-keyboard-input" type="text"
@@ -39,7 +39,7 @@
         // Zone detection: track touch start position relative to screen
         var touchZone = 'content'; // 'tabs' or 'content'
         var tabZoneThreshold = 0.12; // top 12% of screen is tab zone
-        var replInputZoneThreshold = 0.75; // bottom 25% of screen is REPL input zone
+        // (replInputZoneThreshold removed — input is now at top)
 
         // Prevent context menu on long press for native feel
         document.addEventListener('contextmenu', function(e) {
@@ -175,15 +175,18 @@
 
         // Dynamic window resize: force canvas to recalculate on resize/orientation change
         function handleResize() {
+          _canvas = null; // reset cached canvas in case it was recreated
           var c = getCanvas();
           if (c) {
-            // Force canvas CSS dimensions to match viewport
             var w = window.innerWidth;
             var h = window.innerHeight;
             c.style.width = w + 'px';
             c.style.height = h + 'px';
+            // Update canvas internal resolution to match display size
+            var dpr = window.devicePixelRatio || 1;
+            c.width = Math.round(w * dpr);
+            c.height = Math.round(h * dpr);
           }
-          // Also resize body to match
           document.body.style.width = window.innerWidth + 'px';
           document.body.style.height = window.innerHeight + 'px';
         }
@@ -192,16 +195,21 @@
           // Delay to let the browser settle after orientation change
           setTimeout(handleResize, 100);
           setTimeout(handleResize, 300);
+          setTimeout(handleResize, 600);
         });
 
         // Visual viewport API: handle virtual keyboard appearance
         if (window.visualViewport) {
           window.visualViewport.addEventListener('resize', function() {
             var vv = window.visualViewport;
+            _canvas = null;
             var c = getCanvas();
             if (c) {
               c.style.height = vv.height + 'px';
               c.style.width = vv.width + 'px';
+              var dpr = window.devicePixelRatio || 1;
+              c.width = Math.round(vv.width * dpr);
+              c.height = Math.round(vv.height * dpr);
             }
             document.body.style.height = vv.height + 'px';
             document.body.style.width = vv.width + 'px';
@@ -274,24 +282,20 @@
           }
         };
 
-        // Tap-to-focus: when user taps in the lower portion of the screen while on REPL,
+        // Tap-to-focus: when user taps while on REPL,
         // focus the hidden input to bring up virtual keyboard
         document.addEventListener('click', function(e) {
-          var winH = window.innerHeight || 600;
-          if (e.clientY > winH * replInputZoneThreshold) {
-            // Check if the REPL tab might be active by seeing if hidden input should focus
             if (window._replTabActive) {
               window._focusReplInput();
             }
-          }
         });
         window._replTabActive = false;
       })();
     </script>
   
 <script type="module">
-import init, * as bindings from '/grift-site-4387008adb8ce35a.js';
-const wasm = await init({ module_or_path: '/grift-site-4387008adb8ce35a_bg.wasm' });
+import init, * as bindings from './grift-site-5564abd34548b2bd.js';
+const wasm = await init({ module_or_path: './grift-site-5564abd34548b2bd_bg.wasm' });
 
 
 window.wasmBindings = bindings;
