@@ -1,0 +1,10 @@
+/target
+md_tests/
+.tags
+bin
+file_creator.py
+.DS_Store
+test3.md
+test.jpeg
+test4.md
+test5.md

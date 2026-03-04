@@ -1,28 +1,17 @@
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
-    />
-    <meta name="theme-color" content="#08090e" />
-    <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <meta name="mobile-web-app-capable" content="yes" />
-    <link
-      rel="stylesheet"
-      href="https://cdnjs.cloudflare.com/ajax/libs/firacode/6.2.0/fira_code.min.css"
-    />
-    <title>GRIFT.RS – Personal Website & Grift Demo</title>
-    <link rel="stylesheet" href="./style-6f8ecd036f51516c.css" integrity="sha384-bgXFvsdGrvjhUGWJh7d0Rbma9EBbmS/zGWXVeDVTxxJAO/tWHq+3iJ77gqzDBhGM"/>
-  <link rel="modulepreload" href="./grift-site-d55820e1a6b78179.js" crossorigin="anonymous" integrity="sha384-pMhQqw5yC/o9LGBns8PMBdNFkY06u/pmCmH8rIoSFCvCYa6To5esFcR4xOjRMgzP"><link rel="preload" href="./grift-site-d55820e1a6b78179_bg.wasm" crossorigin="anonymous" integrity="sha384-+m+MeZBWo/oR8COoB5C1i4jVltB5wMvW+BawYycVlMi88S2MfSZCNbCIX6eh5zK+" as="fetch" type="application/wasm"></head>
+<!DOCTYPE html><html lang="en"><head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="theme-color" content="#08090e">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="mobile-web-app-capable" content="yes">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/firacode/6.2.0/fira_code.min.css">
+    <title>GRIFT.RS – Personal Website &amp; Grift Demo</title>
+    <link rel="stylesheet" href="/./style-f72f8b68cab0f57c.css">
+  
+<link rel="preload" href="/./grift-site-f602dd1c3886563b_bg.wasm" as="fetch" type="application/wasm" crossorigin="">
+<link rel="modulepreload" href="/./grift-site-f602dd1c3886563b.js"></head>
   <body>
-    <!-- Hidden input for mobile virtual keyboard (REPL) -->
-    <input id="repl-keyboard-input" type="text"
-      style="position:fixed;opacity:0;width:1px;height:1px;top:-9999px;left:-9999px;pointer-events:none;"
-      autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
-      inputmode="text" enterkeyhint="send" />
 
     <script>
       // ═══════════════════════════════════════════════════════════════════
@@ -33,7 +22,6 @@
       //   Canvas  ← single source of truth for all input dispatch
       //   Gesture ← state machine distinguishing taps from swipes
       //   Zones   ← top 12% = tab bar, rest = content
-      //   REPL    ← virtual keyboard bridge for mobile text input
       //   Viewport← resize / orientation / visual-viewport handling
       //
       // All interaction flows through GriftApp.dispatch(key) which sends
@@ -117,9 +105,10 @@
         }
 
         // ── Gesture state machine ──────────────────────────────────────
-        // States: IDLE → TOUCHING → SWIPING
-        // TOUCHING: finger is down, hasn't moved past threshold
-        // SWIPING:  finger moved past threshold — suppress click on end
+        // States: IDLE → TOUCHING → SWIPING → DOUBLE_TAP_DRAGGING
+        // TOUCHING:            finger is down, hasn't moved past threshold
+        // SWIPING:             finger moved past threshold — suppress click on end
+        // DOUBLE_TAP_DRAGGING: double-tap-then-drag — simulates click-and-hold (selection)
         var gesture = {
           state:      'IDLE',
           zone:       'content',
@@ -128,19 +117,37 @@
           lastTime:   0,
           velocityY:  0,
           momentumId: null,
+          // Double-tap-then-drag tracking
+          lastTapTime:   0,
+          lastTapX:      0,
+          lastTapY:      0,
+          isDoubleTap:   false,
 
           begin: function(touch) {
+            var now = Date.now();
+            var dt  = now - this.lastTapTime;
+            var tapDx = Math.abs(touch.screenX - this.lastTapX);
+            var tapDy = Math.abs(touch.screenY - this.lastTapY);
+            // Detect double-tap: second tap within DOUBLE_TAP_MS and near previous tap
+            this.isDoubleTap = (dt < CFG.DOUBLE_TAP_MS && tapDx < 30 && tapDy < 30);
+
             this.state    = 'TOUCHING';
             this.zone     = zone(touch.clientY);
             this.startX   = touch.screenX;
             this.startY   = touch.screenY;
             this.lastX    = touch.screenX;
             this.lastY    = touch.screenY;
-            this.lastTime = Date.now();
+            this.lastTime = now;
             this.velocityY = 0;
             this.cancelMomentum();
-            // Forward mousemove for hover tracking (not mousedown — that waits for tap confirm)
-            emitMouse('mousemove', touch.clientX, touch.clientY);
+
+            if (this.isDoubleTap) {
+              // Immediately emit mousedown to begin click-and-hold simulation
+              emitMouse('mousedown', touch.clientX, touch.clientY);
+            } else {
+              // Forward mousemove for hover tracking (not mousedown — that waits for tap confirm)
+              emitMouse('mousemove', touch.clientX, touch.clientY);
+            }
           },
 
           move: function(touch) {
@@ -150,33 +157,43 @@
             var dx  = sx - this.lastX;
             var dy  = sy - this.lastY;
 
-            // Promote to SWIPING once movement exceeds threshold
+            // Promote to appropriate dragging state once movement exceeds threshold
             if (this.state === 'TOUCHING') {
               var totalDx = sx - this.startX;
               var totalDy = sy - this.startY;
               if (Math.abs(totalDx) > CFG.SWIPE_THRESHOLD || Math.abs(totalDy) > CFG.SWIPE_THRESHOLD) {
-                this.state = 'SWIPING';
+                if (this.isDoubleTap) {
+                  // Double-tap-then-drag: enter click-and-hold drag mode (selection)
+                  this.state = 'DOUBLE_TAP_DRAGGING';
+                } else {
+                  this.state = 'SWIPING';
+                }
               }
             }
 
             if (dt > 0) this.velocityY = dy / dt;
 
-            // Forward mousemove for hover tracking
-            emitMouse('mousemove', touch.clientX, touch.clientY);
-
-            if (this.zone === 'tabs') {
-              // Horizontal movement scrolls tabs
-              if (Math.abs(dx) > CFG.SCROLL_STEP) {
-                dispatch(dx > 0 ? 'ArrowLeft' : 'ArrowRight');
-                this.lastX = sx;
-                this.lastTime = now;
-              }
+            if (this.state === 'DOUBLE_TAP_DRAGGING') {
+              // Forward mousemove with button held for selection drag behavior
+              emitMouse('mousemove', touch.clientX, touch.clientY);
             } else {
-              // Vertical movement scrolls content
-              if (Math.abs(dy) > CFG.SCROLL_STEP) {
-                dispatch(dy > 0 ? 'ArrowUp' : 'ArrowDown');
-                this.lastY = sy;
-                this.lastTime = now;
+              // Forward mousemove for hover tracking
+              emitMouse('mousemove', touch.clientX, touch.clientY);
+
+              if (this.zone === 'tabs') {
+                // Horizontal movement scrolls tabs
+                if (Math.abs(dx) > CFG.SCROLL_STEP) {
+                  dispatch(dx > 0 ? 'ArrowLeft' : 'ArrowRight');
+                  this.lastX = sx;
+                  this.lastTime = now;
+                }
+              } else {
+                // Vertical movement scrolls content
+                if (Math.abs(dy) > CFG.SCROLL_STEP) {
+                  dispatch(dy > 0 ? 'ArrowUp' : 'ArrowDown');
+                  this.lastY = sy;
+                  this.lastTime = now;
+                }
               }
             }
           },
@@ -184,8 +201,14 @@
           end: function(touch) {
             var wasTap = (this.state === 'TOUCHING');
 
-            if (wasTap) {
-              // Confirmed tap — forward as mousedown + mouseup (click)
+            if (this.state === 'DOUBLE_TAP_DRAGGING') {
+              // End of double-tap-then-drag: release the simulated click-and-hold
+              emitMouse('mouseup', touch.clientX, touch.clientY);
+            } else if (wasTap && this.isDoubleTap) {
+              // Double-tap without drag: complete the mousedown/mouseup cycle
+              emitMouse('mouseup', touch.clientX, touch.clientY);
+            } else if (wasTap) {
+              // Confirmed single tap — forward as mousedown + mouseup (click)
               emitMouse('mousedown', touch.clientX, touch.clientY);
               emitMouse('mouseup',   touch.clientX, touch.clientY);
             } else if (this.zone === 'content') {
@@ -200,11 +223,24 @@
             }
             // Tab zone swipes: already handled in move(), no momentum needed.
 
+            // Record tap time/position for double-tap detection on next touch
+            if (wasTap) {
+              this.lastTapTime = Date.now();
+              this.lastTapX    = touch.screenX;
+              this.lastTapY    = touch.screenY;
+            }
+
             this.state = 'IDLE';
+            this.isDoubleTap = false;
           },
 
           cancel: function() {
+            if (this.state === 'DOUBLE_TAP_DRAGGING' || (this.state === 'TOUCHING' && this.isDoubleTap)) {
+              // Release simulated click-and-hold on cancel
+              emitMouse('mouseup', this.lastX, this.lastY);
+            }
             this.state = 'IDLE';
+            this.isDoubleTap = false;
             this.velocityY = 0;
             this.cancelMomentum();
           },
@@ -236,13 +272,11 @@
         }, { passive: true });
 
         // Touchend: confirm tap or finalize swipe (passive: false to prevent double-tap zoom)
-        var lastTapTime = 0;
         document.addEventListener('touchend', function(e) {
           gesture.end(e.changedTouches[0]);
           // Prevent double-tap zoom on iOS
           var now = Date.now();
-          if (now - lastTapTime < CFG.DOUBLE_TAP_MS) e.preventDefault();
-          lastTapTime = now;
+          if (now - gesture.lastTapTime < CFG.DOUBLE_TAP_MS) e.preventDefault();
         }, { passive: false });
 
         document.addEventListener('touchcancel', function() {
@@ -294,76 +328,8 @@
           });
         }
 
-        // ── REPL virtual keyboard bridge ───────────────────────────────
-        var replInput = null;
-        var replReady = false;
-
-        function initRepl() {
-          if (replReady) return;
-          replInput = document.getElementById('repl-keyboard-input');
-          if (!replInput) return;
-          replReady = true;
-
-          replInput.addEventListener('input', function(e) {
-            if (e.data) {
-              for (var i = 0; i < e.data.length; i++) dispatch(e.data[i]);
-            } else if (e.inputType === 'deleteContentBackward') {
-              dispatch('Backspace');
-            }
-            replInput.value = '';
-          });
-
-          replInput.addEventListener('compositionend', function(e) {
-            if (e.data) {
-              for (var i = 0; i < e.data.length; i++) dispatch(e.data[i]);
-            }
-            replInput.value = '';
-          });
-
-          replInput.addEventListener('keydown', function(e) {
-            if (e.key === 'Enter' || e.key === 'Backspace') {
-              dispatch(e.key);
-              e.preventDefault();
-            }
-          });
-        }
-
-        window._replTabActive = false;
-
-        window._focusReplInput = function() {
-          initRepl();
-          if (!replInput) return;
-          replInput.style.top = '0';
-          replInput.style.left = '0';
-          replInput.style.width = '70%';
-          replInput.style.height = '40px';
-          replInput.style.opacity = '0';
-          replInput.style.pointerEvents = 'auto';
-          replInput.focus();
-        };
-
-        window._blurReplInput = function() {
-          initRepl();
-          if (!replInput) return;
-          replInput.blur();
-          replInput.style.top = '-9999px';
-          replInput.style.left = '-9999px';
-          replInput.style.width = '1px';
-          replInput.style.height = '1px';
-          replInput.style.pointerEvents = 'none';
-        };
-
-        // Tap-to-focus REPL input (only in content zone)
-        document.addEventListener('click', function(e) {
-          if (window._replTabActive) {
-            if (zone(e.clientY) !== 'tabs') window._focusReplInput();
-            else window._blurReplInput();
-          }
-        });
-
-        // Paste support
+        // ── Paste support (dispatches pasted text as key events) ───────
         document.addEventListener('paste', function(e) {
-          if (!window._replTabActive) return;
           e.preventDefault();
           var text = (e.clipboardData || window.clipboardData).getData('text');
           if (text) {
@@ -377,15 +343,5 @@
       })();
     </script>
   
-<script type="module">
-import init, * as bindings from './grift-site-d55820e1a6b78179.js';
-const wasm = await init({ module_or_path: './grift-site-d55820e1a6b78179_bg.wasm' });
 
-
-window.wasmBindings = bindings;
-
-
-dispatchEvent(new CustomEvent("TrunkApplicationStarted", {detail: {wasm}}));
-
-</script></body>
-</html>
+<script type="module">import init from '/./grift-site-f602dd1c3886563b.js';init('/./grift-site-f602dd1c3886563b_bg.wasm');</script></body></html>
