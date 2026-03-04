@@ -78,20 +78,20 @@ pub fn lisp_keyboard_layout() -> Layout {
     let k = Button::key;
     let ks = Button::key_shift;
 
-    // Row 1: ( ) 1 2 3 4 5 6 7 8 9 0
+    // Row 1: ( 1 2 3 4 5 6 7 8 9 ) 0
     let row1 = vec![
         ks("(", "[", None, 3),
+        ks("1", "@", Some(Num1), 3),
+        ks("2", "#", Some(Num2), 3),
+        ks("3", "$", Some(Num3), 3),
+        ks("4", "%", Some(Num4), 3),
+        ks("5", "^", Some(Num5), 3),
+        ks("6", "&", Some(Num6), 3),
+        ks("7", "<", Some(Num7), 3),
+        ks("8", ">", Some(Num8), 3),
+        ks("9", "~", Some(Num9), 3),
         ks(")", "]", None, 3),
-        ks("1", "!", Some(Num1), 3),
-        ks("2", "@", Some(Num2), 3),
-        ks("3", "#", Some(Num3), 3),
-        ks("4", "$", Some(Num4), 3),
-        ks("5", "%", Some(Num5), 3),
-        ks("6", "^", Some(Num6), 3),
-        ks("7", "&", Some(Num7), 3),
-        ks("8", "*", Some(Num8), 3),
-        ks("9", "<", Some(Num9), 3),
-        ks("0", ">", Some(Num0), 3),
+        ks("0", "_", Some(Num0), 3),
     ];
 
     // Row 2: q w e r t y u i o p ⌫
@@ -123,7 +123,7 @@ pub fn lisp_keyboard_layout() -> Layout {
         k("↵", Some(Return), 9),
     ];
 
-    // Row 4: ⇧ z x c v b n m ' .
+    // Row 4: ⇧ z x c v b n m " .
     let row4 = vec![
         k("⇧", Some(ShiftLeft), 5),
         ks("z", "Z", Some(KeyZ), 3),
@@ -133,18 +133,20 @@ pub fn lisp_keyboard_layout() -> Layout {
         ks("b", "B", Some(KeyB), 3),
         ks("n", "N", Some(KeyN), 3),
         ks("m", "M", Some(KeyM), 3),
-        ks("'", "\"", None, 3),
-        ks(".", ";", None, 4),
+        ks("\"", "'", None, 3),
+        ks(".", "=", None, 4),
     ];
 
-    // Row 5: ? - SPACE + = /
+    // Row 5: ! ? SPACE - + / *  :
     let row5 = vec![
-        ks("?", "~", None, 4),
-        ks("-", "_", None, 4),
+        ks("!", "|", None, 3),
+        ks("?", "\\", None, 3),
         k(" ", Some(Space), 12),
-        ks("+", "=", None, 4),
-        ks("/", "\\", None, 4),
-        ks(":", "|", None, 4),
+        ks("-", "_", None, 3),
+        ks("+", "~", None, 3),
+        ks("/", "\\", None, 3),
+        ks("*", "^", None, 3),
+        ks(":", ";", None, 4),
     ];
 
     Layout {

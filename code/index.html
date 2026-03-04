@@ -18,11 +18,6 @@
     <link data-trunk rel="css" href="assets/style.css" />
   </head>
   <body>
-    <!-- Hidden input for mobile virtual keyboard (REPL) -->
-    <input id="repl-keyboard-input" type="text"
-      style="position:fixed;opacity:0;width:1px;height:1px;top:-9999px;left:-9999px;pointer-events:none;"
-      autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
-      inputmode="text" enterkeyhint="send" />
 
     <script>
       // ═══════════════════════════════════════════════════════════════════
@@ -33,7 +28,6 @@
       //   Canvas  ← single source of truth for all input dispatch
       //   Gesture ← state machine distinguishing taps from swipes
       //   Zones   ← top 12% = tab bar, rest = content
-      //   REPL    ← virtual keyboard bridge for mobile text input
       //   Viewport← resize / orientation / visual-viewport handling
       //
       // All interaction flows through GriftApp.dispatch(key) which sends
@@ -324,76 +318,8 @@
           });
         }
 
-        // ── REPL virtual keyboard bridge ───────────────────────────────
-        var replInput = null;
-        var replReady = false;
-
-        function initRepl() {
-          if (replReady) return;
-          replInput = document.getElementById('repl-keyboard-input');
-          if (!replInput) return;
-          replReady = true;
-
-          replInput.addEventListener('input', function(e) {
-            if (e.data) {
-              for (var i = 0; i < e.data.length; i++) dispatch(e.data[i]);
-            } else if (e.inputType === 'deleteContentBackward') {
-              dispatch('Backspace');
-            }
-            replInput.value = '';
-          });
-
-          replInput.addEventListener('compositionend', function(e) {
-            if (e.data) {
-              for (var i = 0; i < e.data.length; i++) dispatch(e.data[i]);
-            }
-            replInput.value = '';
-          });
-
-          replInput.addEventListener('keydown', function(e) {
-            if (e.key === 'Enter' || e.key === 'Backspace' || e.key === 'Escape') {
-              dispatch(e.key);
-              e.preventDefault();
-            }
-          });
-        }
-
-        window._replTabActive = false;
-
-        window._focusReplInput = function() {
-          initRepl();
-          if (!replInput) return;
-          replInput.style.top = '0';
-          replInput.style.left = '0';
-          replInput.style.width = '70%';
-          replInput.style.height = '40px';
-          replInput.style.opacity = '0';
-          replInput.style.pointerEvents = 'auto';
-          replInput.focus();
-        };
-
-        window._blurReplInput = function() {
-          initRepl();
-          if (!replInput) return;
-          replInput.blur();
-          replInput.style.top = '-9999px';
-          replInput.style.left = '-9999px';
-          replInput.style.width = '1px';
-          replInput.style.height = '1px';
-          replInput.style.pointerEvents = 'none';
-        };
-
-        // Tap-to-focus REPL input (only in content zone)
-        document.addEventListener('click', function(e) {
-          if (window._replTabActive) {
-            if (zone(e.clientY) !== 'tabs') window._focusReplInput();
-            else window._blurReplInput();
-          }
-        });
-
-        // Paste support
+        // ── Paste support (dispatches pasted text as key events) ───────
         document.addEventListener('paste', function(e) {
-          if (!window._replTabActive) return;
           e.preventDefault();
           var text = (e.clipboardData || window.clipboardData).getData('text');
           if (text) {

@@ -1631,6 +1631,10 @@ struct App {
     keyboard_env: tvk::env::Env,
     // Blog navigation effect
     blog_nav_effect: Option<Effect>,
+    // Keyboard glow effect
+    keyboard_glow_effect: Option<Effect>,
+    // Track previous blog index for targeted nav effects
+    prev_blog_index: usize,
 }
 
 impl App {
@@ -1695,6 +1699,8 @@ impl App {
                 env
             },
             blog_nav_effect: None,
+            keyboard_glow_effect: None,
+            prev_blog_index: 0,
         }
     }
 
@@ -1713,13 +1719,15 @@ impl App {
                 dark,
                 EffectTimer::from_ms(500, Interpolation::QuadOut),
             ),
-            Page::Docs => fx::slide_in(
-                Motion::RightToLeft,
-                8,
-                3,
-                dark,
-                EffectTimer::from_ms(500, Interpolation::CubicOut),
-            ),
+            Page::Docs => {
+                let dsl = EffectDsl::new();
+                match dsl.compiler().compile(
+                    "fx::dissolve((300, QuadOut)).with_pattern(CheckerboardPattern::default())"
+                ) {
+                    Ok(effect) => effect,
+                    Err(_) => fx::dissolve(EffectTimer::from_ms(300, Interpolation::QuadOut)),
+                }
+            }
             Page::Blog => fx::coalesce(EffectTimer::from_ms(400, Interpolation::SineOut)),
             Page::About => fx::sweep_in(
                 Motion::UpToDown,
@@ -1735,10 +1743,6 @@ impl App {
 
     fn switch_page(&mut self, page: Page) {
         if self.page != page {
-            // Blur REPL if leaving it
-            if self.page == Page::Repl {
-                let _ = web_sys::js_sys::eval("window._replTabActive=false;window._blurReplInput&&window._blurReplInput()");
-            }
             self.page = page;
             self.focus_mode = FocusMode::Outer;
             self.tab_glow_effect = None;
@@ -1847,10 +1851,6 @@ impl App {
                     KeyCode::Enter => {
                         // Enter focused mode for the current tab
                         self.focus_mode = FocusMode::Focused;
-                        // If entering REPL focus, activate virtual keyboard
-                        if self.page == Page::Repl {
-                            let _ = web_sys::js_sys::eval("window._replTabActive=true;window._focusReplInput&&window._focusReplInput()");
-                        }
                     }
                     _ => {}
                 }
@@ -1876,10 +1876,6 @@ impl App {
                     self.focus_mode = FocusMode::Outer;
                     self.keyboard_shifted = false;
                     self.keyboard_pressed_ticks.clear();
-                    // Blur REPL virtual keyboard when leaving focus
-                    if self.page == Page::Repl {
-                        let _ = web_sys::js_sys::eval("window._replTabActive=false;window._blurReplInput&&window._blurReplInput()");
-                    }
                     return;
                 }
                 // Delegate to page-specific focused handler
@@ -1990,9 +1986,6 @@ impl App {
                 // Clicked in tab bar but not on a tab — return to outer mode
                 if self.focus_mode == FocusMode::Focused {
                     self.focus_mode = FocusMode::Outer;
-                    if self.page == Page::Repl {
-                        let _ = web_sys::js_sys::eval("window._replTabActive=false;window._blurReplInput&&window._blurReplInput()");
-                    }
                 }
                 return;
             }
@@ -2005,9 +1998,6 @@ impl App {
                 && row < self.content_area.bottom()
             {
                 self.focus_mode = FocusMode::Focused;
-                if self.page == Page::Repl {
-                    let _ = web_sys::js_sys::eval("window._replTabActive=true;window._focusReplInput&&window._focusReplInput()");
-                }
             }
 
             // Click outside content area while focused — return to outer mode
@@ -2018,9 +2008,6 @@ impl App {
                     || row >= self.content_area.bottom())
             {
                 self.focus_mode = FocusMode::Outer;
-                if self.page == Page::Repl {
-                    let _ = web_sys::js_sys::eval("window._replTabActive=false;window._blurReplInput&&window._blurReplInput()");
-                }
                 return;
             }
 
@@ -2223,23 +2210,27 @@ impl App {
             match key.code {
                 KeyCode::Up => {
                     if self.blog_index > 0 {
+                        self.prev_blog_index = self.blog_index;
                         self.blog_index -= 1;
                         self.blog_scroll = 0;
-                        let dark = Color::Rgb(8, 9, 14);
-                        self.blog_nav_effect = Some(fx::sweep_in(
-                            Motion::DownToUp, 4, 2, dark,
-                            EffectTimer::from_ms(300, Interpolation::QuadOut),
+                        // Minor fade effect on old title (fade out) and new title (fade in)
+                        self.blog_nav_effect = Some(fx::fade_from(
+                            Color::Rgb(60, 65, 75),
+                            Color::Rgb(8, 9, 14),
+                            EffectTimer::from_ms(250, Interpolation::QuadOut),
                         ));
                     }
                 }
                 KeyCode::Down => {
                     if self.blog_index + 1 < BLOG_ENTRIES.len() {
+                        self.prev_blog_index = self.blog_index;
                         self.blog_index += 1;
                         self.blog_scroll = 0;
-                        let dark = Color::Rgb(8, 9, 14);
-                        self.blog_nav_effect = Some(fx::sweep_in(
-                            Motion::UpToDown, 4, 2, dark,
-                            EffectTimer::from_ms(300, Interpolation::QuadOut),
+                        // Minor fade effect on old title (fade out) and new title (fade in)
+                        self.blog_nav_effect = Some(fx::fade_from(
+                            Color::Rgb(60, 65, 75),
+                            Color::Rgb(8, 9, 14),
+                            EffectTimer::from_ms(250, Interpolation::QuadOut),
                         ));
                     }
                 }
@@ -2497,10 +2488,27 @@ impl App {
             Page::Effects => self.render_effects(frame, content_area),
         }
 
-        // Process blog navigation effect
+        // Process blog navigation effect — apply only to the affected title areas
         if let Some(ref mut effect) = self.blog_nav_effect {
             if effect.running() {
-                frame.render_effect(effect, content_area, elapsed);
+                // Apply effect only to the new and previous blog title areas
+                if let Some(new_area) = self.blog_item_areas.get(self.blog_index).copied() {
+                    if new_area.width > 0 {
+                        frame.render_effect(effect, new_area, elapsed);
+                    }
+                }
+                if self.prev_blog_index != self.blog_index {
+                    if let Some(old_area) = self.blog_item_areas.get(self.prev_blog_index).copied() {
+                        if old_area.width > 0 {
+                            // Subtle inverse HSL shift to dim the old title (negative hue/sat/light)
+                            let mut reverse = fx::hsl_shift_fg(
+                                [-10.0, -5.0, -8.0],
+                                (250, Interpolation::QuadOut),
+                            );
+                            frame.render_effect(&mut reverse, old_area, elapsed);
+                        }
+                    }
+                }
             }
         }
         if self.blog_nav_effect.as_ref().is_some_and(|e| !e.running()) {
@@ -2867,12 +2875,18 @@ impl App {
             lines.push(Line::styled(l, Style::default().fg(Color::Rgb(170, 175, 185))));
         }
 
+        let home_hint = if self.focus_mode == FocusMode::Focused {
+            "Esc: unfocus │ ↑↓: scroll │ ←→: tabs"
+        } else {
+            "Enter/tap: focus │ ←→: tabs │ ↑↓: scroll"
+        };
+
         let mut scroll = self.home_scroll;
         self.render_scrollable_content(
             frame, area, lines, &mut scroll,
             None,
             None,
-            "swipe ↕ ↔",
+            home_hint,
         );
         self.home_scroll = scroll;
     }
@@ -2892,12 +2906,18 @@ impl App {
             (area, None)
         };
 
+        let hint_text = if show_keyboard {
+            "│ Esc: unfocus │ ←→: cursor │ type + ↵ │"
+        } else {
+            "│ Enter/tap: focus │ ←→: tabs │ ↑↓: scroll │"
+        };
+
         let block = Block::bordered()
             .border_type(BorderType::Rounded)
             .border_style(Color::Rgb(55, 60, 70))
             .title(" Grift REPL ".bold().fg(Color::Rgb(184, 115, 51)))
             .title_bottom(
-                Line::from("│ type + Enter │")
+                Line::from(hint_text)
                     .alignment(Alignment::Center)
                     .style(Style::default().fg(Color::Rgb(55, 60, 70))),
             );
@@ -2995,6 +3015,19 @@ impl App {
                 &self.keyboard_layout,
                 &self.keyboard_env,
             );
+
+            // Repeating dark bold glow effect on the keyboard area
+            let elapsed = self.frame_elapsed;
+            if self.keyboard_glow_effect.is_none() {
+                let glow = fx::hsl_shift_fg(
+                    [6.0, 8.0, 5.0],
+                    (2400, Interpolation::SineIn),
+                );
+                self.keyboard_glow_effect = Some(fx::repeating(fx::ping_pong(glow)));
+            }
+            if let Some(ref mut glow) = self.keyboard_glow_effect {
+                frame.render_effect(glow, kbd_area, elapsed);
+            }
         } else {
             self.keyboard_button_areas.clear();
         }
@@ -3090,12 +3123,18 @@ impl App {
             }
         }
 
+        let docs_hint = if self.focus_mode == FocusMode::Focused {
+            "Esc: unfocus │ ↑↓: scroll"
+        } else {
+            "Enter/tap: focus │ ←→: tabs │ ↑↓: scroll"
+        };
+
         let mut scroll = self.doc_scroll;
         self.render_scrollable_content(
             frame, area, lines, &mut scroll,
             Some(" Documentation ".bold().fg(Color::Rgb(200, 200, 210)).into()),
             Some(" Grift Language Reference ".bold().fg(Color::Rgb(184, 115, 51)).into()),
-            "swipe ↕",
+            docs_hint,
         );
         self.doc_scroll = scroll;
     }
@@ -3162,7 +3201,12 @@ impl App {
                 // Render vertical scrollbar on blog post content
                 self.render_vertical_scrollbar(frame, scroll_area, self.blog_scroll, max_scroll);
 
-                self.render_scroll_arrows(frame, nav_bar, self.blog_scroll, max_scroll, "swipe ↕");
+                self.render_scroll_arrows(frame, nav_bar, self.blog_scroll, max_scroll,
+                    if self.focus_mode == FocusMode::Focused {
+                        "Esc/←: back │ ↑↓: scroll"
+                    } else {
+                        "Enter/tap: focus │ ←→: tabs"
+                    });
             }
             return;
         }
@@ -3199,12 +3243,18 @@ impl App {
             lines.push(Line::from(""));
         }
 
+        let blog_list_hint = if self.focus_mode == FocusMode::Focused {
+            "Esc: unfocus │ ↑↓: select │ Enter/→: read"
+        } else {
+            "Enter/tap: focus │ ←→: tabs │ tap post"
+        };
+
         let mut scroll = self.blog_scroll;
         let scroll_area = self.render_scrollable_content(
             frame, area, lines, &mut scroll,
             Some(" Blog ".bold().fg(Color::Rgb(200, 200, 210)).into()),
             Some(" Posts — tap to read ".bold().fg(Color::Rgb(184, 115, 51)).into()),
-            "swipe ↕ │ tap a post",
+            blog_list_hint,
         );
         self.blog_scroll = scroll;
 
@@ -3332,13 +3382,19 @@ impl App {
             link_visual_rows.push(visual_row);
         }
 
+        let about_hint = if self.focus_mode == FocusMode::Focused {
+            "Esc: unfocus │ ↑↓: scroll │ tap links"
+        } else {
+            "Enter/tap: focus │ ←→: tabs │ tap links"
+        };
+
         // Use render_scrollable_content which handles the bordered block, scroll, and nav bar
         let mut scroll = self.about_scroll;
         self.render_scrollable_content(
             frame, area, lines, &mut scroll,
             Some(" About ".bold().fg(Color::Rgb(207, 181, 59)).into()),
             Some(" gold.silver.copper ".bold().fg(Color::Rgb(184, 115, 51)).into()),
-            "swipe ↕ │ tap links",
+            about_hint,
         );
         self.about_scroll = scroll;
 
@@ -3756,12 +3812,17 @@ impl App {
         }
 
         // ── nav bar ─────────────────────────────────────────────────────
+        let effects_hint = if self.focus_mode == FocusMode::Focused {
+            "Esc: unfocus │ ↑↓: scroll"
+        } else {
+            "Enter/tap: focus │ ←→: tabs │ ↑↓: scroll"
+        };
         self.render_scroll_arrows(
             frame,
             nav_bar,
             self.dsl_effects_scroll,
             max_scroll,
-            "swipe ↕ │ ◄► page",
+            effects_hint,
         );
     }
 }
