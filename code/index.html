@@ -39,7 +39,7 @@
         // Zone detection: track touch start position relative to screen
         var touchZone = 'content'; // 'tabs' or 'content'
         var tabZoneThreshold = 0.12; // top 12% of screen is tab zone
-        var replInputZoneThreshold = 0.75; // bottom 25% of screen is REPL input zone
+        // (replInputZoneThreshold removed — input is now at top)
 
         // Prevent context menu on long press for native feel
         document.addEventListener('contextmenu', function(e) {
@@ -173,45 +173,6 @@
           lastTap = now;
         }, { passive: false });
 
-        // Dynamic window resize: force canvas to recalculate on resize/orientation change
-        function handleResize() {
-          var c = getCanvas();
-          if (c) {
-            // Force canvas CSS dimensions to match viewport
-            var w = window.innerWidth;
-            var h = window.innerHeight;
-            c.style.width = w + 'px';
-            c.style.height = h + 'px';
-          }
-          // Also resize body to match
-          document.body.style.width = window.innerWidth + 'px';
-          document.body.style.height = window.innerHeight + 'px';
-        }
-        window.addEventListener('resize', handleResize);
-        window.addEventListener('orientationchange', function() {
-          // Delay to let the browser settle after orientation change
-          setTimeout(handleResize, 100);
-          setTimeout(handleResize, 300);
-        });
-
-        // Visual viewport API: handle virtual keyboard appearance
-        if (window.visualViewport) {
-          window.visualViewport.addEventListener('resize', function() {
-            var vv = window.visualViewport;
-            var c = getCanvas();
-            if (c) {
-              c.style.height = vv.height + 'px';
-              c.style.width = vv.width + 'px';
-            }
-            document.body.style.height = vv.height + 'px';
-            document.body.style.width = vv.width + 'px';
-          });
-          window.visualViewport.addEventListener('scroll', function() {
-            var vv = window.visualViewport;
-            document.body.style.transform = 'translateY(' + (-vv.offsetTop) + 'px)';
-          });
-        }
-
         // REPL virtual keyboard support: focus hidden input on tap to open keyboard
         // Expose a global function that Rust can call to focus/blur the hidden input
         var replInput = null;
@@ -274,16 +235,12 @@
           }
         };
 
-        // Tap-to-focus: when user taps in the lower portion of the screen while on REPL,
+        // Tap-to-focus: when user taps while on REPL,
         // focus the hidden input to bring up virtual keyboard
         document.addEventListener('click', function(e) {
-          var winH = window.innerHeight || 600;
-          if (e.clientY > winH * replInputZoneThreshold) {
-            // Check if the REPL tab might be active by seeing if hidden input should focus
             if (window._replTabActive) {
               window._focusReplInput();
             }
-          }
         });
         window._replTabActive = false;
       })();

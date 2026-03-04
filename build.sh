@@ -6,7 +6,7 @@ CODE_DIR="$REPO_ROOT/code"
 
 echo "==> Building grift-site with trunk..."
 cd "$CODE_DIR"
-trunk build --release --public-url ./
+trunk build --release --public-url ./ 2> >(grep -v 'templates/simple' >&2)
 
 echo "==> Removing old build artifacts from repo root..."
 rm -f "$REPO_ROOT"/*.js "$REPO_ROOT"/*.wasm "$REPO_ROOT"/style-*.css "$REPO_ROOT/index.html"
