@@ -2314,7 +2314,7 @@ impl App {
                     let phase_offset = (x as f64 - tab_left as f64) * 0.18;
 
                     // Slow breathing: sin wave with ~6s period per cycle
-                    let breath = ((t * 1.05 + phase_offset).sin() * 0.5 + 0.5) as f64;
+                    let breath = (t * 1.05 + phase_offset).sin() * 0.5 + 0.5;
 
                     // Base darkening: center gets light dimming, edges get heavy dimming
                     // Range: center ~0.15, edges ~0.75 (dim & tarnished)
