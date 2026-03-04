@@ -1585,6 +1585,9 @@ struct App {
     // Clickable area tracking
     tab_area: Rect,
     tab_rects: Vec<Rect>,
+    tab_page_indices: Vec<usize>,
+    center_tab_idx: usize,
+    carousel_effect: Option<Effect>,
     link_areas: Vec<Rect>,
     blog_item_areas: Vec<Rect>,
     blog_back_area: Rect,
@@ -1594,8 +1597,6 @@ struct App {
     blog_content_area: Rect,
     // Blog scroll
     blog_scroll: usize,
-    // Tab horizontal scroll
-    tab_h_scroll: usize,
     // Button effects
     btn_effects: Vec<(Rect, Effect)>,
     // Tab glow effect
@@ -1642,13 +1643,15 @@ impl App {
             cursor_blink_tick: 0,
             tab_area: Rect::default(),
             tab_rects: Vec::new(),
+            tab_page_indices: Vec::new(),
+            center_tab_idx: 0,
+            carousel_effect: None,
             link_areas: Vec::new(),
             blog_item_areas: Vec::new(),
             blog_back_area: Rect::default(),
             content_area: Rect::default(),
             blog_list_area: Rect::default(),
             blog_content_area: Rect::default(),
-            tab_h_scroll: 0,
             btn_effects: Vec::new(),
             tab_glow_effect: None,
             tab_hover_effects: Vec::new(),
@@ -1711,6 +1714,30 @@ impl App {
             self.blog_list_area = Rect::default();
             self.blog_content_area = Rect::default();
             self.trigger_transition();
+            // Carousel transition: combination of slide, sweep, and fade
+            let dark = Color::Rgb(8, 9, 14);
+            let carousel_fx = fx::parallel(&[
+                fx::slide_in(
+                    Motion::LeftToRight,
+                    4,
+                    2,
+                    dark,
+                    EffectTimer::from_ms(350, Interpolation::QuadOut),
+                ),
+                fx::sweep_in(
+                    Motion::LeftToRight,
+                    6,
+                    2,
+                    dark,
+                    EffectTimer::from_ms(300, Interpolation::SineOut),
+                ),
+                fx::fade_from(
+                    dark,
+                    dark,
+                    EffectTimer::from_ms(300, Interpolation::CubicOut),
+                ),
+            ]);
+            self.carousel_effect = Some(carousel_fx);
             // Focus/blur hidden input for REPL virtual keyboard
             if page == Page::Repl {
                 let _ = web_sys::js_sys::eval("window._replTabActive=true;window._focusReplInput&&window._focusReplInput()");
@@ -1774,25 +1801,6 @@ impl App {
     }
 
     fn handle_key_event(&mut self, key: KeyEvent) {
-        // If hover is in tab area, horizontal keys scroll tabs
-        let in_tab_area = self.tab_area.width > 0
-            && self.hover_row >= self.tab_area.y
-            && self.hover_row < self.tab_area.bottom();
-
-        if in_tab_area {
-            match key.code {
-                KeyCode::Left => {
-                    self.tab_h_scroll = self.tab_h_scroll.saturating_sub(2);
-                    return;
-                }
-                KeyCode::Right => {
-                    self.tab_h_scroll += 2;
-                    return;
-                }
-                _ => {}
-            }
-        }
-
         match self.page {
             Page::Repl => self.handle_repl_event(key),
             Page::Docs => self.handle_scroll_event(key, ScrollTarget::Docs),
@@ -1837,9 +1845,9 @@ impl App {
                         && row >= tab_rect.y
                         && row < tab_rect.bottom()
                     {
-                        if i < Page::ALL.len() {
+                        if let Some(&page_idx) = self.tab_page_indices.get(i) {
                             self.trigger_btn_effect(*tab_rect);
-                            self.switch_page(Page::ALL[i]);
+                            self.switch_page(Page::ALL[page_idx]);
                             return;
                         }
                     }
@@ -2129,7 +2137,7 @@ impl App {
         self.render_tabs(frame, tab_area);
 
         // Render fire glow effect on the selected tab
-        if let Some(selected_tab_rect) = self.tab_rects.get(self.page.index()).copied() {
+        if let Some(selected_tab_rect) = self.tab_rects.get(self.center_tab_idx).copied() {
             if self.tab_glow_effect.is_none() {
                 // Subtle warm copper/gold hsl shift
                 let fg_shift = [8.0, 10.0, 6.0];
@@ -2176,6 +2184,16 @@ impl App {
                 false
             }
         });
+
+        // Process carousel transition effect
+        if let Some(ref mut effect) = self.carousel_effect {
+            if effect.running() {
+                frame.render_effect(effect, tab_area, elapsed);
+            }
+        }
+        if self.carousel_effect.as_ref().is_some_and(|e| !e.running()) {
+            self.carousel_effect = None;
+        }
 
         match self.page {
             Page::Home => self.render_home(frame, content_area),
@@ -2307,98 +2325,155 @@ impl App {
     fn render_tabs(&mut self, frame: &mut Frame, area: Rect) {
         self.tab_area = area;
 
-        // Compute individual tab click areas from the Tabs widget layout.
-        let divider_width: u16 = 1;
-        let pad: u16 = 1; // space on each side of the title
+        let pad: u16 = 1;
         let inner_x = area.x + 1; // after left border
-        let tab_row = area.y + 1;
-
-        // First pass: compute tab positions relative to line start
-        let mut tab_offsets: Vec<(u16, u16)> = Vec::new(); // (offset_from_line_start, width)
-        let mut line_pos: u16 = 0;
-        for (i, p) in Page::ALL.iter().enumerate() {
-            if i > 0 {
-                line_pos += divider_width;
-            }
-            let padded_len = p.title().len() as u16 + pad * 2;
-            tab_offsets.push((line_pos, padded_len));
-            line_pos += padded_len;
-        }
-        let total_line_width = line_pos;
-
-        // Clamp horizontal scroll
         let inner_width = area.width.saturating_sub(2);
-        let max_h_scroll = total_line_width.saturating_sub(inner_width) as usize;
-        self.tab_h_scroll = self.tab_h_scroll.min(max_h_scroll);
+        let tab_row = area.y + 1;
+        let divider_width: u16 = 1;
 
-        // Compute center offset (matching Paragraph's Alignment::Center behavior)
-        let center_offset = if inner_width > total_line_width {
-            (inner_width - total_line_width) / 2
+        let num_pages = Page::ALL.len();
+        let selected_idx = self.page.index();
+
+        // Compute padded widths for each page
+        let tab_widths: Vec<u16> = Page::ALL
+            .iter()
+            .map(|p| p.title().len() as u16 + pad * 2)
+            .collect();
+
+        // Calculate center position for selected tab
+        let selected_width = tab_widths[selected_idx];
+        let center_x = inner_x as i32 + (inner_width as i32 - selected_width as i32) / 2;
+
+        // Collect carousel entries: (page_idx, x_position, width, is_center)
+        let mut entries: Vec<(usize, i32, u16, bool)> = Vec::new();
+
+        // Center entry
+        entries.push((selected_idx, center_x, selected_width, true));
+
+        // Fill rightward
+        let right_edge = (inner_x + inner_width) as i32;
+        let mut cursor = center_x + selected_width as i32 + divider_width as i32;
+        let mut idx = (selected_idx + 1) % num_pages;
+        while cursor < right_edge {
+            let w = tab_widths[idx];
+            entries.push((idx, cursor, w, false));
+            cursor += w as i32 + divider_width as i32;
+            idx = (idx + 1) % num_pages;
+        }
+
+        // Fill leftward
+        idx = if selected_idx == 0 {
+            num_pages - 1
         } else {
-            0
+            selected_idx - 1
         };
+        cursor = center_x - divider_width as i32;
+        let max_left_iters = num_pages + 1;
+        for _ in 0..max_left_iters {
+            let w = tab_widths[idx];
+            let tab_start = cursor - w as i32;
+            entries.push((idx, tab_start, w, false));
+            if tab_start <= inner_x as i32 {
+                break;
+            }
+            cursor = tab_start - divider_width as i32;
+            idx = if idx == 0 { num_pages - 1 } else { idx - 1 };
+        }
 
-        // Build final tab_rects with center offset and scroll applied, clipped to visible area
-        let visible_left = inner_x;
-        let visible_right = inner_x.saturating_add(inner_width);
+        // Sort entries by x position for consistent rendering
+        entries.sort_by_key(|e| e.1);
+
+        // Render the block border
+        let block = Block::bordered()
+            .border_type(BorderType::Rounded)
+            .border_style(Color::Rgb(55, 60, 70))
+            .title(Line::from(" GRIFT.RS ").alignment(Alignment::Center))
+            .title_style(Style::default().fg(Color::Rgb(207, 181, 59)).bold());
+        frame.render_widget(block, area);
+
+        // Build tab_rects, tab_page_indices, and render text directly into buffer
+        let vis_left = inner_x;
+        let vis_right = inner_x + inner_width;
+
         self.tab_rects.clear();
-        for (offset, width) in &tab_offsets {
-            let raw_x = (inner_x as i32)
-                + (center_offset as i32)
-                + (*offset as i32)
-                - (self.tab_h_scroll as i32);
-            let raw_right = raw_x + (*width as i32);
-            let clipped_x = (raw_x.max(visible_left as i32) as u16).min(visible_right);
-            let clipped_right = (raw_right.max(visible_left as i32) as u16).min(visible_right);
+        self.tab_page_indices.clear();
+        self.center_tab_idx = 0;
+
+        let buf = frame.buffer_mut();
+
+        for &(page_idx, x, width, is_center) in &entries {
+            let raw_x = x;
+            let raw_right = x + width as i32;
+            let clipped_x = raw_x.max(vis_left as i32) as u16;
+            let clipped_right = (raw_right.min(vis_right as i32) as u16).min(vis_right);
+
             if clipped_right > clipped_x {
-                self.tab_rects.push(Rect::new(clipped_x, tab_row, clipped_right - clipped_x, 1));
-            } else {
-                // Tab is fully scrolled out of view — push empty rect to preserve indexing
-                self.tab_rects.push(Rect::default());
+                let rect_idx = self.tab_rects.len();
+                self.tab_rects
+                    .push(Rect::new(clipped_x, tab_row, clipped_right - clipped_x, 1));
+                self.tab_page_indices.push(page_idx);
+
+                if is_center {
+                    self.center_tab_idx = rect_idx;
+                }
+
+                // Determine style
+                let hovered = self.is_hovered(Rect::new(
+                    clipped_x,
+                    tab_row,
+                    clipped_right - clipped_x,
+                    1,
+                ));
+                let fg = if is_center {
+                    Color::Rgb(230, 232, 240)
+                } else if hovered {
+                    Color::Rgb(255, 255, 255)
+                } else {
+                    Color::Rgb(140, 145, 155)
+                };
+                let style = if is_center {
+                    Style::default()
+                        .fg(fg)
+                        .bold()
+                        .add_modifier(Modifier::REVERSED)
+                } else if hovered {
+                    Style::default().fg(fg).bold()
+                } else {
+                    Style::default().fg(fg)
+                };
+
+                // Write tab text into buffer, handling clipping
+                let page = Page::ALL[page_idx];
+                let padded_title = format!(" {} ", page.title());
+                let chars: Vec<char> = padded_title.chars().collect();
+                let char_offset = (clipped_x as i32 - raw_x).max(0) as usize;
+
+                for (ci, &ch) in chars.iter().enumerate().skip(char_offset) {
+                    let cx = raw_x + ci as i32;
+                    if cx < vis_left as i32 {
+                        continue;
+                    }
+                    if cx >= vis_right as i32 {
+                        break;
+                    }
+                    let pos = Position::new(cx as u16, tab_row);
+                    if let Some(cell) = buf.cell_mut(pos) {
+                        cell.set_char(ch);
+                        cell.set_style(style);
+                    }
+                }
+            }
+
+            // Render divider after this tab
+            let div_x = raw_right;
+            if div_x >= vis_left as i32 && div_x < vis_right as i32 {
+                let pos = Position::new(div_x as u16, tab_row);
+                if let Some(cell) = buf.cell_mut(pos) {
+                    cell.set_char('│');
+                    cell.set_style(Style::default().fg(Color::Rgb(100, 105, 115)));
+                }
             }
         }
-
-        let mut spans: Vec<Span> = Vec::new();
-        for (i, p) in Page::ALL.iter().enumerate() {
-            if i > 0 {
-                spans.push(Span::styled("│", Style::default().fg(Color::Rgb(100, 105, 115))));
-            }
-            let hovered = self.tab_rects.get(i).is_some_and(|r| self.is_hovered(*r));
-            let is_selected = self.page.index() == i;
-            let fg = if is_selected {
-                Color::Rgb(230, 232, 240)
-            } else if hovered {
-                Color::Rgb(255, 255, 255)
-            } else {
-                Color::Rgb(140, 145, 155)
-            };
-            let style = if is_selected {
-                Style::default().fg(fg).bold().add_modifier(Modifier::REVERSED)
-            } else if hovered {
-                Style::default().fg(fg).bold()
-            } else {
-                Style::default().fg(fg)
-            };
-            let padded_title = format!(" {} ", p.title());
-            spans.push(Span::styled(padded_title, style));
-        }
-
-        let tab_line = Line::from(spans);
-        let tab_paragraph = Paragraph::new(tab_line)
-            .alignment(Alignment::Center)
-            .scroll((0, self.tab_h_scroll as u16))
-            .block(
-                Block::bordered()
-                    .border_type(BorderType::Rounded)
-                    .border_style(Color::Rgb(55, 60, 70))
-                    .title(Line::from(" GRIFT.RS ").alignment(Alignment::Center))
-                    .title_style(Style::default().fg(Color::Rgb(207, 181, 59)).bold()),
-            );
-
-        frame.render_widget(tab_paragraph, area);
-
-        // Render horizontal scrollbar on the tab bar bottom border if tabs overflow
-        self.render_horizontal_scrollbar(frame, area, self.tab_h_scroll, max_h_scroll);
     }
 
     fn render_home(&mut self, frame: &mut Frame, area: Rect) {
@@ -3146,39 +3221,6 @@ impl App {
                 } else {
                     // Track: subtle indicator
                     cell.set_char('│');
-                    cell.set_fg(Color::Rgb(35, 38, 46));
-                }
-            }
-        }
-    }
-
-    /// Render a horizontal scrollbar on the bottom border of the given area.
-    /// Only renders if the content overflows (max_h_scroll > 0).
-    fn render_horizontal_scrollbar(&self, frame: &mut Frame, area: Rect, scroll: usize, max_scroll: usize) {
-        if max_scroll == 0 || area.width < 4 {
-            return; // Content fits — no scrollbar needed
-        }
-        let track_width = area.width.saturating_sub(2) as usize; // exclude left/right border
-        if track_width == 0 {
-            return;
-        }
-        let thumb_size = (track_width * track_width / (track_width + max_scroll)).max(1);
-        let thumb_pos = if max_scroll > 0 {
-            scroll * (track_width - thumb_size) / max_scroll
-        } else {
-            0
-        };
-        let bar_y = area.bottom().saturating_sub(1); // bottom border row
-        let buf = frame.buffer_mut();
-        for i in 0..track_width {
-            let x = area.x + 1 + i as u16; // skip left border
-            let pos = Position::new(x, bar_y);
-            if let Some(cell) = buf.cell_mut(pos) {
-                if i >= thumb_pos && i < thumb_pos + thumb_size {
-                    cell.set_char('━');
-                    cell.set_fg(Color::Rgb(140, 145, 160));
-                } else {
-                    cell.set_char('─');
                     cell.set_fg(Color::Rgb(35, 38, 46));
                 }
             }
