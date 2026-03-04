@@ -1066,11 +1066,9 @@ impl App {
     fn render_tabs(&mut self, frame: &mut Frame, area: Rect) {
         self.tab_area = area;
 
-        let is_narrow = true;
-
         // Compute individual tab click areas from the Tabs widget layout.
-        // Use narrower dividers and less padding on mobile for compact layout.
-        let divider_width: u16 = if is_narrow { 1 } else { 3 };
+        // Compact dividers with no extra padding for unified layout.
+        let divider_width: u16 = 1;
         let inner_x = area.x + 1; // after left border
         let tab_row = area.y + 1;
 
@@ -1081,15 +1079,9 @@ impl App {
             if i > 0 {
                 line_pos += divider_width;
             }
-            if !is_narrow {
-                line_pos += 1; // left space padding
-            }
             let title_len = p.title().len() as u16;
             tab_offsets.push((line_pos, title_len));
             line_pos += title_len;
-            if !is_narrow {
-                line_pos += 1; // right space padding
-            }
         }
         let total_line_width = line_pos;
 
@@ -1115,12 +1107,10 @@ impl App {
             self.tab_rects.push(Rect::new(x, tab_row, *width, 1));
         }
 
-        let divider_str = if is_narrow { "│" } else { " │ " };
-
         let mut spans: Vec<Span> = Vec::new();
         for (i, p) in Page::ALL.iter().enumerate() {
             if i > 0 {
-                spans.push(Span::styled(divider_str, Style::default().fg(Color::Rgb(100, 105, 115))));
+                spans.push(Span::styled("│", Style::default().fg(Color::Rgb(100, 105, 115))));
             }
             let hovered = self.tab_rects.get(i).is_some_and(|r| self.is_hovered(*r));
             let is_selected = self.page.index() == i;
@@ -1138,13 +1128,7 @@ impl App {
             } else {
                 Style::default().fg(fg)
             };
-            if !is_narrow {
-                spans.push(Span::styled(" ", Style::default()));
-            }
             spans.push(Span::styled(p.title(), style));
-            if !is_narrow {
-                spans.push(Span::styled(" ", Style::default()));
-            }
         }
 
         let tab_line = Line::from(spans);
