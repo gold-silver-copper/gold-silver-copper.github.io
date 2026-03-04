@@ -1,28 +1,19 @@
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
-    />
-    <meta name="theme-color" content="#08090e" />
-    <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <meta name="mobile-web-app-capable" content="yes" />
-    <link
-      rel="stylesheet"
-      href="https://cdnjs.cloudflare.com/ajax/libs/firacode/6.2.0/fira_code.min.css"
-    />
-    <title>GRIFT.RS – Personal Website & Grift Demo</title>
-    <link rel="stylesheet" href="./style-83dfb1de860d8fe.css" integrity="sha384-nDZiS13PYLP5ARtmUG9DB91FJ9P6VopMjWiID4W7siD16IXlT5dWmZOQYinP7fDQ"/>
-  <link rel="modulepreload" href="./grift-site-5564abd34548b2bd.js" crossorigin="anonymous" integrity="sha384-ZPkyLTCYGvI3GiWwHFlse1zqib+VrNyAwPSuM5Q/u9BHic1I5kwbnxuq7JbRLGHf"><link rel="preload" href="./grift-site-5564abd34548b2bd_bg.wasm" crossorigin="anonymous" integrity="sha384-1XKT8ckt8KXmpKHVi40b2Ewl2X1z3/VfgsF5C3B50I7wXm3qqpVZkRzqUxhN7tqh" as="fetch" type="application/wasm"></head>
+<!DOCTYPE html><html lang="en"><head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="theme-color" content="#08090e">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="mobile-web-app-capable" content="yes">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/firacode/6.2.0/fira_code.min.css">
+    <title>GRIFT.RS – Personal Website &amp; Grift Demo</title>
+    <link rel="stylesheet" href="/./style-83dfb1de860d8fe.css">
+  
+<link rel="preload" href="/./grift-site-a0c5e852389f476_bg.wasm" as="fetch" type="application/wasm" crossorigin="">
+<link rel="modulepreload" href="/./grift-site-a0c5e852389f476.js"></head>
   <body>
     <!-- Hidden input for mobile virtual keyboard (REPL) -->
-    <input id="repl-keyboard-input" type="text"
-      style="position:fixed;opacity:0;width:1px;height:1px;top:-9999px;left:-9999px;pointer-events:none;"
-      autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
-      inputmode="text" enterkeyhint="send" />
+    <input id="repl-keyboard-input" type="text" style="position:fixed;opacity:0;width:1px;height:1px;top:-9999px;left:-9999px;pointer-events:none;" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" inputmode="text" enterkeyhint="send">
 
     <script>
       // Mobile interaction support: swipe gestures, mousewheel, momentum scrolling, zone-aware scrolling
@@ -315,15 +306,5 @@
       })();
     </script>
   
-<script type="module">
-import init, * as bindings from './grift-site-5564abd34548b2bd.js';
-const wasm = await init({ module_or_path: './grift-site-5564abd34548b2bd_bg.wasm' });
 
-
-window.wasmBindings = bindings;
-
-
-dispatchEvent(new CustomEvent("TrunkApplicationStarted", {detail: {wasm}}));
-
-</script></body>
-</html>
+<script type="module">import init from '/./grift-site-a0c5e852389f476.js';init('/./grift-site-a0c5e852389f476_bg.wasm');</script></body></html>
