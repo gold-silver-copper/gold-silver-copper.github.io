@@ -302,8 +302,8 @@
             e.preventDefault();
             var text = (e.clipboardData || window.clipboardData).getData('text');
             if (text) {
-              // Strip newlines — REPL is single-line input
-              text = text.replace(/[\r\n]+/g, ' ').trim();
+              // Strip newlines and normalize whitespace — REPL is single-line input
+              text = text.replace(/[\r\n]+/g, ' ').replace(/\s+/g, ' ').trim();
               for (var i = 0; i < text.length; i++) {
                 dispatchKey(text[i]);
               }
