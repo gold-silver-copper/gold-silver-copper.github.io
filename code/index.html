@@ -13,10 +13,12 @@
     <link rel="manifest" href="./manifest.json" />
     <link data-trunk rel="copy-file" href="manifest.json" />
     <link data-trunk rel="copy-file" href="sw.js" />
-    <link
-      rel="stylesheet"
-      href="https://cdnjs.cloudflare.com/ajax/libs/firacode/6.2.0/fira_code.min.css"
-    />
+    <link data-trunk rel="copy-dir" href="../fonts" />
+    <link data-trunk rel="copy-file" href="../icon-192.png" />
+    <link data-trunk rel="copy-file" href="../icon-512.png" />
+    <link rel="icon" type="image/png" sizes="192x192" href="./icon-192.png" />
+    <link rel="apple-touch-icon" href="./icon-192.png" />
+    <link rel="stylesheet" href="./fonts/firacode.css" />
     <title>GRIFT.RS – Personal Website & Grift Demo</title>
     <link data-trunk rel="css" href="assets/style.css" />
   </head>
@@ -38,32 +40,6 @@
       // forwarded for hover tracking and confirmed taps (never during
       // swipes), preventing phantom clicks on mobile.
       // ═══════════════════════════════════════════════════════════════════
-
-      // Disable WebGL2 anti-aliasing before ratzilla creates its context
-      // and force NEAREST texture filtering to prevent blurry text on mobile
-      (function() {
-        var orig = HTMLCanvasElement.prototype.getContext;
-        HTMLCanvasElement.prototype.getContext = function(type, attrs) {
-          if (type === 'webgl2' || type === 'webgl') {
-            attrs = Object.assign({}, attrs || {});
-            attrs.antialias = false;
-          }
-          var ctx = orig.call(this, type, attrs);
-          // Force nearest-neighbor texture filtering on WebGL contexts
-          if (ctx && (type === 'webgl2' || type === 'webgl')) {
-            var origTexImage2D = ctx.texImage2D.bind(ctx);
-            var origTexParam = ctx.texParameteri.bind(ctx);
-            // Monkey-patch texImage2D to force NEAREST filtering after each texture upload
-            ctx.texImage2D = function() {
-              var result = origTexImage2D.apply(this, arguments);
-              origTexParam(ctx.TEXTURE_2D, ctx.TEXTURE_MIN_FILTER, ctx.NEAREST);
-              origTexParam(ctx.TEXTURE_2D, ctx.TEXTURE_MAG_FILTER, ctx.NEAREST);
-              return result;
-            };
-          }
-          return ctx;
-        };
-      })();
 
       // Prevent context menu on long press for native feel
       document.addEventListener('contextmenu', function(e) { e.preventDefault(); });
@@ -114,10 +90,6 @@
         }
 
         // ── Gesture state machine ──────────────────────────────────────
-        // States: IDLE → TOUCHING → SWIPING → DOUBLE_TAP_DRAGGING
-        // TOUCHING:            finger is down, hasn't moved past threshold
-        // SWIPING:             finger moved past threshold — suppress click on end
-        // DOUBLE_TAP_DRAGGING: double-tap-then-drag — simulates click-and-hold (selection)
         var gesture = {
           state:      'IDLE',
           zone:       'content',
@@ -126,7 +98,6 @@
           lastTime:   0,
           velocityY:  0,
           momentumId: null,
-          // Double-tap-then-drag tracking
           lastTapTime:   0,
           lastTapX:      0,
           lastTapY:      0,
@@ -137,7 +108,6 @@
             var dt  = now - this.lastTapTime;
             var tapDx = Math.abs(touch.screenX - this.lastTapX);
             var tapDy = Math.abs(touch.screenY - this.lastTapY);
-            // Detect double-tap: second tap within DOUBLE_TAP_MS and near previous tap
             this.isDoubleTap = (dt < CFG.DOUBLE_TAP_MS && tapDx < 30 && tapDy < 30);
 
             this.state    = 'TOUCHING';
@@ -151,10 +121,8 @@
             this.cancelMomentum();
 
             if (this.isDoubleTap) {
-              // Immediately emit mousedown to begin click-and-hold simulation
               emitMouse('mousedown', touch.clientX, touch.clientY);
             } else {
-              // Forward mousemove for hover tracking (not mousedown — that waits for tap confirm)
               emitMouse('mousemove', touch.clientX, touch.clientY);
             }
           },
@@ -166,38 +134,28 @@
             var dx  = sx - this.lastX;
             var dy  = sy - this.lastY;
 
-            // Promote to appropriate dragging state once movement exceeds threshold
             if (this.state === 'TOUCHING') {
               var totalDx = sx - this.startX;
               var totalDy = sy - this.startY;
               if (Math.abs(totalDx) > CFG.SWIPE_THRESHOLD || Math.abs(totalDy) > CFG.SWIPE_THRESHOLD) {
-                if (this.isDoubleTap) {
-                  // Double-tap-then-drag: enter click-and-hold drag mode (selection)
-                  this.state = 'DOUBLE_TAP_DRAGGING';
-                } else {
-                  this.state = 'SWIPING';
-                }
+                this.state = this.isDoubleTap ? 'DOUBLE_TAP_DRAGGING' : 'SWIPING';
               }
             }
 
             if (dt > 0) this.velocityY = dy / dt;
 
             if (this.state === 'DOUBLE_TAP_DRAGGING') {
-              // Forward mousemove with button held for selection drag behavior
               emitMouse('mousemove', touch.clientX, touch.clientY);
             } else {
-              // Forward mousemove for hover tracking
               emitMouse('mousemove', touch.clientX, touch.clientY);
 
               if (this.zone === 'tabs') {
-                // Horizontal movement scrolls tabs
                 if (Math.abs(dx) > CFG.SCROLL_STEP) {
                   dispatch(dx > 0 ? 'ArrowLeft' : 'ArrowRight');
                   this.lastX = sx;
                   this.lastTime = now;
                 }
               } else {
-                // Vertical movement scrolls content
                 if (Math.abs(dy) > CFG.SCROLL_STEP) {
                   dispatch(dy > 0 ? 'ArrowUp' : 'ArrowDown');
                   this.lastY = sy;
@@ -211,17 +169,13 @@
             var wasTap = (this.state === 'TOUCHING');
 
             if (this.state === 'DOUBLE_TAP_DRAGGING') {
-              // End of double-tap-then-drag: release the simulated click-and-hold
               emitMouse('mouseup', touch.clientX, touch.clientY);
             } else if (wasTap && this.isDoubleTap) {
-              // Double-tap without drag: complete the mousedown/mouseup cycle
               emitMouse('mouseup', touch.clientX, touch.clientY);
             } else if (wasTap) {
-              // Confirmed single tap — forward as mousedown + mouseup (click)
               emitMouse('mousedown', touch.clientX, touch.clientY);
               emitMouse('mouseup',   touch.clientX, touch.clientY);
             } else if (this.zone === 'content') {
-              // Swipe in content zone
               var dx = touch.screenX - this.startX;
               var dy = touch.screenY - this.startY;
               if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > CFG.MIN_SWIPE_DISTANCE) {
@@ -230,9 +184,7 @@
                 this.startMomentum();
               }
             }
-            // Tab zone swipes: already handled in move(), no momentum needed.
 
-            // Record tap time/position for double-tap detection on next touch
             if (wasTap) {
               this.lastTapTime = Date.now();
               this.lastTapX    = touch.screenX;
@@ -245,7 +197,6 @@
 
           cancel: function() {
             if (this.state === 'DOUBLE_TAP_DRAGGING' || (this.state === 'TOUCHING' && this.isDoubleTap)) {
-              // Release simulated click-and-hold on cancel
               emitMouse('mouseup', this.lastX, this.lastY);
             }
             this.state = 'IDLE';
@@ -280,10 +231,8 @@
           gesture.move(e.changedTouches[0]);
         }, { passive: true });
 
-        // Touchend: confirm tap or finalize swipe (passive: false to prevent double-tap zoom)
         document.addEventListener('touchend', function(e) {
           gesture.end(e.changedTouches[0]);
-          // Prevent double-tap zoom on iOS
           var now = Date.now();
           if (now - gesture.lastTapTime < CFG.DOUBLE_TAP_MS) e.preventDefault();
         }, { passive: false });
@@ -302,54 +251,54 @@
         }, { passive: false });
 
         // ── Viewport / resize handling ─────────────────────────────────
-        function viewportSize() {
-          if (window.visualViewport) return { w: window.visualViewport.width, h: window.visualViewport.height };
-          return { w: window.innerWidth, h: window.innerHeight };
+        // Use ResizeObserver on the canvas for reliable sizing that
+        // correctly handles orientation changes without stale dimensions.
+        var _resizeObserver = null;
+
+        function updateBackingStore(c) {
+          var rect = c.getBoundingClientRect();
+          var dpr = window.devicePixelRatio || 1;
+          var newW = Math.round(rect.width * dpr);
+          var newH = Math.round(rect.height * dpr);
+          if (c.width !== newW || c.height !== newH) {
+            c.width  = newW;
+            c.height = newH;
+          }
         }
 
-        function handleResize() {
+        function setupResizeObserver() {
+          var c = canvas();
+          if (!c || _resizeObserver) return;
+          _resizeObserver = new ResizeObserver(function() {
+            updateBackingStore(c);
+          });
+          _resizeObserver.observe(c);
+          updateBackingStore(c);
+        }
+
+        // Fallback: also listen for resize events
+        window.addEventListener('resize', function() {
           resetCanvas();
           var c = canvas();
-          var s = viewportSize();
-          if (c) {
-            c.style.width  = s.w + 'px';
-            c.style.height = s.h + 'px';
-            // Use ceiling of DPR to ensure integer backing store dimensions
-            // Fractional DPR causes subpixel rendering and blur on mobile
-            var dpr = Math.ceil(window.devicePixelRatio || 1);
-            c.width  = Math.round(s.w * dpr);
-            c.height = Math.round(s.h * dpr);
-          }
-          // Don't set explicit body dimensions — CSS position:fixed with
-          // top/left/right/bottom:0 handles body sizing correctly and
-          // won't get stuck on stale values during orientation changes.
-        }
+          if (c) updateBackingStore(c);
+        });
 
-        window.addEventListener('resize', handleResize);
-
-        // On orientation change, clear stale canvas dimensions first,
-        // then re-measure after the browser has settled into the new layout.
-        function handleOrientationChange() {
-          resetCanvas();
-          var c = canvas();
-          if (c) {
-            c.style.width  = '100%';
-            c.style.height = '100%';
-          }
-          // Stagger re-measurements: browsers may report stale viewport
-          // dimensions for up to ~500ms after an orientation change.
-          setTimeout(handleResize, 50);
-          setTimeout(handleResize, 200);
-          setTimeout(handleResize, 500);
-          setTimeout(handleResize, 1000);
+        // Set up observer once the canvas exists
+        if (document.readyState === 'complete') {
+          setupResizeObserver();
+        } else {
+          window.addEventListener('load', setupResizeObserver);
         }
-        window.addEventListener('orientationchange', handleOrientationChange);
-        if (screen.orientation) {
-          screen.orientation.addEventListener('change', handleOrientationChange);
-        }
+        // Also try on a short delay in case canvas is created by WASM
+        setTimeout(setupResizeObserver, 100);
+        setTimeout(setupResizeObserver, 500);
 
         if (window.visualViewport) {
-          window.visualViewport.addEventListener('resize', handleResize);
+          window.visualViewport.addEventListener('resize', function() {
+            resetCanvas();
+            var c = canvas();
+            if (c) updateBackingStore(c);
+          });
           window.visualViewport.addEventListener('scroll', function() {
             document.body.style.transform = 'translateY(' + (-window.visualViewport.offsetTop) + 'px)';
           });
@@ -365,7 +314,7 @@
           }
         });
 
-        // ── Public API (for debugging / future extensibility) ──────────
+        // ── Public API ─────────────────────────────────────────────────
         return { dispatch: dispatch, canvas: canvas, zone: zone, gesture: gesture, CFG: CFG };
       })();
 

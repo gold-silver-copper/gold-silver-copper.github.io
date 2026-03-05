@@ -1,11 +1,32 @@
 // Service Worker for GRIFT.RS — offline-first caching
+// Pre-caches all essential assets on install for full offline support.
 // Hashed assets (JS, WASM, CSS) are immutable → cache-first.
 // Navigation requests (HTML) → network-first with cache fallback.
 
-var CACHE_NAME = 'grift-v1';
+var CACHE_NAME = 'grift-v2';
 
-self.addEventListener('install', function () {
-  self.skipWaiting();
+var PRECACHE_URLS = [
+  './',
+  './index.html',
+  './manifest.json',
+  './icon-192.png',
+  './icon-512.png',
+  './fonts/firacode.css',
+  './fonts/FiraCode-Regular.woff2',
+  './fonts/FiraCode-Bold.woff2',
+  './fonts/FiraCode-Light.woff2',
+  './fonts/FiraCode-Medium.woff2',
+  './fonts/FiraCode-SemiBold.woff2'
+];
+
+self.addEventListener('install', function (event) {
+  event.waitUntil(
+    caches.open(CACHE_NAME).then(function (cache) {
+      return cache.addAll(PRECACHE_URLS);
+    }).then(function () {
+      return self.skipWaiting();
+    })
+  );
 });
 
 self.addEventListener('activate', function (event) {
@@ -46,7 +67,7 @@ self.addEventListener('fetch', function (event) {
     return;
   }
 
-  // All other requests (JS, WASM, CSS, fonts): cache-first
+  // All other requests (JS, WASM, CSS, fonts, icons): cache-first
   event.respondWith(
     caches.match(request).then(function (cached) {
       if (cached) return cached;
