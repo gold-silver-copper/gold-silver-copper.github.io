@@ -123,9 +123,8 @@ pub fn lisp_keyboard_layout() -> Layout {
         k("ENTER", Some(Return), 9),
     ];
 
-    // Row 4: ⇧ z x c v b n m " .
+    // Row 4: z x c v b n m " . ⇧
     let row4 = vec![
-        k("⇧", Some(ShiftLeft), 5),
         ks("z", "Z", Some(KeyZ), 3),
         ks("x", "X", Some(KeyX), 3),
         ks("c", "C", Some(KeyC), 3),
@@ -135,6 +134,7 @@ pub fn lisp_keyboard_layout() -> Layout {
         ks("m", "M", Some(KeyM), 3),
         ks("\"", "'", None, 3),
         ks(".", "=", None, 4),
+        k("⇧", Some(ShiftLeft), 5),
     ];
 
     // Row 5: ! ? SPACE - + / *  :

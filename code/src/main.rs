@@ -3901,9 +3901,16 @@ impl App {
                 demo_area,
             );
 
-            // Apply compiled effect
+            // Apply compiled effect to the entire entry section
+            // (title + code hint + demo area) so the effect is fully visible
+            let entry_area = Rect::new(
+                entries_area.x,
+                slot_y,
+                entries_area.width,
+                entry_height.min(entries_area.bottom().saturating_sub(slot_y)),
+            );
             if let Some(Some(ref mut effect)) = self.dsl_effects_cache.get_mut(idx) {
-                frame.render_effect(effect, demo_area, elapsed);
+                frame.render_effect(effect, entry_area, elapsed);
             }
         }
 
