@@ -260,7 +260,8 @@
 
         function setupResizeObserver() {
           var c = canvas();
-          if (!c || _resizeObserver) return;
+          if (!c) return;
+          if (_resizeObserver) _resizeObserver.disconnect();
           _resizeObserver = new ResizeObserver(function() {
             updateBackingStore(c);
           });
@@ -275,15 +276,23 @@
           if (c) updateBackingStore(c);
         });
 
-        // Set up observer once the canvas exists
-        if (document.readyState === 'complete') {
-          setupResizeObserver();
-        } else {
-          window.addEventListener('load', setupResizeObserver);
+        // Watch for canvas element creation via MutationObserver
+        function watchForCanvas() {
+          if (canvas()) { setupResizeObserver(); return; }
+          var mo = new MutationObserver(function() {
+            if (canvas()) {
+              mo.disconnect();
+              setupResizeObserver();
+            }
+          });
+          mo.observe(document.body, { childList: true, subtree: true });
         }
-        // Also try on a short delay in case canvas is created by WASM
-        setTimeout(setupResizeObserver, 100);
-        setTimeout(setupResizeObserver, 500);
+
+        if (document.readyState === 'complete') {
+          watchForCanvas();
+        } else {
+          window.addEventListener('load', watchForCanvas);
+        }
 
         if (window.visualViewport) {
           window.visualViewport.addEventListener('resize', function() {
