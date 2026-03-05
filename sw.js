@@ -16,10 +16,7 @@ var PRECACHE_URLS = [
   './fonts/FiraCode-Bold.woff2',
   './fonts/FiraCode-Light.woff2',
   './fonts/FiraCode-Medium.woff2',
-  './fonts/FiraCode-SemiBold.woff2',
-  './style-f72f8b68cab0f57c.css',
-  './grift-site-f602dd1c3886563b.js',
-  './grift-site-f602dd1c3886563b_bg.wasm'
+  './fonts/FiraCode-SemiBold.woff2'
 ];
 
 self.addEventListener('install', function (event) {
