@@ -131,6 +131,72 @@ test.describe('Mobile orientation changes', () => {
     expect(dims.backingHeight).toBe(Math.round(portrait.height * dims.dpr));
   });
 
+  test('portrait → landscape: canvas and backing store match new dimensions', async ({ page }) => {
+    // Pixel 5 dimensions
+    const portrait = { width: 393, height: 851 };
+    const landscape = { width: 851, height: 393 };
+
+    await page.setViewportSize(portrait);
+    await page.goto('/');
+    await injectTestCanvas(page);
+
+    // Rotate to landscape
+    await page.setViewportSize(landscape);
+    await page.waitForTimeout(600);
+
+    const dims = await getCanvasDimensions(page);
+    expect(dims).not.toBeNull();
+    expect(dims.cssWidth).toBe(landscape.width);
+    expect(dims.cssHeight).toBe(landscape.height);
+    expect(dims.backingWidth).toBe(Math.round(landscape.width * dims.dpr));
+    expect(dims.backingHeight).toBe(Math.round(landscape.height * dims.dpr));
+  });
+
+  test('landscape → portrait: canvas and backing store match new dimensions', async ({ page }) => {
+    // Start in landscape (iPhone 12 landscape dimensions)
+    const landscape = { width: 844, height: 390 };
+    const portrait = { width: 390, height: 844 };
+
+    await page.setViewportSize(landscape);
+    await page.goto('/');
+    await injectTestCanvas(page);
+
+    // Verify initial landscape
+    let dims = await getCanvasDimensions(page);
+    expect(dims).not.toBeNull();
+    expect(dims.cssWidth).toBe(landscape.width);
+    expect(dims.cssHeight).toBe(landscape.height);
+    expect(dims.backingWidth).toBe(Math.round(landscape.width * dims.dpr));
+    expect(dims.backingHeight).toBe(Math.round(landscape.height * dims.dpr));
+
+    // Rotate to portrait
+    await page.setViewportSize(portrait);
+    await page.waitForTimeout(600);
+
+    dims = await getCanvasDimensions(page);
+    expect(dims).not.toBeNull();
+    expect(dims.cssWidth).toBe(portrait.width);
+    expect(dims.cssHeight).toBe(portrait.height);
+    expect(dims.backingWidth).toBe(Math.round(portrait.width * dims.dpr));
+    expect(dims.backingHeight).toBe(Math.round(portrait.height * dims.dpr));
+  });
+
+  test('page loaded in landscape orientation sizes correctly', async ({ page }) => {
+    // Pixel 5 landscape dimensions
+    const landscape = { width: 851, height: 393 };
+
+    await page.setViewportSize(landscape);
+    await page.goto('/');
+    await injectTestCanvas(page);
+
+    const dims = await getCanvasDimensions(page);
+    expect(dims).not.toBeNull();
+    expect(dims.cssWidth).toBe(landscape.width);
+    expect(dims.cssHeight).toBe(landscape.height);
+    expect(dims.backingWidth).toBe(Math.round(landscape.width * dims.dpr));
+    expect(dims.backingHeight).toBe(Math.round(landscape.height * dims.dpr));
+  });
+
   test('canvas aspect ratio matches viewport after orientation change', async ({ page }) => {
     const portrait = { width: 412, height: 915 };
     const landscape = { width: 915, height: 412 };
@@ -177,6 +243,34 @@ test.describe('Mobile orientation changes', () => {
     expect(dims.cssHeight).toBe(portrait.height);
     expect(dims.backingWidth).toBe(Math.round(portrait.width * dims.dpr));
     expect(dims.backingHeight).toBe(Math.round(portrait.height * dims.dpr));
+  });
+
+  test('rapid toggles ending in landscape settle correctly with DPR', async ({ page }) => {
+    const portrait = { width: 390, height: 844 };
+    const landscape = { width: 844, height: 390 };
+
+    await page.setViewportSize(portrait);
+    await page.goto('/');
+    await injectTestCanvas(page);
+
+    // Rapidly toggle, ending in landscape
+    for (let i = 0; i < 5; i++) {
+      await page.setViewportSize(portrait);
+      await page.waitForTimeout(50);
+      await page.setViewportSize(landscape);
+      await page.waitForTimeout(50);
+    }
+
+    // Wait for all delayed re-measurements to complete
+    await page.waitForTimeout(700);
+
+    const dims = await getCanvasDimensions(page);
+    expect(dims).not.toBeNull();
+    expect(dims.cssWidth).toBe(landscape.width);
+    expect(dims.cssHeight).toBe(landscape.height);
+    // Verify backing store accounts for devicePixelRatio
+    expect(dims.backingWidth).toBe(Math.round(landscape.width * dims.dpr));
+    expect(dims.backingHeight).toBe(Math.round(landscape.height * dims.dpr));
   });
 });
 

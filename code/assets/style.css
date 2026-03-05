@@ -1,6 +1,4 @@
 html {
-  height: 100%;
-  height: 100dvh;
   overflow: hidden;
 }
 
@@ -9,9 +7,6 @@ body {
   padding: 0;
   padding-top: env(safe-area-inset-top, 0px);
   padding-bottom: env(safe-area-inset-bottom, 0px);
-  width: 100%;
-  height: 100%;
-  height: 100dvh;
   overflow: hidden;
   background-color: #08090e;
   touch-action: none;
@@ -20,6 +15,9 @@ body {
   overscroll-behavior: none;
   user-select: none;
   -webkit-user-select: none;
+  /* Single source of truth for sizing: fixed positioning with inset: 0
+     ensures dimensions always match the settled viewport, avoiding
+     transient disagreements with 100dvh during orientation changes. */
   position: fixed;
   top: 0;
   left: 0;
