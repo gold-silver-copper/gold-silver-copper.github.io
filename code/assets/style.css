@@ -1,6 +1,6 @@
 html {
   height: 100%;
-  height: 100svh;
+  height: 100dvh;
   overflow: hidden;
 }
 
@@ -11,7 +11,7 @@ body {
   padding-bottom: env(safe-area-inset-bottom, 0px);
   width: 100%;
   height: 100%;
-  height: 100svh;
+  height: 100dvh;
   overflow: hidden;
   background-color: #08090e;
   touch-action: none;
@@ -26,40 +26,21 @@ body {
   right: 0;
   bottom: 0;
   box-sizing: border-box;
-  /* Disable font smoothing globally */
-  -webkit-font-smoothing: none;
-  -moz-osx-font-smoothing: unset;
-  font-smooth: never;
-  text-rendering: optimizeSpeed;
 }
 
 canvas {
   display: block;
   width: 100%;
   height: 100%;
-  height: 100svh;
+  height: 100dvh;
   touch-action: none;
-  /* Disable anti-aliasing / smoothing on mobile */
-  image-rendering: pixelated;
-  image-rendering: -moz-crisp-edges;
-  image-rendering: crisp-edges;
-  /* Disable font smoothing/anti-aliasing at every level */
-  -webkit-font-smoothing: none;
-  -moz-osx-font-smoothing: unset;
-  font-smooth: never;
-  text-rendering: optimizeSpeed;
-  /* Prevent subpixel positioning from CSS transforms */
-  will-change: auto;
-  backface-visibility: hidden;
-  -webkit-backface-visibility: hidden;
-  transform: translateZ(0);
 }
 
 .ratzilla {
   display: block;
   width: 100%;
   height: 100%;
-  height: 100svh;
+  height: 100dvh;
   touch-action: none;
 }
 
