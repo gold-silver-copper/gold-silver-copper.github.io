@@ -5,6 +5,10 @@ const { test, expect } = require('@playwright/test');
 // sizing layer works correctly regardless of whether WASM has loaded.
 // We inject a test canvas to simulate the ratzilla canvas element.
 
+// The JS polls body dimensions once per second; wait slightly longer to
+// ensure at least one poll cycle has run after a viewport change.
+const POLL_WAIT_MS = 1200;
+
 /** Inject a canvas element mimicking what the WASM framework creates. */
 async function injectTestCanvas(page) {
   await page.evaluate(() => {
@@ -13,7 +17,7 @@ async function injectTestCanvas(page) {
     document.body.appendChild(c);
   });
   // Wait for the 1-second polling interval to pick up the canvas
-  await page.waitForTimeout(1200);
+  await page.waitForTimeout(POLL_WAIT_MS);
 }
 
 /** Read the canvas backing store and CSS display dimensions. */
@@ -54,7 +58,7 @@ test.describe('Desktop viewport sizing', () => {
 
     await page.setViewportSize({ width: 800, height: 600 });
     // Wait for the 1-second poll to catch the change
-    await page.waitForTimeout(1200);
+    await page.waitForTimeout(POLL_WAIT_MS);
 
     const dims = await getCanvasDimensions(page);
     expect(dims).not.toBeNull();
@@ -78,7 +82,7 @@ test.describe('Mobile orientation changes', () => {
 
     // Rotate to landscape
     await page.setViewportSize(landscape);
-    await page.waitForTimeout(1200);
+    await page.waitForTimeout(POLL_WAIT_MS);
 
     const dims = await getCanvasDimensions(page);
     expect(dims).not.toBeNull();
@@ -98,7 +102,7 @@ test.describe('Mobile orientation changes', () => {
 
     // Rotate to portrait
     await page.setViewportSize(portrait);
-    await page.waitForTimeout(1200);
+    await page.waitForTimeout(POLL_WAIT_MS);
 
     const dims = await getCanvasDimensions(page);
     expect(dims).not.toBeNull();
@@ -151,7 +155,7 @@ test.describe('CSS layout integrity', () => {
     await injectTestCanvas(page);
 
     await page.setViewportSize({ width: 844, height: 390 });
-    await page.waitForTimeout(1200);
+    await page.waitForTimeout(POLL_WAIT_MS);
 
     const scrollInfo = await page.evaluate(() => ({
       scrollWidth: document.documentElement.scrollWidth,
