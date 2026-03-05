@@ -5,6 +5,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="mobile-web-app-capable" content="yes">
+    <link rel="manifest" href="./manifest.json">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/firacode/6.2.0/fira_code.min.css">
     <title>GRIFT.RS – Personal Website &amp; Grift Demo</title>
     <link rel="stylesheet" href="/./style-f72f8b68cab0f57c.css">
@@ -311,16 +312,34 @@
             c.width  = Math.round(s.w * dpr);
             c.height = Math.round(s.h * dpr);
           }
-          document.body.style.width  = s.w + 'px';
-          document.body.style.height = s.h + 'px';
+          // Don't set explicit body dimensions — CSS position:fixed with
+          // top/left/right/bottom:0 handles body sizing correctly and
+          // won't get stuck on stale values during orientation changes.
         }
 
         window.addEventListener('resize', handleResize);
-        window.addEventListener('orientationchange', function() {
-          setTimeout(handleResize, 100);
-          setTimeout(handleResize, 300);
-          setTimeout(handleResize, 600);
-        });
+
+        // On orientation change, clear stale canvas dimensions first,
+        // then re-measure after the browser has settled into the new layout.
+        function handleOrientationChange() {
+          resetCanvas();
+          var c = canvas();
+          if (c) {
+            c.style.width  = '100%';
+            c.style.height = '100%';
+          }
+          // Stagger re-measurements: browsers may report stale viewport
+          // dimensions for up to ~500ms after an orientation change.
+          setTimeout(handleResize, 50);
+          setTimeout(handleResize, 200);
+          setTimeout(handleResize, 500);
+          setTimeout(handleResize, 1000);
+        }
+        window.addEventListener('orientationchange', handleOrientationChange);
+        if (screen.orientation) {
+          screen.orientation.addEventListener('change', handleOrientationChange);
+        }
+
         if (window.visualViewport) {
           window.visualViewport.addEventListener('resize', handleResize);
           window.visualViewport.addEventListener('scroll', function() {
@@ -341,6 +360,11 @@
         // ── Public API (for debugging / future extensibility) ──────────
         return { dispatch: dispatch, canvas: canvas, zone: zone, gesture: gesture, CFG: CFG };
       })();
+
+      // ── Service Worker registration ────────────────────────────────
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('./sw.js').catch(function() {});
+      }
     </script>
   
 
