@@ -1,0 +1,26 @@
+{
+  "name": "GRIFT.RS – Personal Website & Grift Demo",
+  "short_name": "GRIFT.RS",
+  "description": "A terminal-themed personal website and Grift Lisp REPL demo, running entirely in WebAssembly.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "theme_color": "#08090e",
+  "background_color": "#08090e",
+  "categories": ["developer tools", "utilities"],
+  "icons": [
+    {
+      "src": "./icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}

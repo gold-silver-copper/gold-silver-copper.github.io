@@ -5,306 +5,289 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="mobile-web-app-capable" content="yes">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/firacode/6.2.0/fira_code.min.css">
+    <link rel="manifest" href="./manifest.json">
+    
+    
+    
+    
+    
+    <link rel="icon" type="image/png" sizes="192x192" href="./icon-192.png">
+    <link rel="apple-touch-icon" href="./icon-192.png">
+    <link rel="stylesheet" href="./fonts/firacode.css">
     <title>GRIFT.RS – Personal Website &amp; Grift Demo</title>
-    <link rel="stylesheet" href="/./style-83dfb1de860d8fe.css">
+    <link rel="stylesheet" href="/./style-6c82bfe5aa731795.css">
   
-<link rel="preload" href="/./grift-site-a0c5e852389f476_bg.wasm" as="fetch" type="application/wasm" crossorigin="">
-<link rel="modulepreload" href="/./grift-site-a0c5e852389f476.js"></head>
+<link rel="preload" href="/./grift-site-97542997ef7889e8_bg.wasm" as="fetch" type="application/wasm" crossorigin="">
+<link rel="modulepreload" href="/./grift-site-97542997ef7889e8.js"></head>
   <body>
-    <!-- Hidden input for mobile virtual keyboard (REPL) -->
-    <input id="repl-keyboard-input" type="text" style="position:fixed;opacity:0;width:1px;height:1px;top:-9999px;left:-9999px;pointer-events:none;" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" inputmode="text" enterkeyhint="send">
 
     <script>
-      // Mobile interaction support: swipe gestures, mousewheel, momentum scrolling, zone-aware scrolling
-      (function() {
-        var touchStartX = 0;
-        var touchStartY = 0;
-        var touchLastY = 0;
-        var touchLastX = 0;
-        var touchLastTime = 0;
-        var velocityY = 0;
-        var minSwipeDistance = 40;
-        var touchScrollThreshold = 20;
-        var momentumId = null;
-        // Zone detection: track touch start position relative to screen
-        var touchZone = 'content'; // 'tabs' or 'content'
-        var tabZoneThreshold = 0.12; // top 12% of screen is tab zone
-        // (replInputZoneThreshold removed — input is now at top)
+      // ═══════════════════════════════════════════════════════════════════
+      // GriftApp — Unified interaction layer for the Grift WASM terminal
+      // ═══════════════════════════════════════════════════════════════════
+      //
+      // Architecture:
+      //   Canvas  ← single source of truth for all input dispatch
+      //   Gesture ← state machine distinguishing taps from swipes
+      //   Zones   ← top 12% = tab bar, rest = content
+      //   Viewport← resize / orientation / visual-viewport handling
+      //
+      // All interaction flows through GriftApp.dispatch(key) which sends
+      // a KeyboardEvent to the ratzilla canvas. Mouse events are only
+      // forwarded for hover tracking and confirmed taps (never during
+      // swipes), preventing phantom clicks on mobile.
+      // ═══════════════════════════════════════════════════════════════════
 
-        // Prevent context menu on long press for native feel
-        document.addEventListener('contextmenu', function(e) {
-          e.preventDefault();
-        });
+      // Prevent context menu on long press for native feel
+      document.addEventListener('contextmenu', function(e) { e.preventDefault(); });
 
-        // Helper: get the ratzilla canvas element (lazily cached)
+      var GriftApp = (function() {
+
+        // ── Configuration ──────────────────────────────────────────────
+        var CFG = {
+          TAB_ZONE_FRACTION:   0.12,   // top 12% of screen is tab bar
+          SWIPE_THRESHOLD:     12,     // px movement to become a swipe
+          SCROLL_STEP:         20,     // px delta to emit one scroll key
+          MIN_SWIPE_DISTANCE:  40,     // px for content horizontal swipe
+          MOMENTUM_FRICTION:   0.92,
+          MOMENTUM_MIN_V:      0.05,
+          MOMENTUM_INTERVAL:   66,     // ms between momentum steps
+          MOMENTUM_THRESHOLD:  0.3,    // min velocity to trigger momentum
+          DOUBLE_TAP_MS:       300,
+        };
+
+        // ── Canvas accessor (lazily cached, reset on resize) ───────────
         var _canvas = null;
-        function getCanvas() {
-          if (!_canvas) {
-            _canvas = document.querySelector('canvas') || document.querySelector('.ratzilla');
-          }
+        function canvas() {
+          if (!_canvas) _canvas = document.querySelector('canvas') || document.querySelector('.ratzilla');
           return _canvas;
         }
+        function resetCanvas() { _canvas = null; }
 
-        // Helper: dispatch a key event to the canvas (where ratzilla listens)
-        function dispatchKey(key) {
-          var c = getCanvas();
-          if (c) {
-            c.dispatchEvent(new KeyboardEvent('keydown', { key: key, bubbles: true }));
-          }
+        // ── Dispatch helpers ───────────────────────────────────────────
+        function dispatch(key) {
+          var c = canvas();
+          if (c) c.dispatchEvent(new KeyboardEvent('keydown', { key: key, bubbles: true }));
         }
 
-        // Helper: detect if touch is in the tab bar zone (top portion of screen)
-        function getTouchZone(clientY) {
-          var winH = window.innerHeight || document.documentElement.clientHeight || 600;
-          return (clientY / winH) < tabZoneThreshold ? 'tabs' : 'content';
+        function emitMouse(type, clientX, clientY) {
+          var c = canvas();
+          if (!c) return;
+          c.dispatchEvent(new MouseEvent(type, {
+            clientX: clientX, clientY: clientY,
+            button: 0, buttons: type === 'mouseup' ? 0 : 1,
+            bubbles: true, cancelable: true,
+          }));
         }
 
-        document.addEventListener('touchstart', function(e) {
-          touchStartX = e.changedTouches[0].screenX;
-          touchStartY = e.changedTouches[0].screenY;
-          touchLastY = touchStartY;
-          touchLastX = touchStartX;
-          touchLastTime = Date.now();
-          velocityY = 0;
-          // Determine which zone the touch started in
-          touchZone = getTouchZone(e.changedTouches[0].clientY);
-          // Cancel any running momentum scroll
-          if (momentumId) {
-            clearTimeout(momentumId);
-            momentumId = null;
-          }
-        }, { passive: true });
-
-        // Continuous scroll during touch-move with velocity tracking and zone awareness
-        document.addEventListener('touchmove', function(e) {
-          var currentY = e.changedTouches[0].screenY;
-          var currentX = e.changedTouches[0].screenX;
-          var now = Date.now();
-          var dt = now - touchLastTime;
-          var deltaY = currentY - touchLastY;
-          var deltaX = currentX - touchLastX;
-
-          if (dt > 0) {
-            velocityY = deltaY / dt;
-          }
-
-          if (touchZone === 'tabs') {
-            // In tab zone: horizontal movement scrolls tabs
-            if (Math.abs(deltaX) > touchScrollThreshold) {
-              dispatchKey(deltaX > 0 ? 'ArrowLeft' : 'ArrowRight');
-              touchLastX = currentX;
-              touchLastTime = now;
-            }
-          } else {
-            // In content zone: vertical movement scrolls content
-            if (Math.abs(deltaY) > touchScrollThreshold) {
-              dispatchKey(deltaY > 0 ? 'ArrowUp' : 'ArrowDown');
-              touchLastY = currentY;
-              touchLastTime = now;
-            }
-          }
-        }, { passive: true });
-
-        document.addEventListener('touchend', function(e) {
-          var dx = e.changedTouches[0].screenX - touchStartX;
-          var dy = e.changedTouches[0].screenY - touchStartY;
-
-          if (touchZone === 'tabs') {
-            // Tab zone: horizontal swipes scroll tabs (already handled in touchmove)
-            // No momentum for tab scrolling
-            return;
-          }
-
-          if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > minSwipeDistance) {
-            // Horizontal swipe in content zone — dispatch arrow key for navigation
-            dispatchKey(dx > 0 ? 'ArrowLeft' : 'ArrowRight');
-          } else if (Math.abs(velocityY) > 0.3) {
-            // Momentum scrolling — continue scrolling with deceleration
-            var v = velocityY;
-            var friction = 0.92;
-            var throttledStep = function() {
-              v *= friction;
-              if (Math.abs(v) < 0.05) {
-                momentumId = null;
-                return;
-              }
-              dispatchKey(v > 0 ? 'ArrowUp' : 'ArrowDown');
-              momentumId = setTimeout(throttledStep, 66);
-            };
-            throttledStep();
-          }
-        }, { passive: true });
-
-        // Handle touch cancel (e.g. notification interrupts)
-        document.addEventListener('touchcancel', function() {
-          velocityY = 0;
-          if (momentumId) {
-            clearTimeout(momentumId);
-            momentumId = null;
-          }
-        }, { passive: true });
-
-        // Mousewheel support — scroll content with wheel
-        document.addEventListener('wheel', function(e) {
-          var c = getCanvas();
-          if (c && (c.contains(e.target) || e.target === c)) {
-            dispatchKey(e.deltaY > 0 ? 'ArrowDown' : 'ArrowUp');
-            e.preventDefault();
-          }
-        }, { passive: false });
-
-        // Prevent double-tap zoom on iOS
-        var lastTap = 0;
-        document.addEventListener('touchend', function(e) {
-          var now = Date.now();
-          if (now - lastTap < 300) {
-            e.preventDefault();
-          }
-          lastTap = now;
-        }, { passive: false });
-
-        // Dynamic window resize: force canvas to recalculate on resize/orientation change
-        function handleResize() {
-          _canvas = null; // reset cached canvas in case it was recreated
-          var c = getCanvas();
-          if (c) {
-            var w = window.innerWidth;
-            var h = window.innerHeight;
-            c.style.width = w + 'px';
-            c.style.height = h + 'px';
-            // Update canvas internal resolution to match display size
-            var dpr = window.devicePixelRatio || 1;
-            c.width = Math.round(w * dpr);
-            c.height = Math.round(h * dpr);
-          }
-          document.body.style.width = window.innerWidth + 'px';
-          document.body.style.height = window.innerHeight + 'px';
-        }
-        window.addEventListener('resize', handleResize);
-        window.addEventListener('orientationchange', function() {
-          // Delay to let the browser settle after orientation change
-          setTimeout(handleResize, 100);
-          setTimeout(handleResize, 300);
-          setTimeout(handleResize, 600);
-        });
-
-        // Visual viewport API: handle virtual keyboard appearance
-        if (window.visualViewport) {
-          window.visualViewport.addEventListener('resize', function() {
-            var vv = window.visualViewport;
-            _canvas = null;
-            var c = getCanvas();
-            if (c) {
-              c.style.height = vv.height + 'px';
-              c.style.width = vv.width + 'px';
-              var dpr = window.devicePixelRatio || 1;
-              c.width = Math.round(vv.width * dpr);
-              c.height = Math.round(vv.height * dpr);
-            }
-            document.body.style.height = vv.height + 'px';
-            document.body.style.width = vv.width + 'px';
-          });
-          window.visualViewport.addEventListener('scroll', function() {
-            var vv = window.visualViewport;
-            document.body.style.transform = 'translateY(' + (-vv.offsetTop) + 'px)';
-          });
+        // ── Zone detection ─────────────────────────────────────────────
+        function zone(clientY) {
+          var h = window.innerHeight || document.documentElement.clientHeight || 600;
+          return (clientY / h) < CFG.TAB_ZONE_FRACTION ? 'tabs' : 'content';
         }
 
-        // REPL virtual keyboard support: focus hidden input on tap to open keyboard
-        // Expose a global function that Rust can call to focus/blur the hidden input
-        var replInput = null;
-        var replInputInitialized = false;
-        function initReplInput() {
-          if (replInputInitialized) return;
-          replInput = document.getElementById('repl-keyboard-input');
-          if (!replInput) return;
-          replInputInitialized = true;
-          // Forward input events as key events to canvas
-          replInput.addEventListener('input', function(e) {
-            var data = e.data;
-            if (data) {
-              for (var i = 0; i < data.length; i++) {
-                dispatchKey(data[i]);
-              }
-            } else if (e.inputType === 'deleteContentBackward') {
-              dispatchKey('Backspace');
+        // ── Gesture state machine ──────────────────────────────────────
+        var gesture = {
+          state:      'IDLE',
+          zone:       'content',
+          startX:     0,  startY:     0,
+          lastX:      0,  lastY:      0,
+          lastTime:   0,
+          velocityY:  0,
+          momentumId: null,
+          lastTapTime:   0,
+          lastTapX:      0,
+          lastTapY:      0,
+          isDoubleTap:   false,
+
+          begin: function(touch) {
+            var now = Date.now();
+            var dt  = now - this.lastTapTime;
+            var tapDx = Math.abs(touch.screenX - this.lastTapX);
+            var tapDy = Math.abs(touch.screenY - this.lastTapY);
+            this.isDoubleTap = (dt < CFG.DOUBLE_TAP_MS && tapDx < 30 && tapDy < 30);
+
+            this.state    = 'TOUCHING';
+            this.zone     = zone(touch.clientY);
+            this.startX   = touch.screenX;
+            this.startY   = touch.screenY;
+            this.lastX    = touch.screenX;
+            this.lastY    = touch.screenY;
+            this.lastTime = now;
+            this.velocityY = 0;
+            this.cancelMomentum();
+
+            if (this.isDoubleTap) {
+              emitMouse('mousedown', touch.clientX, touch.clientY);
+            } else {
+              emitMouse('mousemove', touch.clientX, touch.clientY);
             }
-            replInput.value = '';
-          });
-          // Handle composition events (swipe typing, predictive text)
-          replInput.addEventListener('compositionend', function(e) {
-            var data = e.data;
-            if (data) {
-              for (var i = 0; i < data.length; i++) {
-                dispatchKey(data[i]);
+          },
+
+          move: function(touch) {
+            var sx = touch.screenX, sy = touch.screenY;
+            var now = Date.now();
+            var dt  = now - this.lastTime;
+            var dx  = sx - this.lastX;
+            var dy  = sy - this.lastY;
+
+            if (this.state === 'TOUCHING') {
+              var totalDx = sx - this.startX;
+              var totalDy = sy - this.startY;
+              if (Math.abs(totalDx) > CFG.SWIPE_THRESHOLD || Math.abs(totalDy) > CFG.SWIPE_THRESHOLD) {
+                this.state = this.isDoubleTap ? 'DOUBLE_TAP_DRAGGING' : 'SWIPING';
               }
             }
-            replInput.value = '';
-          });
-          replInput.addEventListener('keydown', function(e) {
-            if (e.key === 'Enter' || e.key === 'Backspace') {
-              dispatchKey(e.key);
-              e.preventDefault();
-            }
-          });
-        }
-        window._focusReplInput = function() {
-          initReplInput();
-          if (replInput) {
-            replInput.style.top = '0';
-            replInput.style.left = '0';
-            replInput.style.width = '70%';
-            replInput.style.height = '40px';
-            replInput.style.opacity = '0';
-            replInput.style.pointerEvents = 'auto';
-            replInput.focus();
-          }
-        };
-        window._blurReplInput = function() {
-          initReplInput();
-          if (replInput) {
-            replInput.blur();
-            replInput.style.top = '-9999px';
-            replInput.style.left = '-9999px';
-            replInput.style.width = '1px';
-            replInput.style.height = '1px';
-            replInput.style.pointerEvents = 'none';
-          }
-        };
 
-        // Tap-to-focus: when user taps while on REPL,
-        // focus the hidden input to bring up virtual keyboard
-        // Only focus when tapping below the tab zone (prevents keyboard
-        // from blocking tab switching in horizontal mobile mode)
-        document.addEventListener('click', function(e) {
-            if (window._replTabActive) {
-              var zone = getTouchZone(e.clientY);
-              if (zone !== 'tabs') {
-                window._focusReplInput();
+            if (dt > 0) this.velocityY = dy / dt;
+
+            if (this.state === 'DOUBLE_TAP_DRAGGING') {
+              emitMouse('mousemove', touch.clientX, touch.clientY);
+            } else {
+              emitMouse('mousemove', touch.clientX, touch.clientY);
+
+              if (this.zone === 'tabs') {
+                if (Math.abs(dx) > CFG.SCROLL_STEP) {
+                  dispatch(dx > 0 ? 'ArrowLeft' : 'ArrowRight');
+                  this.lastX = sx;
+                  this.lastTime = now;
+                }
               } else {
-                window._blurReplInput();
+                if (Math.abs(dy) > CFG.SCROLL_STEP) {
+                  dispatch(dy > 0 ? 'ArrowUp' : 'ArrowDown');
+                  this.lastY = sy;
+                  this.lastTime = now;
+                }
               }
             }
-        });
-        window._replTabActive = false;
+          },
 
-        // Paste support: handle Ctrl+V / Cmd+V by forwarding pasted text to the canvas
-        document.addEventListener('paste', function(e) {
-          if (window._replTabActive) {
-            e.preventDefault();
-            var text = (e.clipboardData || window.clipboardData).getData('text');
-            if (text) {
-              // Strip newlines and normalize whitespace — REPL is single-line input
-              text = text.replace(/[\r\n]+/g, ' ').replace(/\s+/g, ' ').trim();
-              for (var i = 0; i < text.length; i++) {
-                dispatchKey(text[i]);
+          end: function(touch) {
+            var wasTap = (this.state === 'TOUCHING');
+
+            if (this.state === 'DOUBLE_TAP_DRAGGING') {
+              emitMouse('mouseup', touch.clientX, touch.clientY);
+            } else if (wasTap && this.isDoubleTap) {
+              emitMouse('mouseup', touch.clientX, touch.clientY);
+            } else if (wasTap) {
+              emitMouse('mousedown', touch.clientX, touch.clientY);
+              emitMouse('mouseup',   touch.clientX, touch.clientY);
+            } else if (this.zone === 'content') {
+              var dx = touch.screenX - this.startX;
+              var dy = touch.screenY - this.startY;
+              if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > CFG.MIN_SWIPE_DISTANCE) {
+                dispatch(dx > 0 ? 'ArrowLeft' : 'ArrowRight');
+              } else if (Math.abs(this.velocityY) > CFG.MOMENTUM_THRESHOLD) {
+                this.startMomentum();
               }
             }
+
+            if (wasTap) {
+              this.lastTapTime = Date.now();
+              this.lastTapX    = touch.screenX;
+              this.lastTapY    = touch.screenY;
+            }
+
+            this.state = 'IDLE';
+            this.isDoubleTap = false;
+          },
+
+          cancel: function() {
+            if (this.state === 'DOUBLE_TAP_DRAGGING' || (this.state === 'TOUCHING' && this.isDoubleTap)) {
+              emitMouse('mouseup', this.lastX, this.lastY);
+            }
+            this.state = 'IDLE';
+            this.isDoubleTap = false;
+            this.velocityY = 0;
+            this.cancelMomentum();
+          },
+
+          startMomentum: function() {
+            var self = this;
+            var v = this.velocityY;
+            var step = function() {
+              v *= CFG.MOMENTUM_FRICTION;
+              if (Math.abs(v) < CFG.MOMENTUM_MIN_V) { self.momentumId = null; return; }
+              dispatch(v > 0 ? 'ArrowUp' : 'ArrowDown');
+              self.momentumId = setTimeout(step, CFG.MOMENTUM_INTERVAL);
+            };
+            step();
+          },
+
+          cancelMomentum: function() {
+            if (this.momentumId) { clearTimeout(this.momentumId); this.momentumId = null; }
+          },
+        };
+
+        // ── Touch event wiring ─────────────────────────────────────────
+        document.addEventListener('touchstart', function(e) {
+          gesture.begin(e.changedTouches[0]);
+        }, { passive: true });
+
+        document.addEventListener('touchmove', function(e) {
+          gesture.move(e.changedTouches[0]);
+        }, { passive: true });
+
+        document.addEventListener('touchend', function(e) {
+          gesture.end(e.changedTouches[0]);
+          var now = Date.now();
+          if (now - gesture.lastTapTime < CFG.DOUBLE_TAP_MS) e.preventDefault();
+        }, { passive: false });
+
+        document.addEventListener('touchcancel', function() {
+          gesture.cancel();
+        }, { passive: true });
+
+        // ── Mouse wheel ────────────────────────────────────────────────
+        document.addEventListener('wheel', function(e) {
+          var c = canvas();
+          if (c && (c.contains(e.target) || e.target === c)) {
+            dispatch(e.deltaY > 0 ? 'ArrowDown' : 'ArrowUp');
+            e.preventDefault();
+          }
+        }, { passive: false });
+
+        // ── Viewport / resize handling ─────────────────────────────────
+        // Minimal approach: resize listener + 1-second polling backup.
+        function fitCanvas() {
+          var c = canvas();
+          if (!c) return;
+          var w = document.body.clientWidth;
+          var h = document.body.clientHeight;
+          if (w <= 0 || h <= 0) return;
+          var dpr = window.devicePixelRatio || 1;
+          c.style.width  = w + 'px';
+          c.style.height = h + 'px';
+          var bw = Math.round(w * dpr);
+          var bh = Math.round(h * dpr);
+          if (c.width !== bw || c.height !== bh) {
+            c.width  = bw;
+            c.height = bh;
+          }
+        }
+
+        window.addEventListener('resize', fitCanvas);
+        setInterval(fitCanvas, 1000);
+
+        // ── Paste support (dispatches pasted text as key events) ───────
+        document.addEventListener('paste', function(e) {
+          e.preventDefault();
+          var text = (e.clipboardData || window.clipboardData).getData('text');
+          if (text) {
+            text = text.replace(/[\r\n]+/g, ' ').replace(/\s+/g, ' ').trim();
+            for (var i = 0; i < text.length; i++) dispatch(text[i]);
           }
         });
+
+        // ── Public API ─────────────────────────────────────────────────
+        return { dispatch: dispatch, canvas: canvas, zone: zone, gesture: gesture, CFG: CFG };
       })();
+
+      // ── Service Worker registration ────────────────────────────────
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('./sw.js').catch(function() {});
+      }
     </script>
   
 
-<script type="module">import init from '/./grift-site-a0c5e852389f476.js';init('/./grift-site-a0c5e852389f476_bg.wasm');</script></body></html>
+<script type="module">import init from '/./grift-site-97542997ef7889e8.js';init('/./grift-site-97542997ef7889e8_bg.wasm');</script></body></html>

@@ -1,0 +1,11 @@
+{
+  "name": "gold-silver-copper.github.io",
+  "version": "1.0.0",
+  "description": "A terminal-themed personal website, blog, project showcase, and interactive REPL for the Grift programming language.",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/skyfskyf/gold-silver-copper.github.io.git"
+  },
+  "license": "ISC",
+  "homepage": "https://github.com/skyfskyf/gold-silver-copper.github.io#readme"
+}

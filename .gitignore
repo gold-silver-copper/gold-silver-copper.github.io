@@ -1,3 +1,8 @@
 code/target/
 code/dist/
+dist/
+TerminalVirtualKeyboard/target/
 .DS_Store
+node_modules/
+test-results/
+playwright-report/

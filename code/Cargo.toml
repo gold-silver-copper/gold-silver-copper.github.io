@@ -8,7 +8,9 @@ publish = false
 ratzilla = { git = "https://github.com/ratatui/ratzilla", rev = "2030bc3f" }
 grift = { git = "https://github.com/skyfskyf/grift", default-features = false }
 console_error_panic_hook = "0.1.7"
-tachyonfx = { version = "0.25.0", features = ["wasm"] }
+tachyonfx = { version = "0.25.0", features = ["wasm", "std", "dsl"] }
 web-time = "1.1"
 web-sys = "0.3"
 unicode-width = "0.2"
+tvk = { path = "../TerminalVirtualKeyboard", default-features = false }
+md-tui = { path = "../md-tui", default-features = false }

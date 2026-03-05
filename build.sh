@@ -10,9 +10,10 @@ trunk build --release --public-url ./ 2> >(grep -v 'templates/simple' >&2)
 
 echo "==> Removing old build artifacts from repo root..."
 rm -f "$REPO_ROOT"/*.js "$REPO_ROOT"/*.wasm "$REPO_ROOT"/style-*.css "$REPO_ROOT/index.html"
+rm -rf "$REPO_ROOT/fonts"
 
 echo "==> Copying new build output to repo root..."
-cp "$CODE_DIR/dist/"* "$REPO_ROOT/"
+cp -r "$CODE_DIR/dist/"* "$REPO_ROOT/"
 
 echo "==> Done! Built files:"
 ls -lh "$REPO_ROOT"/*.html "$REPO_ROOT"/*.js "$REPO_ROOT"/*.wasm "$REPO_ROOT"/*.css 2>/dev/null

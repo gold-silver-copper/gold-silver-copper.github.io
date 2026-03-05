@@ -3,17 +3,26 @@ use std::rc::Rc;
 
 use grift::Lisp;
 use ratzilla::event::{KeyCode, KeyEvent, MouseButton, MouseEvent, MouseEventKind};
-use ratzilla::ratatui::layout::{Alignment, Constraint, Layout, Offset, Position, Rect};
+use ratzilla::ratatui::layout::{Alignment, Constraint, Layout, Position, Rect};
 use ratzilla::ratatui::style::{Color, Modifier, Style, Stylize};
 use ratzilla::ratatui::text::{Line, Span, Text};
-use ratzilla::ratatui::widgets::{Block, BorderType, List, ListItem, Paragraph, Wrap};
+use ratzilla::ratatui::widgets::{Block, BorderType, Paragraph, Wrap};
 use ratzilla::ratatui::Frame;
 use ratzilla::backend::webgl2::WebGl2BackendOptions;
 use ratzilla::WebGl2Backend;
 use ratzilla::WebRenderer;
 use unicode_width::UnicodeWidthChar;
 
+use std::collections::HashSet;
+use tvk::virtual_key::VirtualKey;
+use tvk::layout::lisp_keyboard_layout;
+
+use md_tui::nodes::textcomponent::TextNode;
+use md_tui::nodes::word::WordType;
+use md_tui::nodes::root::Component;
+
 use tachyonfx::fx::{self};
+use tachyonfx::dsl::EffectDsl;
 use tachyonfx::{CellFilter, Duration, Effect, EffectRenderer, EffectTimer, Interpolation, Motion};
 
 const TRAIL_INITIAL_INTENSITY: u8 = 200;
@@ -21,52 +30,77 @@ const MAX_TRAIL_LENGTH: usize = 30;
 const TRAIL_FADE_RATE: u8 = 8;
 const CURSOR_BLINK_RATE: u64 = 60;
 
-// Responsive layout breakpoints (in terminal grid columns/rows)
-const NARROW_WIDTH_THRESHOLD: u16 = 50;
-const VERY_NARROW_WIDTH_THRESHOLD: u16 = 35;
-const NARROW_MARGIN_THRESHOLD: u16 = 60;
-const SHORT_MARGIN_THRESHOLD: u16 = 30;
+// Unified layout: always use compact mobile-style sizing
+const MARGIN_DIVISOR: u16 = 16;
 
 const DESCRIPTION: &str = "\
-A Kernel-style Lisp built in Rust where everything is first-class.\n\
-Operatives (fexprs) subsume both functions and macros — receiving\n\
-arguments unevaluated with access to the caller's environment.\n\
-no_std, no_alloc, #![forbid(unsafe_code)], compiles to WASM.";
+A Kernel-style Lisp built in Rust where everything is first-class. Operatives (fexprs) subsume both functions and macros — receiving arguments unevaluated with access to the caller's environment. no_std, no_alloc, #![forbid(unsafe_code)], compiles to WASM. Grift is designed for minimalism and correctness: the entire evaluator fits in a single file with zero dependencies on heap allocation or unsafe code.";
 
 const VAU_INFO: &str = "\
-Grift implements vau calculus: first-class operatives that receive\n\
-their operands unevaluated alongside the dynamic environment.\n\
-This single primitive replaces the function/macro split entirely.\n\
-User-defined operatives have the same power as built-in forms —\n\
-define!, if, and quote are all expressible in user space.";
+Grift implements vau calculus: first-class operatives that receive their operands unevaluated alongside the dynamic environment. This single primitive replaces the function/macro split entirely. User-defined operatives have the same power as built-in forms — define!, if, and quote are all expressible in user space. Vau calculus was introduced by John Shutt in his 2010 PhD thesis as a cleaner foundation for Lisp semantics.";
 
 const FIRST_CLASS_INFO: &str = "\
-Environments, continuations, operatives, and combiners are all\n\
-first-class values. Operatives close over their static environment\n\
-and capture the caller's dynamic environment at each call site.\n\
-This enables reflective towers, hygienic binding constructs, and\n\
-arbitrary evaluation strategies — without special-casing.";
+Environments, continuations, operatives, and combiners are all first-class values. Operatives close over their static environment and capture the caller's dynamic environment at each call site. This enables reflective towers, hygienic binding constructs, and arbitrary evaluation strategies — without special-casing. First-class environments mean you can pass, return, and inspect environments just like any other value in the language.";
 
 const IMPL_INFO: &str = "\
-Written in pure Rust: arena-allocated with const-generic capacity,\n\
-tail-call optimized, mark-and-sweep GC, zero unsafe code.\n\
-Runs on bare-metal embedded targets and compiles to WebAssembly.\n\
-This entire site is a Rust TUI rendered to canvas via WASM.";
+Written in pure Rust: arena-allocated with const-generic capacity, tail-call optimized, mark-and-sweep GC, zero unsafe code. Runs on bare-metal embedded targets and compiles to WebAssembly. This entire site is a Rust TUI rendered to canvas via WASM. The arena allocator uses a fixed-size array with const generics so the capacity is determined at compile time with no runtime overhead.";
 
-const LINKS: &[(&str, &str)] = &[
+const LINKS: &[(&str, &str, &str)] = &[
     (
         "GitHub (gold-silver-copper)",
         "https://github.com/gold-silver-copper",
+        "Main GitHub profile — hosts open-source Rust and Lisp projects including grift and this website.",
     ),
-    ("GitHub (grift)", "https://github.com/skyfskyf/grift"),
+    (
+        "GitHub (grift)",
+        "https://github.com/skyfskyf/grift",
+        "The Grift language repository — a no_std, no_alloc Kernel-style Lisp that powers this site's REPL.",
+    ),
     (
         "GitHub (grift-site)",
         "https://github.com/skyfskyf/grift-site",
+        "Source code for this very website — a terminal UI compiled to WASM and rendered to canvas.",
     ),
-    ("Ratzilla – Terminal web apps with Rust + WASM", "https://github.com/ratatui/ratzilla"),
-    ("Ratatui – Terminal UI framework", "https://github.com/ratatui/ratatui"),
-    ("TachyonFX – Shader-like effects for TUIs", "https://github.com/ratatui/tachyonfx"),
-    ("WebAssembly", "https://webassembly.org"),
+    (
+        "Ratzilla – Terminal web apps with Rust + WASM",
+        "https://github.com/ratatui/ratzilla",
+        "The framework that renders this terminal UI in your browser via WebGL2 — built on top of ratatui.",
+    ),
+    (
+        "Ratatui – Terminal UI framework",
+        "https://github.com/ratatui/ratatui",
+        "The Rust TUI framework providing all the widgets, layout, and text rendering used throughout this site.",
+    ),
+    (
+        "TachyonFX – Shader-like effects for TUIs",
+        "https://github.com/ratatui/tachyonfx",
+        "Provides the animated transitions, hover effects, and background animations you see across every page.",
+    ),
+    (
+        "WebAssembly",
+        "https://webassembly.org",
+        "The compilation target that makes this Rust application run natively in your browser at near-native speed.",
+    ),
+    (
+        "Rust Programming Language",
+        "https://www.rust-lang.org",
+        "The language this entire site is written in — zero JavaScript frameworks, just safe Rust compiled to WASM.",
+    ),
+    (
+        "crates.io – Rust Package Registry",
+        "https://crates.io",
+        "Where Grift, TachyonFX, and other Rust dependencies used by this project are published.",
+    ),
+    (
+        "Kernel Language (vau calculus)",
+        "https://web.cs.wpi.edu/~jshutt/kernel.html",
+        "The theoretical foundation for Grift — John Shutt's Kernel language where operatives replace macros.",
+    ),
+    (
+        "John Shutt – Vau Calculus Thesis",
+        "https://web.cs.wpi.edu/~jshutt/dissertation/etd-090110-124904.pdf",
+        "The 2010 PhD thesis that introduced vau calculus as a cleaner semantic foundation for Lisp.",
+    ),
 ];
 
 const DOC_BASICS: &str = "\
@@ -167,126 +201,1273 @@ Type checking:\n\
   (null? ())          => #t\n\
   (boolean? #t)       => #t";
 
-const SHOWCASE_INFO: &str = "\
-Ratzilla & Grift — Mobile Showcase\n\
-──────────────────────────────────\n\
+const DOC_ENVIRONMENTS: &str = "\
+Environments & Evaluation\n\
+─────────────────────────\n\
 \n\
-This website is a fully interactive terminal UI running\n\
-natively in your mobile browser — no app install needed.\n\
-Everything is rendered via WebAssembly + WebGL2.\n\
+Environments are first-class in Grift:\n\
+  (get-current-environment)  => <environment>\n\
+  (make-environment)         => <empty-env>\n\
+  (eval expr env)            => evaluate expr in env\n\
 \n\
-Mobile Interactions\n\
-───────────────────\n\
+Operatives receive the dynamic environment:\n\
+  ($vau (x) e (eval x e))   ; like lambda\n\
+  (wrap ($vau (x) #ignore x)) ; applicative from operative\n\
 \n\
-  • Swipe LEFT / RIGHT to switch between tabs\n\
-  • Swipe UP / DOWN to scroll content\n\
-  • Tap on tabs, links, and buttons to interact\n\
-  • Pinch-to-zoom is disabled for native feel\n\
-  • Mouse wheel scrolling works on desktop\n\
+The evaluator:\n\
+  1. Symbols are looked up in the current environment\n\
+  2. Pairs: evaluate the operator, then combine\n\
+  3. Operatives receive operands unevaluated\n\
+  4. Applicatives evaluate operands first, then call\n\
 \n\
-Built With\n\
-──────────\n\
+Tail-call optimization:\n\
+  Grift optimizes tail positions so recursive functions\n\
+  run in constant stack space. This applies to if, cond,\n\
+  begin, let, and operative/applicative bodies.";
+
+const DOC_ERRORS: &str = "\
+Error Handling & Debugging\n\
+──────────────────────────\n\
 \n\
-  Ratzilla   Terminal web apps with Rust + WASM\n\
-  Ratatui    Terminal UI framework for Rust\n\
-  TachyonFX  Shader-like effects for terminal UIs\n\
-  Grift      Minimalistic Lisp with vau calculus\n\
+Grift reports errors as readable messages:\n\
+  (/ 1 0)               => Error: DivisionByZero\n\
+  (car 42)              => Error: TypeMismatch\n\
+  undefined-sym          => Error: UnboundSymbol\n\
 \n\
-Why Terminal UI in the Browser?\n\
-──────────────────────────────\n\
+Common errors:\n\
+  TypeMismatch    — wrong argument type\n\
+  ArityMismatch   — wrong number of arguments\n\
+  UnboundSymbol   — symbol not defined in scope\n\
+  DivisionByZero  — division by zero\n\
+  ArenaFull       — arena capacity exceeded\n\
 \n\
-  Traditional web apps use HTML/CSS/JavaScript to render\n\
-  DOM elements. This site takes a different approach:\n\
-  the entire UI is a Rust application compiled to WASM,\n\
-  rendering a terminal grid to an HTML canvas.\n\
-\n\
-  Benefits:\n\
-  • Consistent rendering across all devices\n\
-  • No CSS layout quirks or browser differences\n\
-  • Rust type safety and performance\n\
-  • Retro terminal aesthetic with modern effects\n\
-\n\
-Mobile-First Design\n\
-───────────────────\n\
-\n\
-  The layout adapts to screen size:\n\
-  • Narrow screens get a vertical stacked layout\n\
-  • Wide screens get side-by-side panels\n\
-  • Touch gestures replace keyboard shortcuts\n\
-  • Scrollable sections work on all screen sizes\n\
-\n\
-  Every section you see can be scrolled by swiping\n\
-  up and down, or by using the ▲ / ▼ buttons at\n\
-  the bottom of the screen.\n\
-\n\
-Try the REPL!\n\
-─────────────\n\
-\n\
-  Switch to the REPL tab and type Lisp expressions.\n\
-  The on-screen keyboard works — try:\n\
-    (+ 1 2)\n\
-    (list 1 2 3)\n\
-    (define! x 42)\n\
-    (* x x)\n\
-\n\
-  The REPL runs a real Lisp interpreter (Grift)\n\
-  compiled to WebAssembly — not a simulation.";
+Debugging tips:\n\
+  1. Check types with predicates: number?, pair?, string?\n\
+  2. Inspect environments with get-current-environment\n\
+  3. Use begin to sequence debug prints\n\
+  4. Break complex expressions into smaller define! steps";
+
+// ---------------------------------------------------------------------------
+// Expanded Effects DSL Showcase
+// ---------------------------------------------------------------------------
+// Each entry: (category, title, DSL expression string).
+// The DSL expressions are compiled at runtime by tachyonfx::dsl::EffectDsl.
+// Effects are wrapped with repeating(ping_pong(...)) so they loop forever.
+// ---------------------------------------------------------------------------
+
+struct DslShowcaseEntry {
+    category: &'static str,
+    title: &'static str,
+    dsl: &'static str,
+}
+
+const DSL_SHOWCASE: &[DslShowcaseEntry] = &[
+    // ── Dissolve / Coalesce ──────────────────────────────────────────────
+    DslShowcaseEntry {
+        category: "Dissolve & Coalesce",
+        title: "dissolve",
+        dsl: "fx::dissolve(2000)",
+    },
+    DslShowcaseEntry {
+        category: "Dissolve & Coalesce",
+        title: "coalesce",
+        dsl: "fx::coalesce(2000)",
+    },
+    DslShowcaseEntry {
+        category: "Dissolve & Coalesce",
+        title: "dissolve (QuadOut)",
+        dsl: "fx::dissolve((2500, QuadOut))",
+    },
+    DslShowcaseEntry {
+        category: "Dissolve & Coalesce",
+        title: "coalesce (SineOut)",
+        dsl: "fx::coalesce((2500, SineOut))",
+    },
+    DslShowcaseEntry {
+        category: "Dissolve & Coalesce",
+        title: "dissolve (BounceOut)",
+        dsl: "fx::dissolve((3000, BounceOut))",
+    },
+    DslShowcaseEntry {
+        category: "Dissolve & Coalesce",
+        title: "dissolve (CubicInOut)",
+        dsl: "fx::dissolve((2500, CubicInOut))",
+    },
+    DslShowcaseEntry {
+        category: "Dissolve & Coalesce",
+        title: "dissolve_to amber",
+        dsl: "fx::dissolve_to(Color::Rgb(207, 181, 59), (2500, QuadOut))",
+    },
+    DslShowcaseEntry {
+        category: "Dissolve & Coalesce",
+        title: "coalesce_from teal",
+        dsl: "fx::coalesce_from(Color::Rgb(0, 180, 180), (2500, CubicOut))",
+    },
+
+    // ── Slide / Sweep ────────────────────────────────────────────────────
+    DslShowcaseEntry {
+        category: "Slide & Sweep",
+        title: "sweep_in L→R",
+        dsl: r#"
+            let bg = Color::Rgb(8, 9, 14);
+            fx::sweep_in(Motion::LeftToRight, 10, 3, bg, (3000, QuadOut))
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Slide & Sweep",
+        title: "sweep_in R→L",
+        dsl: r#"
+            let bg = Color::Rgb(8, 9, 14);
+            fx::sweep_in(Motion::RightToLeft, 10, 3, bg, (3000, QuadOut))
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Slide & Sweep",
+        title: "sweep_in U→D",
+        dsl: r#"
+            let bg = Color::Rgb(8, 9, 14);
+            fx::sweep_in(Motion::UpToDown, 8, 2, bg, (3000, CubicOut))
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Slide & Sweep",
+        title: "sweep_in D→U",
+        dsl: r#"
+            let bg = Color::Rgb(8, 9, 14);
+            fx::sweep_in(Motion::DownToUp, 8, 2, bg, (3000, CubicOut))
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Slide & Sweep",
+        title: "sweep_out L→R",
+        dsl: r#"
+            let bg = Color::Rgb(8, 9, 14);
+            fx::sweep_out(Motion::LeftToRight, 10, 3, bg, (3000, QuadOut))
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Slide & Sweep",
+        title: "slide_in L→R",
+        dsl: r#"
+            let bg = Color::Rgb(8, 9, 14);
+            fx::slide_in(Motion::LeftToRight, 8, 3, bg, (3000, CubicOut))
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Slide & Sweep",
+        title: "slide_in U→D",
+        dsl: r#"
+            let bg = Color::Rgb(8, 9, 14);
+            fx::slide_in(Motion::UpToDown, 8, 3, bg, (3000, CubicOut))
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Slide & Sweep",
+        title: "slide_out R→L",
+        dsl: r#"
+            let bg = Color::Rgb(8, 9, 14);
+            fx::slide_out(Motion::RightToLeft, 8, 3, bg, (3000, QuadOut))
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Slide & Sweep",
+        title: "sweep_in wide L→R",
+        dsl: r#"
+            let bg = Color::Rgb(8, 9, 14);
+            fx::sweep_in(Motion::LeftToRight, 20, 6, bg, (4000, SineOut))
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Slide & Sweep",
+        title: "slide_in narrow D→U",
+        dsl: r#"
+            let bg = Color::Rgb(8, 9, 14);
+            fx::slide_in(Motion::DownToUp, 4, 1, bg, (2500, QuadOut))
+        "#,
+    },
+
+    // ── Color Fading ─────────────────────────────────────────────────────
+    DslShowcaseEntry {
+        category: "Color Fading",
+        title: "fade_from black",
+        dsl: r#"
+            let bg = Color::Rgb(8, 9, 14);
+            fx::fade_from(bg, bg, (3000, CubicOut))
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Color Fading",
+        title: "fade_to_fg red",
+        dsl: "fx::fade_to_fg(Color::Red, (2500, QuadOut))",
+    },
+    DslShowcaseEntry {
+        category: "Color Fading",
+        title: "fade_to_fg blue",
+        dsl: "fx::fade_to_fg(Color::Blue, (2500, SineOut))",
+    },
+    DslShowcaseEntry {
+        category: "Color Fading",
+        title: "fade_to_fg green",
+        dsl: "fx::fade_to_fg(Color::Green, (2500, CubicOut))",
+    },
+    DslShowcaseEntry {
+        category: "Color Fading",
+        title: "fade_to_fg amber",
+        dsl: "fx::fade_to_fg(Color::Rgb(207, 181, 59), (2500, QuadOut))",
+    },
+    DslShowcaseEntry {
+        category: "Color Fading",
+        title: "fade_from_fg cyan",
+        dsl: "fx::fade_from_fg(Color::Cyan, (2500, QuadOut))",
+    },
+    DslShowcaseEntry {
+        category: "Color Fading",
+        title: "fade_from_fg magenta",
+        dsl: "fx::fade_from_fg(Color::Magenta, (3000, SineOut))",
+    },
+    DslShowcaseEntry {
+        category: "Color Fading",
+        title: "fade_to pink→amber",
+        dsl: r#"fx::fade_to(Color::Rgb(255, 105, 180), Color::Rgb(207, 181, 59), (3000, CubicOut))"#,
+    },
+    DslShowcaseEntry {
+        category: "Color Fading",
+        title: "fade_from deep blue",
+        dsl: r#"fx::fade_from(Color::Rgb(0, 30, 90), Color::Rgb(0, 30, 90), (3500, SineOut))"#,
+    },
+    DslShowcaseEntry {
+        category: "Color Fading",
+        title: "fade_to_fg orange (BounceOut)",
+        dsl: "fx::fade_to_fg(Color::Rgb(255, 140, 0), (3000, BounceOut))",
+    },
+
+    // ── HSL Manipulation ─────────────────────────────────────────────────
+    DslShowcaseEntry {
+        category: "HSL Manipulation",
+        title: "hsl_shift_fg warm",
+        dsl: "fx::hsl_shift_fg([30.0, 20.0, 25.0], (3000, SineOut))",
+    },
+    DslShowcaseEntry {
+        category: "HSL Manipulation",
+        title: "hsl_shift_fg cool",
+        dsl: "fx::hsl_shift_fg([-40.0, 15.0, -10.0], (3000, QuadOut))",
+    },
+    DslShowcaseEntry {
+        category: "HSL Manipulation",
+        title: "hsl_shift_fg vibrant",
+        dsl: "fx::hsl_shift_fg([60.0, 40.0, 30.0], (3500, CubicOut))",
+    },
+    DslShowcaseEntry {
+        category: "HSL Manipulation",
+        title: "hsl_shift_fg pastel",
+        dsl: "fx::hsl_shift_fg([20.0, -30.0, 40.0], (3000, SineOut))",
+    },
+    DslShowcaseEntry {
+        category: "HSL Manipulation",
+        title: "hsl_shift_fg neon",
+        dsl: "fx::hsl_shift_fg([90.0, 50.0, 20.0], (4000, QuadInOut))",
+    },
+    DslShowcaseEntry {
+        category: "HSL Manipulation",
+        title: "hsl_shift full spectrum",
+        dsl: "fx::hsl_shift_fg([180.0, 0.0, 0.0], (5000, Linear))",
+    },
+    DslShowcaseEntry {
+        category: "HSL Manipulation",
+        title: "saturate_fg",
+        dsl: "fx::saturate_fg(50.0, (3000, QuadOut))",
+    },
+    DslShowcaseEntry {
+        category: "HSL Manipulation",
+        title: "lighten_fg",
+        dsl: "fx::lighten_fg(40.0, (3000, SineOut))",
+    },
+    DslShowcaseEntry {
+        category: "HSL Manipulation",
+        title: "darken_fg",
+        dsl: "fx::darken_fg(40.0, (3000, QuadOut))",
+    },
+    DslShowcaseEntry {
+        category: "HSL Manipulation",
+        title: "hsl_shift_fg muted sunset",
+        dsl: "fx::hsl_shift_fg([45.0, -20.0, 15.0], (3500, CubicOut))",
+    },
+
+    // ── Paint Effects ────────────────────────────────────────────────────
+    DslShowcaseEntry {
+        category: "Paint Effects",
+        title: "paint_fg gold",
+        dsl: "fx::paint_fg(Color::Rgb(207, 181, 59), (2500, QuadOut))",
+    },
+    DslShowcaseEntry {
+        category: "Paint Effects",
+        title: "paint_fg copper",
+        dsl: "fx::paint_fg(Color::Rgb(184, 115, 51), (2500, CubicOut))",
+    },
+    DslShowcaseEntry {
+        category: "Paint Effects",
+        title: "paint_fg silver",
+        dsl: "fx::paint_fg(Color::Rgb(192, 192, 192), (2500, SineOut))",
+    },
+    DslShowcaseEntry {
+        category: "Paint Effects",
+        title: "paint_fg cyan",
+        dsl: "fx::paint_fg(Color::Cyan, (2500, QuadOut))",
+    },
+    DslShowcaseEntry {
+        category: "Paint Effects",
+        title: "paint_fg hot pink",
+        dsl: "fx::paint_fg(Color::Rgb(255, 105, 180), (2500, CubicOut))",
+    },
+
+    // ── Explosion & Stretch ──────────────────────────────────────────────
+    DslShowcaseEntry {
+        category: "Explosion & Motion",
+        title: "explode",
+        dsl: "fx::explode((3000, QuadOut))",
+    },
+    DslShowcaseEntry {
+        category: "Explosion & Motion",
+        title: "stretch L→R",
+        dsl: "fx::stretch(Motion::LeftToRight, (3000, CubicOut))",
+    },
+    DslShowcaseEntry {
+        category: "Explosion & Motion",
+        title: "stretch U→D",
+        dsl: "fx::stretch(Motion::UpToDown, (3000, QuadOut))",
+    },
+    DslShowcaseEntry {
+        category: "Explosion & Motion",
+        title: "expand L→R",
+        dsl: "fx::expand(Motion::LeftToRight, (3000, CubicOut))",
+    },
+    DslShowcaseEntry {
+        category: "Explosion & Motion",
+        title: "expand U→D",
+        dsl: "fx::expand(Motion::UpToDown, (3000, QuadOut))",
+    },
+    DslShowcaseEntry {
+        category: "Explosion & Motion",
+        title: "translate",
+        dsl: "fx::translate(3, 1, (2500, QuadOut))",
+    },
+    DslShowcaseEntry {
+        category: "Explosion & Motion",
+        title: "translate reverse",
+        dsl: "fx::translate(-3, -1, (2500, CubicOut))",
+    },
+    DslShowcaseEntry {
+        category: "Explosion & Motion",
+        title: "explode (BounceOut)",
+        dsl: "fx::explode((3500, BounceOut))",
+    },
+
+    // ── Sequences & Compositions ─────────────────────────────────────────
+    DslShowcaseEntry {
+        category: "Compositions",
+        title: "sequence: dissolve → coalesce",
+        dsl: r#"
+            fx::sequence(&[
+                fx::dissolve(1500),
+                fx::coalesce(1500)
+            ])
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Compositions",
+        title: "sequence: fade colors",
+        dsl: r#"
+            fx::sequence(&[
+                fx::fade_to_fg(Color::Red, 1000),
+                fx::fade_to_fg(Color::Blue, 1000),
+                fx::fade_to_fg(Color::Green, 1000)
+            ])
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Compositions",
+        title: "parallel: dissolve + hsl",
+        dsl: r#"
+            fx::parallel(&[
+                fx::dissolve((3000, QuadOut)),
+                fx::hsl_shift_fg([60.0, 30.0, 20.0], (3000, SineOut))
+            ])
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Compositions",
+        title: "sequence: triple sweep",
+        dsl: r#"
+            let bg = Color::Rgb(8, 9, 14);
+            fx::sequence(&[
+                fx::sweep_in(Motion::LeftToRight, 10, 3, bg, (1200, QuadOut)),
+                fx::sweep_in(Motion::RightToLeft, 10, 3, bg, (1200, QuadOut)),
+                fx::sweep_in(Motion::UpToDown, 8, 2, bg, (1200, CubicOut))
+            ])
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Compositions",
+        title: "parallel: fade + sweep",
+        dsl: r#"
+            let bg = Color::Rgb(8, 9, 14);
+            fx::parallel(&[
+                fx::fade_to_fg(Color::Rgb(207, 181, 59), (3000, QuadOut)),
+                fx::sweep_in(Motion::LeftToRight, 15, 5, bg, (3000, SineOut))
+            ])
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Compositions",
+        title: "sequence: paint chain",
+        dsl: r#"
+            fx::sequence(&[
+                fx::paint_fg(Color::Red, 800),
+                fx::paint_fg(Color::Rgb(255, 165, 0), 800),
+                fx::paint_fg(Color::Yellow, 800),
+                fx::paint_fg(Color::Green, 800)
+            ])
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Compositions",
+        title: "parallel: triple shift",
+        dsl: r#"
+            fx::parallel(&[
+                fx::hsl_shift_fg([120.0, 0.0, 0.0], (4000, Linear)),
+                fx::lighten_fg(20.0, (4000, SineOut)),
+                fx::saturate_fg(30.0, (4000, QuadOut))
+            ])
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Compositions",
+        title: "sequence: slide bounce",
+        dsl: r#"
+            let bg = Color::Rgb(8, 9, 14);
+            fx::sequence(&[
+                fx::slide_in(Motion::LeftToRight, 8, 3, bg, (1500, BounceOut)),
+                fx::slide_in(Motion::RightToLeft, 8, 3, bg, (1500, BounceOut))
+            ])
+        "#,
+    },
+
+    // ── With Patterns ────────────────────────────────────────────────────
+    DslShowcaseEntry {
+        category: "Patterns",
+        title: "dissolve + radial center",
+        dsl: r#"
+            fx::dissolve((3000, QuadOut))
+                .with_pattern(RadialPattern::center())
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Patterns",
+        title: "coalesce + radial center",
+        dsl: r#"
+            fx::coalesce((3000, CubicOut))
+                .with_pattern(RadialPattern::center())
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Patterns",
+        title: "dissolve + diamond",
+        dsl: r#"
+            fx::dissolve((3000, QuadOut))
+                .with_pattern(DiamondPattern::center())
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Patterns",
+        title: "coalesce + diamond",
+        dsl: r#"
+            fx::coalesce((3000, SineOut))
+                .with_pattern(DiamondPattern::center())
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Patterns",
+        title: "dissolve + spiral 4 arms",
+        dsl: r#"
+            fx::dissolve((4000, Linear))
+                .with_pattern(SpiralPattern::center().with_arms(4))
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Patterns",
+        title: "coalesce + spiral 6 arms",
+        dsl: r#"
+            fx::coalesce((4000, Linear))
+                .with_pattern(SpiralPattern::center().with_arms(6))
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Patterns",
+        title: "dissolve + diagonal TL→BR",
+        dsl: r#"
+            fx::dissolve((3000, QuadOut))
+                .with_pattern(DiagonalPattern::top_left_to_bottom_right())
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Patterns",
+        title: "dissolve + checkerboard",
+        dsl: r#"
+            fx::dissolve((3000, CubicOut))
+                .with_pattern(CheckerboardPattern::default())
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Patterns",
+        title: "dissolve + sweep pattern L→R",
+        dsl: r#"
+            fx::dissolve((3000, QuadOut))
+                .with_pattern(SweepPattern::left_to_right())
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Patterns",
+        title: "coalesce + inverted radial",
+        dsl: r#"
+            fx::coalesce((3000, SineOut))
+                .with_pattern(InvertedPattern::new(RadialPattern::center()))
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Patterns",
+        title: "dissolve + spiral wide",
+        dsl: r#"
+            fx::dissolve((4000, QuadOut))
+                .with_pattern(
+                    SpiralPattern::center()
+                        .with_arms(3)
+                        .with_transition_width(2.5)
+                )
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Patterns",
+        title: "dissolve + combined radial×diamond",
+        dsl: r#"
+            fx::dissolve((4000, SineOut))
+                .with_pattern(CombinedPattern::multiply(
+                    RadialPattern::center(),
+                    DiamondPattern::center()
+                ))
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Patterns",
+        title: "coalesce + blend spiral↔radial",
+        dsl: r#"
+            fx::coalesce((4000, QuadOut))
+                .with_pattern(BlendPattern::new(
+                    SpiralPattern::center().with_arms(4),
+                    RadialPattern::center()
+                ))
+        "#,
+    },
+
+    // ── Wave Patterns ────────────────────────────────────────────────────
+    DslShowcaseEntry {
+        category: "Wave Patterns",
+        title: "dissolve + sine wave",
+        dsl: r#"
+            fx::dissolve((4000, Linear))
+                .with_pattern(WavePattern::new(
+                    WaveLayer::new(Oscillator::sin(2.0, 0.0, 1.0))
+                ))
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Wave Patterns",
+        title: "dissolve + cos wave",
+        dsl: r#"
+            fx::dissolve((4000, Linear))
+                .with_pattern(WavePattern::new(
+                    WaveLayer::new(Oscillator::cos(0.0, 3.0, 0.5))
+                ))
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Wave Patterns",
+        title: "coalesce + triangle wave",
+        dsl: r#"
+            fx::coalesce((4000, Linear))
+                .with_pattern(WavePattern::new(
+                    WaveLayer::new(Oscillator::triangle(2.0, 2.0, 0.8))
+                ))
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Wave Patterns",
+        title: "dissolve + sawtooth wave",
+        dsl: r#"
+            fx::dissolve((4000, Linear))
+                .with_pattern(WavePattern::new(
+                    WaveLayer::new(Oscillator::sawtooth(3.0, 0.0, 1.0))
+                ))
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Wave Patterns",
+        title: "dissolve + modulated wave",
+        dsl: r#"
+            fx::dissolve((5000, Linear))
+                .with_pattern(WavePattern::new(
+                    WaveLayer::new(
+                        Oscillator::sin(2.0, 0.0, 1.0)
+                            .modulated_by(Modulator::sin(1.0, 1.0, 0.25).intensity(0.5))
+                    )
+                ))
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Wave Patterns",
+        title: "coalesce + multiplied waves",
+        dsl: r#"
+            fx::coalesce((5000, Linear))
+                .with_pattern(WavePattern::new(
+                    WaveLayer::new(Oscillator::sin(2.0, 0.0, 1.0))
+                        .multiply(Oscillator::cos(0.0, 3.0, 0.5))
+                ))
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Wave Patterns",
+        title: "dissolve + wave contrast",
+        dsl: r#"
+            fx::dissolve((4500, Linear))
+                .with_pattern(
+                    WavePattern::new(
+                        WaveLayer::new(Oscillator::sin(3.0, 0.0, 0.8))
+                            .amplitude(0.9)
+                    ).with_contrast(3)
+                )
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Wave Patterns",
+        title: "dissolve + complex wave",
+        dsl: r#"
+            fx::dissolve((6000, Linear))
+                .with_pattern(WavePattern::new(
+                    WaveLayer::new(Oscillator::sin(2.0, 0.0, 1.0))
+                        .multiply(
+                            Oscillator::cos(0.0, 3.0, 0.5)
+                                .modulated_by(
+                                    Modulator::sin(1.0, 1.0, 0.25)
+                                        .intensity(0.5)
+                                )
+                        )
+                        .amplitude(0.8)
+                ))
+        "#,
+    },
+
+    // ── Timing & Control ─────────────────────────────────────────────────
+    DslShowcaseEntry {
+        category: "Timing & Control",
+        title: "with_duration dissolve",
+        dsl: "fx::with_duration(4000, fx::dissolve(2000))",
+    },
+    DslShowcaseEntry {
+        category: "Timing & Control",
+        title: "delay + coalesce",
+        dsl: r#"
+            fx::sequence(&[
+                fx::sleep(500),
+                fx::coalesce((2500, SineOut))
+            ])
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Timing & Control",
+        title: "prolong_start dissolve",
+        dsl: "fx::prolong_start(500, fx::dissolve((2000, QuadOut)))",
+    },
+    DslShowcaseEntry {
+        category: "Timing & Control",
+        title: "prolong_end coalesce",
+        dsl: "fx::prolong_end(500, fx::coalesce((2000, SineOut)))",
+    },
+    DslShowcaseEntry {
+        category: "Timing & Control",
+        title: "sequence delayed sweeps",
+        dsl: r#"
+            let bg = Color::Rgb(8, 9, 14);
+            fx::sequence(&[
+                fx::sweep_in(Motion::LeftToRight, 10, 3, bg, (1200, QuadOut)),
+                fx::sleep(300),
+                fx::sweep_in(Motion::RightToLeft, 10, 3, bg, (1200, QuadOut)),
+                fx::sleep(300),
+                fx::sweep_in(Motion::UpToDown, 8, 2, bg, (1200, CubicOut))
+            ])
+        "#,
+    },
+
+    // ── Cell Filters ─────────────────────────────────────────────────────
+    DslShowcaseEntry {
+        category: "Cell Filters",
+        title: "dissolve Text only",
+        dsl: r#"
+            fx::dissolve((2500, QuadOut))
+                .with_filter(CellFilter::Text)
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Cell Filters",
+        title: "fade_to_fg NonEmpty",
+        dsl: r#"
+            fx::fade_to_fg(Color::Rgb(207, 181, 59), (2500, SineOut))
+                .with_filter(CellFilter::NonEmpty)
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Cell Filters",
+        title: "hsl_shift Text filter",
+        dsl: r#"
+            fx::hsl_shift_fg([45.0, 25.0, 20.0], (3000, QuadOut))
+                .with_filter(CellFilter::Text)
+        "#,
+    },
+
+    // ── Interpolation Showcase ───────────────────────────────────────────
+    DslShowcaseEntry {
+        category: "Interpolation",
+        title: "dissolve Linear",
+        dsl: "fx::dissolve((3000, Linear))",
+    },
+    DslShowcaseEntry {
+        category: "Interpolation",
+        title: "dissolve QuadIn",
+        dsl: "fx::dissolve((3000, QuadIn))",
+    },
+    DslShowcaseEntry {
+        category: "Interpolation",
+        title: "dissolve QuadOut",
+        dsl: "fx::dissolve((3000, QuadOut))",
+    },
+    DslShowcaseEntry {
+        category: "Interpolation",
+        title: "dissolve CubicIn",
+        dsl: "fx::dissolve((3000, CubicIn))",
+    },
+    DslShowcaseEntry {
+        category: "Interpolation",
+        title: "dissolve CubicOut",
+        dsl: "fx::dissolve((3000, CubicOut))",
+    },
+    DslShowcaseEntry {
+        category: "Interpolation",
+        title: "dissolve CubicInOut",
+        dsl: "fx::dissolve((3000, CubicInOut))",
+    },
+    DslShowcaseEntry {
+        category: "Interpolation",
+        title: "dissolve SineIn",
+        dsl: "fx::dissolve((3000, SineIn))",
+    },
+    DslShowcaseEntry {
+        category: "Interpolation",
+        title: "dissolve SineOut",
+        dsl: "fx::dissolve((3000, SineOut))",
+    },
+    DslShowcaseEntry {
+        category: "Interpolation",
+        title: "dissolve BounceOut",
+        dsl: "fx::dissolve((3000, BounceOut))",
+    },
+    DslShowcaseEntry {
+        category: "Interpolation",
+        title: "dissolve BounceIn",
+        dsl: "fx::dissolve((3000, BounceIn))",
+    },
+    DslShowcaseEntry {
+        category: "Interpolation",
+        title: "dissolve ExpoOut",
+        dsl: "fx::dissolve((3000, ExpoOut))",
+    },
+    DslShowcaseEntry {
+        category: "Interpolation",
+        title: "dissolve ElasticOut",
+        dsl: "fx::dissolve((3000, ElasticOut))",
+    },
+
+    // ── Color Space ──────────────────────────────────────────────────────
+    DslShowcaseEntry {
+        category: "Color Space",
+        title: "fade_to_fg HSV",
+        dsl: r#"
+            fx::fade_to_fg(Color::Red, (3000, QuadOut))
+                .with_color_space(ColorSpace::Hsv)
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Color Space",
+        title: "fade_to_fg HSL",
+        dsl: r#"
+            fx::fade_to_fg(Color::Blue, (3000, SineOut))
+                .with_color_space(ColorSpace::Hsl)
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Color Space",
+        title: "fade_to_fg RGB",
+        dsl: r#"
+            fx::fade_to_fg(Color::Green, (3000, CubicOut))
+                .with_color_space(ColorSpace::Rgb)
+        "#,
+    },
+
+    // ── Evolution Effects ────────────────────────────────────────────────
+    DslShowcaseEntry {
+        category: "Evolution",
+        title: "evolve Shaded",
+        dsl: "fx::evolve(EvolveSymbolSet::Shaded, (3000, QuadOut))",
+    },
+    DslShowcaseEntry {
+        category: "Evolution",
+        title: "evolve Quadrants",
+        dsl: "fx::evolve(EvolveSymbolSet::Quadrants, (3000, CubicOut))",
+    },
+    DslShowcaseEntry {
+        category: "Evolution",
+        title: "evolve BlocksHorizontal",
+        dsl: "fx::evolve(EvolveSymbolSet::BlocksHorizontal, (3000, SineOut))",
+    },
+    DslShowcaseEntry {
+        category: "Evolution",
+        title: "evolve BlocksVertical",
+        dsl: "fx::evolve(EvolveSymbolSet::BlocksVertical, (3000, QuadOut))",
+    },
+    DslShowcaseEntry {
+        category: "Evolution",
+        title: "evolve_into Circles",
+        dsl: r#"fx::evolve_into(EvolveSymbolSet::Circles, "◉", (3000, CubicOut))"#,
+    },
+    DslShowcaseEntry {
+        category: "Evolution",
+        title: "evolve_from Squares",
+        dsl: r#"fx::evolve_from(EvolveSymbolSet::Squares, "■", (3000, QuadOut))"#,
+    },
+
+    // ── Advanced Compositions ────────────────────────────────────────────
+    DslShowcaseEntry {
+        category: "Advanced",
+        title: "parallel paint + dissolve",
+        dsl: r#"
+            fx::parallel(&[
+                fx::paint_fg(Color::Rgb(255, 105, 180), (3000, QuadOut)),
+                fx::dissolve((3000, CubicOut))
+            ])
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Advanced",
+        title: "sequence: evolve → dissolve",
+        dsl: r#"
+            fx::sequence(&[
+                fx::evolve(EvolveSymbolSet::Shaded, (1500, QuadOut)),
+                fx::dissolve((1500, CubicOut))
+            ])
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Advanced",
+        title: "parallel: sweep + fade + shift",
+        dsl: r#"
+            let bg = Color::Rgb(8, 9, 14);
+            fx::parallel(&[
+                fx::sweep_in(Motion::LeftToRight, 10, 3, bg, (3500, QuadOut)),
+                fx::fade_to_fg(Color::Rgb(207, 181, 59), (3500, SineOut)),
+                fx::hsl_shift_fg([20.0, 15.0, 10.0], (3500, CubicOut))
+            ])
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Advanced",
+        title: "dissolve radial + hsl",
+        dsl: r#"
+            fx::parallel(&[
+                fx::dissolve((4000, QuadOut))
+                    .with_pattern(RadialPattern::center()),
+                fx::hsl_shift_fg([90.0, 30.0, 0.0], (4000, Linear))
+            ])
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Advanced",
+        title: "wave dissolve + fade gold",
+        dsl: r#"
+            fx::parallel(&[
+                fx::dissolve((5000, Linear))
+                    .with_pattern(WavePattern::new(
+                        WaveLayer::new(Oscillator::sin(2.0, 1.0, 0.5))
+                    )),
+                fx::fade_to_fg(Color::Rgb(207, 181, 59), (5000, SineOut))
+            ])
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Advanced",
+        title: "spiral dissolve + paint",
+        dsl: r#"
+            fx::parallel(&[
+                fx::dissolve((4000, Linear))
+                    .with_pattern(SpiralPattern::center().with_arms(5)),
+                fx::paint_fg(Color::Rgb(0, 200, 200), (4000, QuadOut))
+            ])
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Advanced",
+        title: "checkerboard + saturate",
+        dsl: r#"
+            fx::parallel(&[
+                fx::coalesce((4000, QuadOut))
+                    .with_pattern(CheckerboardPattern::default()),
+                fx::saturate_fg(40.0, (4000, SineOut))
+            ])
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Advanced",
+        title: "diamond dissolve + darken",
+        dsl: r#"
+            fx::parallel(&[
+                fx::dissolve((3500, CubicOut))
+                    .with_pattern(DiamondPattern::center()),
+                fx::darken_fg(30.0, (3500, QuadOut))
+            ])
+        "#,
+    },
+];
+
+/// Number of procedurally generated effects beyond the static list.
+/// Together with DSL_SHOWCASE these form an infinitely scrollable list.
+const PROCEDURAL_EFFECT_COUNT: usize = 200;
+
+/// Total showcase entries (static + procedural).
+fn total_dsl_effects() -> usize {
+    DSL_SHOWCASE.len() + PROCEDURAL_EFFECT_COUNT
+}
+
+/// Procedurally generate a DSL string and title for indices beyond the static
+/// DSL_SHOWCASE table. Uses deterministic mixing of categories, colors,
+/// interpolations, patterns, and timings so every index yields a unique
+/// combination.
+fn procedural_dsl_entry(index: usize) -> (String, String, String) {
+    // Deterministic seed from index
+    let seed = index.wrapping_mul(2654435761); // Knuth multiplicative hash
+
+    // ── palettes ────────────────────────────────────────────────────────
+    const COLORS: &[&str] = &[
+        "Color::Rgb(207, 181, 59)",   // gold
+        "Color::Rgb(184, 115, 51)",   // copper
+        "Color::Rgb(192, 192, 192)",  // silver
+        "Color::Rgb(0, 180, 180)",    // teal
+        "Color::Rgb(255, 105, 180)",  // hot pink
+        "Color::Rgb(100, 149, 237)",  // cornflower
+        "Color::Rgb(255, 140, 0)",    // dark orange
+        "Color::Rgb(138, 43, 226)",   // blue violet
+        "Color::Rgb(50, 205, 50)",    // lime green
+        "Color::Rgb(220, 20, 60)",    // crimson
+        "Color::Red",
+        "Color::Blue",
+        "Color::Green",
+        "Color::Cyan",
+        "Color::Magenta",
+        "Color::Yellow",
+    ];
+
+    const INTERPS: &[&str] = &[
+        "Linear", "QuadOut", "QuadIn", "CubicOut", "CubicIn", "CubicInOut",
+        "SineOut", "SineIn", "BounceOut", "ExpoOut", "ElasticOut", "QuadInOut",
+    ];
+
+    const MOTIONS: &[&str] = &[
+        "Motion::LeftToRight",
+        "Motion::RightToLeft",
+        "Motion::UpToDown",
+        "Motion::DownToUp",
+    ];
+
+    const HSL_SETS: &[(f32, f32, f32)] = &[
+        (30.0, 20.0, 25.0),
+        (-40.0, 15.0, -10.0),
+        (60.0, 40.0, 30.0),
+        (90.0, 50.0, 20.0),
+        (20.0, -30.0, 40.0),
+        (180.0, 0.0, 0.0),
+        (45.0, -20.0, 15.0),
+        (-90.0, 30.0, -20.0),
+        (120.0, 10.0, 10.0),
+        (15.0, 40.0, -15.0),
+    ];
+
+    const EVOLVE_SETS: &[&str] = &[
+        "EvolveSymbolSet::Shaded",
+        "EvolveSymbolSet::Quadrants",
+        "EvolveSymbolSet::BlocksHorizontal",
+        "EvolveSymbolSet::BlocksVertical",
+        "EvolveSymbolSet::Circles",
+        "EvolveSymbolSet::Squares",
+    ];
+
+    // Pick values from seed
+    let pick = |arr_len: usize, salt: usize| -> usize {
+        (seed.wrapping_add(salt).wrapping_mul(2246822519)) % arr_len
+    };
+
+    let color_a = COLORS[pick(COLORS.len(), 0)];
+    let color_b = COLORS[pick(COLORS.len(), 7)];
+    let interp = INTERPS[pick(INTERPS.len(), 1)];
+    let interp2 = INTERPS[pick(INTERPS.len(), 11)];
+    let motion = MOTIONS[pick(MOTIONS.len(), 2)];
+    let hsl = HSL_SETS[pick(HSL_SETS.len(), 3)];
+    let evolve = EVOLVE_SETS[pick(EVOLVE_SETS.len(), 4)];
+    let duration = 2000 + (pick(5, 5) as u32) * 500;
+    let duration2 = 1000 + (pick(4, 6) as u32) * 500;
+    let arms = 2 + pick(6, 8) as u32;
+
+    let category_idx = index % 12;
+
+    let (category, title, dsl) = match category_idx {
+        0 => {
+            // Dissolve with pattern variation
+            let patterns = [
+                "RadialPattern::center()".to_string(),
+                "DiamondPattern::center()".to_string(),
+                format!("SpiralPattern::center().with_arms({})", arms),
+                "DiagonalPattern::top_left_to_bottom_right()".to_string(),
+                "CheckerboardPattern::default()".to_string(),
+                "SweepPattern::left_to_right()".to_string(),
+            ];
+            let pat = &patterns[pick(patterns.len(), 9)];
+            (
+                "Procedural: Dissolve+Pattern".to_string(),
+                format!("dissolve #{} pattern", index + 1),
+                format!(
+                    "fx::dissolve(({}, {}))\n    .with_pattern({})",
+                    duration, interp, pat
+                ),
+            )
+        }
+        1 => {
+            // Coalesce with pattern
+            let patterns = [
+                "RadialPattern::center()".to_string(),
+                "DiamondPattern::center()".to_string(),
+                format!("SpiralPattern::center().with_arms({})", arms),
+                "InvertedPattern::new(RadialPattern::center())".to_string(),
+            ];
+            let pat = &patterns[pick(patterns.len(), 10)];
+            (
+                "Procedural: Coalesce+Pattern".to_string(),
+                format!("coalesce #{} pattern", index + 1),
+                format!(
+                    "fx::coalesce(({}, {}))\n    .with_pattern({})",
+                    duration, interp, pat
+                ),
+            )
+        }
+        2 => {
+            // Sweep with varying params
+            let cells = 6 + pick(15, 12) as u16;
+            let gap = pick(5, 13) as u16;
+            (
+                "Procedural: Sweep".to_string(),
+                format!("sweep #{} {}", index + 1, &motion[8..]),
+                format!(
+                    "let bg = Color::Rgb(8, 9, 14);\nfx::sweep_in({}, {}, {}, bg, ({}, {}))",
+                    motion, cells, gap, duration, interp
+                ),
+            )
+        }
+        3 => {
+            // Slide with varying params
+            let cells = 4 + pick(10, 14) as u16;
+            let gap = 1 + pick(4, 15) as u16;
+            (
+                "Procedural: Slide".to_string(),
+                format!("slide #{} {}", index + 1, &motion[8..]),
+                format!(
+                    "let bg = Color::Rgb(8, 9, 14);\nfx::slide_in({}, {}, {}, bg, ({}, {}))",
+                    motion, cells, gap, duration, interp
+                ),
+            )
+        }
+        4 => {
+            // Fade to fg color
+            (
+                "Procedural: Fade".to_string(),
+                format!("fade_to_fg #{}", index + 1),
+                format!(
+                    "fx::fade_to_fg({}, ({}, {}))",
+                    color_a, duration, interp
+                ),
+            )
+        }
+        5 => {
+            // HSL shift
+            (
+                "Procedural: HSL Shift".to_string(),
+                format!("hsl_shift #{}", index + 1),
+                format!(
+                    "fx::hsl_shift_fg([{:.1}, {:.1}, {:.1}], ({}, {}))",
+                    hsl.0, hsl.1, hsl.2, duration, interp
+                ),
+            )
+        }
+        6 => {
+            // Paint fg
+            (
+                "Procedural: Paint".to_string(),
+                format!("paint_fg #{}", index + 1),
+                format!(
+                    "fx::paint_fg({}, ({}, {}))",
+                    color_a, duration, interp
+                ),
+            )
+        }
+        7 => {
+            // Evolve
+            (
+                "Procedural: Evolution".to_string(),
+                format!("evolve #{}", index + 1),
+                format!(
+                    "fx::evolve({}, ({}, {}))",
+                    evolve, duration, interp
+                ),
+            )
+        }
+        8 => {
+            // Sequence: dissolve → coalesce with different interps
+            (
+                "Procedural: Sequence".to_string(),
+                format!("seq dissolve→coalesce #{}", index + 1),
+                format!(
+                    "fx::sequence(&[\n    fx::dissolve(({}, {})),\n    fx::coalesce(({}, {}))\n])",
+                    duration2, interp, duration2, interp2
+                ),
+            )
+        }
+        9 => {
+            // Parallel: fade + dissolve with pattern
+            let patterns = [
+                "RadialPattern::center()".to_string(),
+                "DiamondPattern::center()".to_string(),
+                format!("SpiralPattern::center().with_arms({})", arms),
+            ];
+            let pat = &patterns[pick(patterns.len(), 16)];
+            (
+                "Procedural: Parallel".to_string(),
+                format!("parallel fade+dissolve #{}", index + 1),
+                format!(
+                    "fx::parallel(&[\n    fx::fade_to_fg({}, ({}, {})),\n    fx::dissolve(({}, {}))\n        .with_pattern({})\n])",
+                    color_a, duration, interp, duration, interp2, pat
+                ),
+            )
+        }
+        10 => {
+            // Wave pattern dissolve
+            let kx = 1.0 + (pick(5, 17) as f32) * 0.5;
+            let ky = (pick(4, 18) as f32) * 1.0;
+            let kt = 0.3 + (pick(4, 19) as f32) * 0.3;
+            let wave_types = ["sin", "cos", "triangle", "sawtooth"];
+            let wt = wave_types[pick(wave_types.len(), 20)];
+            (
+                "Procedural: Wave".to_string(),
+                format!("wave {} dissolve #{}", wt, index + 1),
+                format!(
+                    "fx::dissolve(({}, Linear))\n    .with_pattern(WavePattern::new(\n        WaveLayer::new(Oscillator::{}({:.1}, {:.1}, {:.1}))\n    ))",
+                    duration + 1000, wt, kx, ky, kt
+                ),
+            )
+        }
+        11 => {
+            // Sequence: paint chain
+            (
+                "Procedural: Paint Chain".to_string(),
+                format!("paint chain #{}", index + 1),
+                format!(
+                    "fx::sequence(&[\n    fx::paint_fg({}, {}),\n    fx::paint_fg({}, {})\n])",
+                    color_a, duration2, color_b, duration2
+                ),
+            )
+        }
+        _ => unreachable!(),
+    };
+
+    (category, title, dsl)
+}
+
+/// Compile a DSL expression string into a looping (repeating + ping_pong) Effect.
+fn compile_dsl_effect(dsl_src: &str) -> Option<Effect> {
+    let dsl = EffectDsl::new();
+    // Wrap the user expression in repeating(ping_pong(...)) for infinite loop
+    let wrapped = format!("fx::repeating(fx::ping_pong({}))", dsl_src.trim());
+    match dsl.compiler().compile(&wrapped) {
+        Ok(effect) => Some(effect),
+        Err(_) => {
+            // Fallback: try without wrapping (some effects might not support ping_pong)
+            match dsl.compiler().compile(dsl_src.trim()) {
+                Ok(effect) => Some(fx::repeating(fx::ping_pong(effect))),
+                Err(_) => None,
+            }
+        }
+    }
+}
 
 const BLOG_ENTRIES: &[(&str, &str, &str)] = &[
     (
         "Welcome to gold.silver.copper",
         "2025-01-15",
-        "Hi! I'm gold.silver.copper — a software developer passionate\n\
-         about programming languages, systems programming, and Rust.\n\
-         \n\
-         This site serves as my personal blog, project showcase, and\n\
-         an interactive demo of Grift, my Lisp interpreter.\n\
-         \n\
-         Everything you see here is rendered as a terminal UI in your\n\
-         browser using Ratzilla + TachyonFX + WebAssembly.",
+        include_str!("../blog/01-welcome.md"),
     ),
     (
         "Building Grift: A Minimalistic Lisp",
         "2025-02-01",
-        "Grift implements Kernel-style vau calculus with first-class\n\
-         operatives that subsume both functions and macros.\n\
-         \n\
-         Key design goals:\n\
-         - Zero unsafe code (#![forbid(unsafe_code)])\n\
-         - No heap allocation (arena-only memory)\n\
-         - Runs on bare-metal embedded systems\n\
-         - Compiles to WebAssembly\n\
-         \n\
-         All values live in a fixed-size arena with const-generic\n\
-         capacity and mark-and-sweep garbage collection.",
+        include_str!("../blog/02-building-grift.md"),
     ),
     (
         "Vau Calculus Explained",
         "2025-03-10",
-        "Unlike traditional Lisps, Grift uses vau calculus where\n\
-         operatives receive their arguments unevaluated along with\n\
-         the caller's environment. This makes operatives strictly\n\
-         more powerful than macros — they can choose whether and\n\
-         when to evaluate each argument.\n\
-         \n\
-         ($vau (x) env-param body) creates an operative that\n\
-         captures the formal parameter tree, environment parameter,\n\
-         and body expression as a closure.",
+        include_str!("../blog/03-vau-calculus.md"),
     ),
     (
         "Terminal UIs in the Browser",
         "2025-04-20",
-        "This website is built entirely with Ratzilla, which brings\n\
-         Ratatui's terminal UI framework to the browser via WASM.\n\
-         \n\
-         TachyonFX adds shader-like visual effects — the background\n\
-         animation, page transitions, and link click effects are all\n\
-         powered by tachyonfx running in WebAssembly.\n\
-         \n\
-         No JavaScript framework. No DOM manipulation. Just Rust\n\
-         rendering a terminal buffer to a canvas element.",
+        include_str!("../blog/04-terminal-uis-browser.md"),
+    ),
+    (
+        "Unified Layout Design",
+        "2025-05-15",
+        include_str!("../blog/05-unified-layout.md"),
+    ),
+    (
+        "WebAssembly Performance",
+        "2025-06-01",
+        include_str!("../blog/06-wasm-performance.md"),
+    ),
+    (
+        "TachyonFX: Shader Effects for TUIs",
+        "2025-07-10",
+        include_str!("../blog/07-tachyonfx.md"),
+    ),
+    (
+        "Arena Allocation in Grift",
+        "2025-08-05",
+        include_str!("../blog/08-arena-allocation.md"),
     ),
 ];
+
+#[derive(Clone, Copy, PartialEq)]
+enum FocusMode {
+    Outer,   // Arrow keys move across tabs; content scrolls passively
+    Focused, // Active tab captures input; Escape returns to Outer
+}
 
 #[derive(Clone, Copy, PartialEq)]
 enum Page {
@@ -294,12 +1475,12 @@ enum Page {
     Repl,
     Docs,
     Blog,
-    Links,
-    Showcase,
+    About,
+    Effects,
 }
 
 impl Page {
-    const ALL: [Page; 6] = [Page::Home, Page::Repl, Page::Docs, Page::Blog, Page::Links, Page::Showcase];
+    const ALL: [Page; 6] = [Page::Home, Page::Repl, Page::Docs, Page::Blog, Page::About, Page::Effects];
 
     fn title(self) -> &'static str {
         match self {
@@ -307,8 +1488,8 @@ impl Page {
             Page::Repl => "REPL",
             Page::Docs => "Docs",
             Page::Blog => "Blog",
-            Page::Links => "Links",
-            Page::Showcase => "Mobile",
+            Page::About => "About",
+            Page::Effects => "Effects",
         }
     }
 
@@ -320,13 +1501,124 @@ impl Page {
 #[derive(Clone, Copy)]
 enum ScrollTarget {
     Home,
-    Links,
-    Showcase,
+    About,
     Docs,
+}
+
+/// Convert a markdown string into styled ratatui Lines using md-tui parser.
+fn md_to_lines(content: &str, width: u16) -> Vec<Line<'static>> {
+    let mut root = md_tui::parser::parse_markdown(None, content, width);
+    root.transform(width);
+    let mut lines: Vec<Line<'static>> = Vec::new();
+
+    for component in root.children() {
+        match component {
+            Component::TextComponent(tc) => {
+                let kind = tc.kind();
+                match kind {
+                    TextNode::Heading => {
+                        let heading_level = tc.meta_info()
+                            .iter()
+                            .find_map(|w| match w.kind() {
+                                WordType::MetaInfo(md_tui::nodes::word::MetaData::HeadingLevel(l)) => Some(l),
+                                _ => None,
+                            })
+                            .unwrap_or(1);
+                        let spans: Vec<Span<'static>> = tc.content()
+                            .iter()
+                            .flatten()
+                            .map(|w| md_word_to_span(w, heading_level))
+                            .collect();
+                        if !spans.is_empty() {
+                            lines.push(Line::from(spans).style(
+                                Style::default()
+                                    .fg(Color::Rgb(220, 225, 235))
+                                    .bold()
+                            ));
+                        }
+                    }
+                    TextNode::Paragraph | TextNode::Quote | TextNode::Task => {
+                        for word_line in tc.content() {
+                            let spans: Vec<Span<'static>> = word_line
+                                .iter()
+                                .map(|w| md_word_to_span(w, 0))
+                                .collect();
+                            lines.push(Line::from(spans));
+                        }
+                    }
+                    TextNode::List => {
+                        for word_line in tc.content() {
+                            let spans: Vec<Span<'static>> = word_line
+                                .iter()
+                                .map(|w| md_word_to_span(w, 0))
+                                .collect();
+                            lines.push(Line::from(spans));
+                        }
+                    }
+                    TextNode::CodeBlock => {
+                        for word_line in tc.content() {
+                            let spans: Vec<Span<'static>> = word_line
+                                .iter()
+                                .map(|w| md_word_to_span(w, 0))
+                                .collect();
+                            lines.push(Line::from(spans));
+                        }
+                    }
+                    TextNode::LineBreak => {
+                        lines.push(Line::from(""));
+                    }
+                    TextNode::HorizontalSeparator => {
+                        lines.push(Line::styled(
+                            "─".repeat(width.saturating_sub(4) as usize),
+                            Style::default().fg(Color::Rgb(55, 60, 70)),
+                        ));
+                    }
+                    _ => {
+                        // Fallback for other types
+                        for word_line in tc.content() {
+                            let spans: Vec<Span<'static>> = word_line
+                                .iter()
+                                .map(|w| md_word_to_span(w, 0))
+                                .collect();
+                            lines.push(Line::from(spans));
+                        }
+                    }
+                }
+            }
+            Component::Image(_) => {
+                // Images not supported in WASM, skip
+            }
+        }
+    }
+    lines
+}
+
+/// Convert a single md-tui Word into a styled ratatui Span.
+fn md_word_to_span(word: &md_tui::nodes::word::Word, heading_level: u8) -> Span<'static> {
+    let content = word.content().to_string();
+    match word.kind() {
+        WordType::Bold => Span::styled(content, Style::default().fg(Color::Rgb(220, 225, 235)).bold()),
+        WordType::Italic => Span::styled(content, Style::default().fg(Color::Rgb(184, 115, 51)).italic()),
+        WordType::BoldItalic => Span::styled(content, Style::default().fg(Color::Rgb(220, 225, 235)).bold().italic()),
+        WordType::Code => Span::styled(content, Style::default().fg(Color::Rgb(207, 181, 59)).bg(Color::Rgb(30, 32, 40))),
+        WordType::CodeBlock(color) => Span::styled(content, Style::default().fg(color)),
+        WordType::Link | WordType::FootnoteInline => Span::styled(content, Style::default().fg(Color::Rgb(100, 149, 237))),
+        WordType::Strikethrough => Span::styled(content, Style::default().fg(Color::Rgb(100, 105, 115)).add_modifier(Modifier::CROSSED_OUT)),
+        WordType::ListMarker => Span::styled(content, Style::default().fg(Color::Rgb(184, 115, 51))),
+        WordType::Normal | WordType::White => {
+            if heading_level > 0 {
+                Span::styled(content, Style::default().fg(Color::Rgb(220, 225, 235)).bold())
+            } else {
+                Span::styled(content, Style::default().fg(Color::Rgb(170, 175, 185)))
+            }
+        }
+        _ => Span::styled(content, Style::default().fg(Color::Rgb(170, 175, 185))),
+    }
 }
 
 struct App {
     page: Page,
+    focus_mode: FocusMode,
     // REPL state
     repl_input: String,
     repl_cursor: usize,
@@ -340,8 +1632,7 @@ struct App {
     blog_viewing_post: bool,
     // Scroll state for scrollable pages
     home_scroll: usize,
-    links_scroll: usize,
-    showcase_scroll: usize,
+    about_scroll: usize,
     // Scroll arrow button areas
     scroll_up_area: Rect,
     scroll_down_area: Rect,
@@ -364,6 +1655,9 @@ struct App {
     // Clickable area tracking
     tab_area: Rect,
     tab_rects: Vec<Rect>,
+    tab_page_indices: Vec<usize>,
+    center_tab_idx: usize,
+    carousel_effect: Option<Effect>,
     link_areas: Vec<Rect>,
     blog_item_areas: Vec<Rect>,
     blog_back_area: Rect,
@@ -373,8 +1667,6 @@ struct App {
     blog_content_area: Rect,
     // Blog scroll
     blog_scroll: usize,
-    // Tab horizontal scroll
-    tab_h_scroll: usize,
     // Button effects
     btn_effects: Vec<(Rect, Effect)>,
     // Tab glow effect
@@ -384,6 +1676,24 @@ struct App {
     last_hovered_tab: Option<usize>,
     link_hover_effects: Vec<(usize, Effect)>,
     last_hovered_link: Option<usize>,
+    // DSL effects showcase state (infinitely scrollable)
+    dsl_effects_scroll: usize,
+    dsl_effects_cache: Vec<Option<Effect>>,
+    frame_elapsed: Duration,
+    // Navbar breathing effect tick (separate from bg_tick for independent rate)
+    navbar_breath_tick: f64,
+    // Virtual keyboard state (TVK)
+    keyboard_shifted: bool,
+    keyboard_pressed_ticks: Vec<(VirtualKey, u8)>,
+    keyboard_button_areas: Vec<(Rect, String)>,
+    keyboard_layout: tvk::layout::Layout,
+    keyboard_env: tvk::env::Env,
+    // Blog navigation effect
+    blog_nav_effect: Option<Effect>,
+    // Keyboard glow effect
+    keyboard_glow_effect: Option<Effect>,
+    // Track previous blog index for targeted nav effects
+    prev_blog_index: usize,
 }
 
 impl App {
@@ -391,6 +1701,7 @@ impl App {
         let lisp: Box<Lisp<2000>> = Box::new(Lisp::new());
         Self {
             page: Page::Home,
+            focus_mode: FocusMode::Outer,
             repl_input: String::new(),
             repl_cursor: 0,
             repl_history: Vec::new(),
@@ -401,8 +1712,7 @@ impl App {
             blog_viewing_post: false,
             blog_scroll: 0,
             home_scroll: 0,
-            links_scroll: 0,
-            showcase_scroll: 0,
+            about_scroll: 0,
             scroll_up_area: Rect::default(),
             scroll_down_area: Rect::default(),
             transition_effect: None,
@@ -418,19 +1728,38 @@ impl App {
             cursor_blink_tick: 0,
             tab_area: Rect::default(),
             tab_rects: Vec::new(),
+            tab_page_indices: Vec::new(),
+            center_tab_idx: 0,
+            carousel_effect: None,
             link_areas: Vec::new(),
             blog_item_areas: Vec::new(),
             blog_back_area: Rect::default(),
             content_area: Rect::default(),
             blog_list_area: Rect::default(),
             blog_content_area: Rect::default(),
-            tab_h_scroll: 0,
             btn_effects: Vec::new(),
             tab_glow_effect: None,
             tab_hover_effects: Vec::new(),
             last_hovered_tab: None,
             link_hover_effects: Vec::new(),
             last_hovered_link: None,
+            dsl_effects_scroll: 0,
+            dsl_effects_cache: Vec::new(),
+            frame_elapsed: Duration::from_millis(0),
+            navbar_breath_tick: 0.0,
+            keyboard_shifted: false,
+            keyboard_pressed_ticks: Vec::new(),
+            keyboard_button_areas: Vec::new(),
+            keyboard_layout: lisp_keyboard_layout(),
+            keyboard_env: {
+                let mut env = tvk::env::Env::new();
+                env.insert("border_color", tvk::env::Value::RGB(100, 105, 120));
+                env.insert("highlight", tvk::env::Value::RGB(180, 185, 200));
+                env
+            },
+            blog_nav_effect: None,
+            keyboard_glow_effect: None,
+            prev_blog_index: 0,
         }
     }
 
@@ -449,26 +1778,24 @@ impl App {
                 dark,
                 EffectTimer::from_ms(500, Interpolation::QuadOut),
             ),
-            Page::Docs => fx::slide_in(
-                Motion::RightToLeft,
-                8,
-                3,
-                dark,
-                EffectTimer::from_ms(500, Interpolation::CubicOut),
-            ),
+            Page::Docs => {
+                let dsl = EffectDsl::new();
+                match dsl.compiler().compile(
+                    "fx::dissolve((300, QuadOut)).with_pattern(CheckerboardPattern::default())"
+                ) {
+                    Ok(effect) => effect,
+                    Err(_) => fx::dissolve(EffectTimer::from_ms(300, Interpolation::QuadOut)),
+                }
+            }
             Page::Blog => fx::coalesce(EffectTimer::from_ms(400, Interpolation::SineOut)),
-            Page::Links => fx::sweep_in(
+            Page::About => fx::sweep_in(
                 Motion::UpToDown,
                 8,
                 2,
                 dark,
                 EffectTimer::from_ms(500, Interpolation::QuadOut),
             ),
-            Page::Showcase => fx::fade_from(
-                dark,
-                dark,
-                EffectTimer::from_ms(500, Interpolation::CubicOut),
-            ),
+            Page::Effects => fx::coalesce(EffectTimer::from_ms(500, Interpolation::SineOut)),
         };
         self.transition_effect = Some(effect);
     }
@@ -476,16 +1803,63 @@ impl App {
     fn switch_page(&mut self, page: Page) {
         if self.page != page {
             self.page = page;
+            self.focus_mode = FocusMode::Outer;
             self.tab_glow_effect = None;
             self.blog_scroll = 0;
             self.blog_viewing_post = false;
+            // Clear stale click areas from previous page to prevent phantom clicks on mobile
+            self.link_areas.clear();
+            self.blog_item_areas.clear();
+            self.blog_back_area = Rect::default();
+            self.scroll_up_area = Rect::default();
+            self.scroll_down_area = Rect::default();
+            self.blog_list_area = Rect::default();
+            self.blog_content_area = Rect::default();
             self.trigger_transition();
-            // Focus/blur hidden input for REPL virtual keyboard
-            if page == Page::Repl {
-                let _ = web_sys::js_sys::eval("window._replTabActive=true;window._focusReplInput&&window._focusReplInput()");
-            } else {
-                let _ = web_sys::js_sys::eval("window._replTabActive=false;window._blurReplInput&&window._blurReplInput()");
-            }
+            // Carousel transition: combination of slide, sweep, and fade
+            let dark = Color::Rgb(8, 9, 14);
+            let carousel_fx = fx::parallel(&[
+                fx::slide_in(
+                    Motion::LeftToRight,
+                    4,
+                    2,
+                    dark,
+                    EffectTimer::from_ms(350, Interpolation::QuadOut),
+                ),
+                fx::sweep_in(
+                    Motion::LeftToRight,
+                    6,
+                    2,
+                    dark,
+                    EffectTimer::from_ms(300, Interpolation::SineOut),
+                ),
+                fx::fade_from(
+                    dark,
+                    dark,
+                    EffectTimer::from_ms(300, Interpolation::CubicOut),
+                ),
+            ]);
+            self.carousel_effect = Some(carousel_fx);
+        }
+    }
+
+    fn switch_to_prev_tab(&mut self) {
+        let idx = self.page.index();
+        if idx > 0 {
+            self.switch_page(Page::ALL[idx - 1]);
+        } else {
+            // Wrap around to last tab
+            self.switch_page(Page::ALL[Page::ALL.len() - 1]);
+        }
+    }
+
+    fn switch_to_next_tab(&mut self) {
+        let idx = self.page.index();
+        if idx + 1 < Page::ALL.len() {
+            self.switch_page(Page::ALL[idx + 1]);
+        } else {
+            // Wrap around to first tab
+            self.switch_page(Page::ALL[0]);
         }
     }
 
@@ -523,32 +1897,103 @@ impl App {
     }
 
     fn handle_key_event(&mut self, key: KeyEvent) {
-        // If hover is in tab area, horizontal keys scroll tabs
-        let in_tab_area = self.tab_area.width > 0
-            && self.hover_row >= self.tab_area.y
-            && self.hover_row < self.tab_area.bottom();
-
-        if in_tab_area {
-            match key.code {
-                KeyCode::Left => {
-                    self.tab_h_scroll = self.tab_h_scroll.saturating_sub(2);
+        match self.focus_mode {
+            FocusMode::Outer => {
+                // Outer mode: arrows move across tabs, Up/Down passively scroll content
+                match key.code {
+                    KeyCode::Left => self.switch_to_prev_tab(),
+                    KeyCode::Right => self.switch_to_next_tab(),
+                    KeyCode::Up | KeyCode::Down => {
+                        // Passive scroll of current tab content
+                        self.handle_passive_scroll(key);
+                    }
+                    KeyCode::Enter => {
+                        // Enter focused mode for the current tab
+                        self.focus_mode = FocusMode::Focused;
+                    }
+                    _ => {}
+                }
+            }
+            FocusMode::Focused => {
+                // Flash pressed key on virtual keyboard
+                if self.page == Page::Repl {
+                    if let Some(vk) = keycode_to_virtual_key(&key.code) {
+                        // Remove any existing entry for this key and add fresh
+                        self.keyboard_pressed_ticks.retain(|(k, _)| *k != vk);
+                        self.keyboard_pressed_ticks.push((vk, 8));
+                    }
+                }
+                // Check for Escape first — always returns to outer mode
+                if key.code == KeyCode::Esc {
+                    // For Blog post view, first exit to title list (stay focused)
+                    if self.page == Page::Blog && self.blog_viewing_post {
+                        self.blog_exit_post();
+                        return;
+                    }
+                    self.focus_mode = FocusMode::Outer;
+                    self.keyboard_shifted = false;
+                    self.keyboard_pressed_ticks.clear();
                     return;
                 }
-                KeyCode::Right => {
-                    self.tab_h_scroll += 2;
-                    return;
+                // Delegate to page-specific focused handler
+                match self.page {
+                    Page::Repl => self.handle_repl_event(key),
+                    Page::Blog => self.handle_blog_event(key),
+                    Page::Docs => self.handle_scroll_event_focused(key, ScrollTarget::Docs),
+                    Page::Home => self.handle_scroll_event_focused(key, ScrollTarget::Home),
+                    Page::About => self.handle_scroll_event_focused(key, ScrollTarget::About),
+                    Page::Effects => self.handle_effects_event_focused(key),
                 }
-                _ => {}
             }
         }
+    }
 
+    /// Passive scroll in Outer mode — only Up/Down scroll content, no interaction
+    fn handle_passive_scroll(&mut self, key: KeyEvent) {
+        let step = 2;
         match self.page {
-            Page::Repl => self.handle_repl_event(key),
-            Page::Docs => self.handle_scroll_event(key, ScrollTarget::Docs),
-            Page::Blog => self.handle_blog_event(key),
-            Page::Home => self.handle_scroll_event(key, ScrollTarget::Home),
-            Page::Links => self.handle_scroll_event(key, ScrollTarget::Links),
-            Page::Showcase => self.handle_scroll_event(key, ScrollTarget::Showcase),
+            Page::Repl => {
+                match key.code {
+                    KeyCode::Up => self.repl_scroll = self.repl_scroll.saturating_sub(1),
+                    KeyCode::Down => self.repl_scroll += 1,
+                    _ => {}
+                }
+            }
+            Page::Docs => {
+                match key.code {
+                    KeyCode::Up => self.doc_scroll = self.doc_scroll.saturating_sub(step),
+                    KeyCode::Down => self.doc_scroll += step,
+                    _ => {}
+                }
+            }
+            Page::Blog => {
+                match key.code {
+                    KeyCode::Up => self.blog_scroll = self.blog_scroll.saturating_sub(1),
+                    KeyCode::Down => self.blog_scroll += 1,
+                    _ => {}
+                }
+            }
+            Page::Home => {
+                match key.code {
+                    KeyCode::Up => self.home_scroll = self.home_scroll.saturating_sub(step),
+                    KeyCode::Down => self.home_scroll += step,
+                    _ => {}
+                }
+            }
+            Page::About => {
+                match key.code {
+                    KeyCode::Up => self.about_scroll = self.about_scroll.saturating_sub(step),
+                    KeyCode::Down => self.about_scroll += step,
+                    _ => {}
+                }
+            }
+            Page::Effects => {
+                match key.code {
+                    KeyCode::Up => self.dsl_effects_scroll = self.dsl_effects_scroll.saturating_sub(step),
+                    KeyCode::Down => self.dsl_effects_scroll += step,
+                    _ => {}
+                }
+            }
         }
     }
 
@@ -586,24 +2031,61 @@ impl App {
                         && row >= tab_rect.y
                         && row < tab_rect.bottom()
                     {
-                        if i < Page::ALL.len() {
+                        if let Some(&page_idx) = self.tab_page_indices.get(i) {
                             self.trigger_btn_effect(*tab_rect);
-                            self.switch_page(Page::ALL[i]);
+                            self.switch_page(Page::ALL[page_idx]);
+                            // Clicking a tab returns to outer mode
+                            self.focus_mode = FocusMode::Outer;
                             return;
                         }
                     }
                 }
+                // Clicked in tab bar but not on a tab — return to outer mode
+                if self.focus_mode == FocusMode::Focused {
+                    self.focus_mode = FocusMode::Outer;
+                }
+                return;
             }
 
-            // Check link clicks on Links page
-            if self.page == Page::Links {
+            // Click in content area — enter focused mode if in outer mode
+            if self.focus_mode == FocusMode::Outer
+                && col >= self.content_area.x
+                && col < self.content_area.right()
+                && row >= self.content_area.y
+                && row < self.content_area.bottom()
+            {
+                self.focus_mode = FocusMode::Focused;
+            }
+
+            // Click outside content area while focused — return to outer mode
+            // On REPL page: only unfocus if tapping ABOVE the keyboard (tab bar),
+            // not to the side or below it
+            if self.focus_mode == FocusMode::Focused
+                && (col < self.content_area.x
+                    || col >= self.content_area.right()
+                    || row < self.content_area.y
+                    || row >= self.content_area.bottom())
+            {
+                if self.page == Page::Repl {
+                    // Only unfocus when tapping above the content area (tab bar region)
+                    if row < self.content_area.y {
+                        self.focus_mode = FocusMode::Outer;
+                    }
+                } else {
+                    self.focus_mode = FocusMode::Outer;
+                }
+                return;
+            }
+
+            // Check link clicks on About page
+            if self.page == Page::About {
                 for (i, area) in self.link_areas.iter().enumerate() {
                     if col >= area.x
                         && col < area.right()
                         && row >= area.y
                         && row < area.bottom()
                     {
-                        if let Some((_, url)) = LINKS.get(i) {
+                        if let Some((_, url, _)) = LINKS.get(i) {
                             self.trigger_link_effect(*area);
                             self.trigger_transition();
                             open_url(url);
@@ -622,10 +2104,8 @@ impl App {
                     && row >= self.blog_back_area.y
                     && row < self.blog_back_area.bottom()
                 {
-                    self.blog_viewing_post = false;
-                    self.blog_scroll = 0;
                     self.trigger_btn_effect(self.blog_back_area);
-                    self.trigger_transition();
+                    self.blog_exit_post();
                     return;
                 }
 
@@ -636,15 +2116,27 @@ impl App {
                         && row < area.bottom()
                         && i < BLOG_ENTRIES.len()
                     {
-                        if self.blog_index != i || !self.blog_viewing_post {
-                            self.blog_index = i;
-                            self.blog_viewing_post = true;
-                            self.blog_scroll = 0;
-                            self.trigger_btn_effect(*area);
-                            self.trigger_transition();
-                        }
+                        self.trigger_btn_effect(*area);
+                        self.blog_open_post(i);
                         return;
                     }
+                }
+            }
+
+            // Virtual keyboard button clicks (REPL page, focused mode)
+            if self.page == Page::Repl && self.focus_mode == FocusMode::Focused {
+                let mut kbd_hit: Option<(Rect, String)> = None;
+                for (btn_area, display_name) in &self.keyboard_button_areas {
+                    if col >= btn_area.x && col < btn_area.right()
+                        && row >= btn_area.y && row < btn_area.bottom()
+                    {
+                        kbd_hit = Some((*btn_area, display_name.clone()));
+                        break;
+                    }
+                }
+                if let Some((btn_area, display_name)) = kbd_hit {
+                    self.handle_keyboard_tap(&display_name);
+                    self.trigger_btn_effect(btn_area);
                 }
             }
 
@@ -694,8 +2186,33 @@ impl App {
                 }
             }
             KeyCode::Char(c) => {
-                // Skip modifier-held keys (Ctrl+V paste is handled by JS paste event)
-                if key.ctrl || key.alt {
+                if key.ctrl {
+                    // Emacs-style keybindings for REPL focused mode
+                    match c {
+                        'b' | 'B' => {
+                            // Ctrl+B: move cursor backward
+                            self.repl_cursor = self.repl_cursor.saturating_sub(1);
+                        }
+                        'f' | 'F' => {
+                            // Ctrl+F: move cursor forward
+                            let max = self.repl_input.chars().count();
+                            if self.repl_cursor < max {
+                                self.repl_cursor += 1;
+                            }
+                        }
+                        'p' | 'P' => {
+                            // Ctrl+P: scroll history up (previous)
+                            self.repl_scroll = self.repl_scroll.saturating_sub(1);
+                        }
+                        'n' | 'N' => {
+                            // Ctrl+N: scroll history down (next)
+                            self.repl_scroll += 1;
+                        }
+                        _ => {}
+                    }
+                    return;
+                }
+                if key.alt {
                     return;
                 }
                 let byte_idx = self.byte_index();
@@ -730,62 +2247,130 @@ impl App {
         }
     }
 
+    // ── Blog: Event Handling ──────────────────────────────────────────
+    // Two modes: list (browsing titles) and post (reading content).
+    // Focused list: Up/Down select, Enter/Right open.
+    // Focused post: Up/Down scroll, Left/Esc back to list.
+    // All selection goes through blog_select(); all opens through blog_open_post().
+
     fn handle_blog_event(&mut self, key: KeyEvent) {
         if self.blog_viewing_post {
-            // Viewing a post: scroll content or go back
             match key.code {
-                KeyCode::Up => {
-                    self.blog_scroll = self.blog_scroll.saturating_sub(1);
-                }
-                KeyCode::Down => {
-                    self.blog_scroll += 1;
-                }
-                KeyCode::Left => {
-                    self.blog_viewing_post = false;
-                    self.blog_scroll = 0;
-                    self.trigger_transition();
-                }
+                KeyCode::Up => self.blog_scroll = self.blog_scroll.saturating_sub(1),
+                KeyCode::Down => self.blog_scroll += 1,
+                KeyCode::Left => self.blog_exit_post(),
                 _ => {}
             }
         } else {
-            // Viewing the list: navigate or select
+            let count = BLOG_ENTRIES.len();
             match key.code {
-                KeyCode::Up => {
-                    if self.blog_index > 0 {
-                        self.blog_index -= 1;
-                        self.trigger_transition();
-                    }
+                KeyCode::Up if count > 0 => {
+                    self.blog_select(self.blog_index.saturating_sub(1));
                 }
-                KeyCode::Down => {
-                    if self.blog_index < BLOG_ENTRIES.len() - 1 {
-                        self.blog_index += 1;
-                        self.trigger_transition();
-                    }
+                KeyCode::Down if count > 0 => {
+                    self.blog_select((self.blog_index + 1).min(count - 1));
                 }
-                KeyCode::Right => {
-                    self.blog_viewing_post = true;
-                    self.blog_scroll = 0;
-                    self.trigger_transition();
+                KeyCode::Enter | KeyCode::Right => {
+                    self.blog_open_post(self.blog_index);
                 }
                 _ => {}
             }
         }
     }
 
-    fn handle_scroll_event(&mut self, key: KeyEvent, target: ScrollTarget) {
+    /// Move selection to `index`, triggering a nav effect on the affected items.
+    fn blog_select(&mut self, index: usize) {
+        if index >= BLOG_ENTRIES.len() || index == self.blog_index {
+            return;
+        }
+        self.prev_blog_index = self.blog_index;
+        self.blog_index = index;
+        self.blog_scroll = 0;
+        self.blog_nav_effect = Some(fx::fade_from(
+            Color::Rgb(60, 65, 75),
+            Color::Rgb(8, 9, 14),
+            EffectTimer::from_ms(250, Interpolation::QuadOut),
+        ));
+    }
+
+    /// Open a blog post by index. Selects it first if not already selected.
+    fn blog_open_post(&mut self, index: usize) {
+        if index >= BLOG_ENTRIES.len() {
+            return;
+        }
+        if self.blog_index != index {
+            self.blog_select(index);
+        }
+        self.blog_viewing_post = true;
+        self.blog_scroll = 0;
+        self.focus_mode = FocusMode::Focused;
+        self.trigger_transition();
+    }
+
+    /// Return from post view to the title list.
+    fn blog_exit_post(&mut self) {
+        self.blog_viewing_post = false;
+        self.blog_scroll = 0;
+        self.trigger_transition();
+    }
+
+    fn handle_keyboard_tap(&mut self, display_name: &str) {
+        match display_name {
+            "⇧" => {
+                self.keyboard_shifted = !self.keyboard_shifted;
+            }
+            "⌫" => {
+                let key = KeyEvent { code: KeyCode::Backspace, ctrl: false, alt: false, shift: false };
+                self.handle_repl_event(key);
+            }
+            "ENTER" => {
+                let key = KeyEvent { code: KeyCode::Enter, ctrl: false, alt: false, shift: false };
+                self.handle_repl_event(key);
+            }
+            " " => {
+                let key = KeyEvent { code: KeyCode::Char(' '), ctrl: false, alt: false, shift: false };
+                self.handle_repl_event(key);
+            }
+            name => {
+                // Regular character key — dispatch as Char
+                if let Some(ch) = name.chars().next() {
+                    let key = KeyEvent { code: KeyCode::Char(ch), ctrl: false, alt: false, shift: false };
+                    self.handle_repl_event(key);
+                    // Turn off shift after typing a character (sticky shift)
+                    if self.keyboard_shifted {
+                        self.keyboard_shifted = false;
+                    }
+                }
+            }
+        }
+    }
+
+    fn handle_scroll_event_focused(&mut self, key: KeyEvent, target: ScrollTarget) {
         let scroll = match target {
             ScrollTarget::Home => &mut self.home_scroll,
-            ScrollTarget::Links => &mut self.links_scroll,
-            ScrollTarget::Showcase => &mut self.showcase_scroll,
+            ScrollTarget::About => &mut self.about_scroll,
             ScrollTarget::Docs => &mut self.doc_scroll,
         };
-        let step = if self.grid_cols < NARROW_WIDTH_THRESHOLD { 2 } else { 1 };
+        let step = 2;
         match key.code {
             KeyCode::Up => {
                 *scroll = scroll.saturating_sub(step);
             }
             KeyCode::Down => {
                 *scroll += step;
+            }
+            _ => {}
+        }
+    }
+
+    fn handle_effects_event_focused(&mut self, key: KeyEvent) {
+        let step = 2;
+        match key.code {
+            KeyCode::Up => {
+                self.dsl_effects_scroll = self.dsl_effects_scroll.saturating_sub(step);
+            }
+            KeyCode::Down => {
+                self.dsl_effects_scroll += step;
             }
             _ => {}
         }
@@ -804,9 +2389,12 @@ impl App {
         let elapsed_std = now - self.last_frame;
         self.last_frame = now;
         let elapsed = Duration::from_millis(elapsed_std.as_millis() as u32);
+        self.frame_elapsed = elapsed;
 
         self.bg_tick = self.bg_tick.wrapping_add(1);
         self.cursor_blink_tick = self.cursor_blink_tick.wrapping_add(1);
+        // Advance navbar breathing tick (slow, calm rhythm)
+        self.navbar_breath_tick += elapsed.as_millis() as f64 * 0.001;
 
         // Decay mouse trail
         self.mouse_idle_ticks = self.mouse_idle_ticks.saturating_add(1);
@@ -829,15 +2417,9 @@ impl App {
         self.grid_rows = full_area.height;
 
         // Center the main content with margins to show animated background border
-        // Use smaller margins on narrow screens (phones) for better usability
-        let h_margin = if full_area.width <= VERY_NARROW_WIDTH_THRESHOLD {
-            0
-        } else if full_area.width < NARROW_MARGIN_THRESHOLD {
-            1
-        } else {
-            (full_area.width / 10).max(2)
-        };
-        let v_margin = if full_area.height < SHORT_MARGIN_THRESHOLD { 0 } else { (full_area.height / 16).max(1) };
+        // Use 1-tile border on narrow screens (<80 tiles) for better usability
+        let h_margin = if full_area.width < 80 { 1 } else { (full_area.width / MARGIN_DIVISOR).min(2) };
+        let v_margin = (full_area.height / MARGIN_DIVISOR).min(1);
 
         let [_, center_v, _] = Layout::vertical([
             Constraint::Length(v_margin),
@@ -860,8 +2442,54 @@ impl App {
 
         self.render_tabs(frame, tab_area);
 
+        // ── Navbar breathing effect ─────────────────────────────────────
+        // Per-character darken_fg: center brighter, edges dimmer, with
+        // procedural per-column offset for an organic breathing pulse.
+        {
+            let buf = frame.buffer_mut();
+            let tab_row = tab_area.y + 1; // text row inside bordered tab area
+            let tab_left = tab_area.x + 1;
+            let tab_right = tab_area.right().saturating_sub(1);
+            let tab_span = (tab_right as f64 - tab_left as f64).max(1.0);
+            let center = tab_left as f64 + tab_span * 0.5;
+            let t = self.navbar_breath_tick;
+
+            for x in tab_left..tab_right {
+                let pos = Position::new(x, tab_row);
+                if let Some(cell) = buf.cell_mut(pos) {
+                    // Normalized distance from center: 0.0 = center, 1.0 = edge
+                    let dist = ((x as f64 - center).abs() / (tab_span * 0.5)).min(1.0);
+
+                    // Per-character phase offset for organic wave feel
+                    let phase_offset = (x as f64 - tab_left as f64) * 0.18;
+
+                    // Slow breathing: sin wave with ~6s period per cycle
+                    let breath = (t * 1.05 + phase_offset).sin() * 0.5 + 0.5;
+
+                    // Base darkening: center gets light dimming, edges get heavy dimming
+                    // Range: center ~0.15, edges ~0.75 (dim & tarnished)
+                    let base_darken = 0.15 + dist * 0.60;
+
+                    // Breathing modulates darkening by ±0.12
+                    let darken = (base_darken + breath * 0.12).min(0.90);
+
+                    // Apply darken_fg: reduce each RGB channel of fg
+                    let keep = 1.0 - darken;
+                    let (r, g, b) = match cell.fg {
+                        Color::Rgb(r, g, b) => (r, g, b),
+                        _ => (200, 200, 210),
+                    };
+                    cell.set_fg(Color::Rgb(
+                        (r as f64 * keep) as u8,
+                        (g as f64 * keep) as u8,
+                        (b as f64 * keep) as u8,
+                    ));
+                }
+            }
+        }
+
         // Render fire glow effect on the selected tab
-        if let Some(selected_tab_rect) = self.tab_rects.get(self.page.index()).copied() {
+        if let Some(selected_tab_rect) = self.tab_rects.get(self.center_tab_idx).copied() {
             if self.tab_glow_effect.is_none() {
                 // Subtle warm copper/gold hsl shift
                 let fg_shift = [8.0, 10.0, 6.0];
@@ -882,17 +2510,17 @@ impl App {
         if current_hovered_tab != self.last_hovered_tab {
             if let Some(idx) = current_hovered_tab {
                 if self.tab_rects.get(idx).is_some() {
-                    let inner_effect = fx::fade_from(
-                        Color::Rgb(60, 65, 80),
-                        Color::Rgb(8, 9, 14),
-                        (300, Interpolation::QuadOut),
+                    let dissolve = fx::dissolve(
+                        EffectTimer::from_ms(400, Interpolation::QuadOut),
                     );
-                    let hover_fx = fx::translate(
-                        inner_effect,
-                        Offset { x: 0, y: -1 },
-                        (300, Interpolation::QuadOut),
-                    );
-                    self.tab_hover_effects.push((idx, hover_fx));
+                    self.tab_hover_effects.push((idx, dissolve));
+                    if let Some(tab_rect) = self.tab_rects.get(idx).copied() {
+                        let shift = fx::hsl_shift_fg(
+                            [20.0, 10.0, 14.0],
+                            (450, Interpolation::SineOut),
+                        );
+                        self.btn_effects.push((tab_rect, shift));
+                    }
                 }
             }
             self.last_hovered_tab = current_hovered_tab;
@@ -909,13 +2537,74 @@ impl App {
             }
         });
 
+        // Process carousel transition effect
+        if let Some(ref mut effect) = self.carousel_effect {
+            if effect.running() {
+                frame.render_effect(effect, tab_area, elapsed);
+            }
+        }
+        if self.carousel_effect.as_ref().is_some_and(|e| !e.running()) {
+            self.carousel_effect = None;
+        }
+
         match self.page {
             Page::Home => self.render_home(frame, content_area),
             Page::Repl => self.render_repl(frame, content_area),
             Page::Docs => self.render_docs(frame, content_area),
             Page::Blog => self.render_blog(frame, content_area),
-            Page::Links => self.render_links(frame, content_area),
-            Page::Showcase => self.render_showcase(frame, content_area),
+            Page::About => self.render_about(frame, content_area),
+            Page::Effects => self.render_effects(frame, content_area),
+        }
+
+        // Process blog navigation effect — apply only to the affected title areas
+        if let Some(ref mut effect) = self.blog_nav_effect {
+            if effect.running() {
+                // Apply effect only to the new and previous blog title areas
+                if let Some(new_area) = self.blog_item_areas.get(self.blog_index).copied() {
+                    if new_area.width > 0 {
+                        frame.render_effect(effect, new_area, elapsed);
+                    }
+                }
+                if self.prev_blog_index != self.blog_index {
+                    if let Some(old_area) = self.blog_item_areas.get(self.prev_blog_index).copied() {
+                        if old_area.width > 0 {
+                            // Subtle inverse HSL shift to dim the old title (negative hue/sat/light)
+                            let mut reverse = fx::hsl_shift_fg(
+                                [-10.0, -5.0, -8.0],
+                                (250, Interpolation::QuadOut),
+                            );
+                            frame.render_effect(&mut reverse, old_area, elapsed);
+                        }
+                    }
+                }
+            }
+        }
+        if self.blog_nav_effect.as_ref().is_some_and(|e| !e.running()) {
+            self.blog_nav_effect = None;
+        }
+
+        // Focus indicator: subtle border highlight when in focused mode
+        if self.focus_mode == FocusMode::Focused {
+            let buf = frame.buffer_mut();
+            let focus_fg = Color::Rgb(100, 110, 130);
+            // Highlight the top and bottom border of content area
+            for x in content_area.x..content_area.right() {
+                for &y in &[content_area.y, content_area.bottom().saturating_sub(1)] {
+                    let pos = Position::new(x, y);
+                    if let Some(cell) = buf.cell_mut(pos) {
+                        cell.set_fg(focus_fg);
+                    }
+                }
+            }
+            // Highlight the left and right border of content area
+            for y in content_area.y..content_area.bottom() {
+                for &x in &[content_area.x, content_area.right().saturating_sub(1)] {
+                    let pos = Position::new(x, y);
+                    if let Some(cell) = buf.cell_mut(pos) {
+                        cell.set_fg(focus_fg);
+                    }
+                }
+            }
         }
 
         // Process transition effects
@@ -943,7 +2632,7 @@ impl App {
         });
 
         // Link hover effects — triggers when a new link is hovered
-        if self.page == Page::Links {
+        if self.page == Page::About {
             let current_hovered_link = self.link_areas.iter().enumerate()
                 .find(|(_, r)| self.is_hovered(**r))
                 .map(|(i, _)| i);
@@ -1039,100 +2728,154 @@ impl App {
     fn render_tabs(&mut self, frame: &mut Frame, area: Rect) {
         self.tab_area = area;
 
-        let is_narrow = area.width < NARROW_WIDTH_THRESHOLD;
-
-        // Compute individual tab click areas from the Tabs widget layout.
-        // Use narrower dividers and less padding on mobile for compact layout.
-        let divider_width: u16 = if is_narrow { 1 } else { 3 };
+        let pad: u16 = 1;
         let inner_x = area.x + 1; // after left border
-        let tab_row = area.y + 1;
-
-        // First pass: compute tab positions relative to line start
-        let mut tab_offsets: Vec<(u16, u16)> = Vec::new(); // (offset_from_line_start, width)
-        let mut line_pos: u16 = 0;
-        for (i, p) in Page::ALL.iter().enumerate() {
-            if i > 0 {
-                line_pos += divider_width;
-            }
-            if !is_narrow {
-                line_pos += 1; // left space padding
-            }
-            let title_len = p.title().len() as u16;
-            tab_offsets.push((line_pos, title_len));
-            line_pos += title_len;
-            if !is_narrow {
-                line_pos += 1; // right space padding
-            }
-        }
-        let total_line_width = line_pos;
-
-        // Clamp horizontal scroll
         let inner_width = area.width.saturating_sub(2);
-        let max_h_scroll = total_line_width.saturating_sub(inner_width) as usize;
-        self.tab_h_scroll = self.tab_h_scroll.min(max_h_scroll);
+        let tab_row = area.y + 1;
+        let divider_width: u16 = 1;
 
-        // Compute center offset (matching Paragraph's Alignment::Center behavior)
-        let center_offset = if inner_width > total_line_width {
-            (inner_width - total_line_width) / 2
+        let num_pages = Page::ALL.len();
+        let selected_idx = self.page.index();
+
+        // Compute padded widths for each page
+        let tab_widths: Vec<u16> = Page::ALL
+            .iter()
+            .map(|p| p.title().len() as u16 + pad * 2)
+            .collect();
+
+        // Calculate center position for selected tab
+        let selected_width = tab_widths[selected_idx];
+        let center_x = inner_x as i32 + (inner_width as i32 - selected_width as i32) / 2;
+
+        // Collect carousel entries: (page_idx, x_position, width, is_center)
+        let mut entries: Vec<(usize, i32, u16, bool)> = Vec::new();
+
+        // Center entry
+        entries.push((selected_idx, center_x, selected_width, true));
+
+        // Fill rightward
+        let right_edge = (inner_x + inner_width) as i32;
+        let mut cursor = center_x + selected_width as i32 + divider_width as i32;
+        let mut idx = (selected_idx + 1) % num_pages;
+        while cursor < right_edge {
+            let w = tab_widths[idx];
+            entries.push((idx, cursor, w, false));
+            cursor += w as i32 + divider_width as i32;
+            idx = (idx + 1) % num_pages;
+        }
+
+        // Fill leftward
+        idx = if selected_idx == 0 {
+            num_pages - 1
         } else {
-            0
+            selected_idx - 1
         };
+        cursor = center_x - divider_width as i32;
+        loop {
+            let w = tab_widths[idx];
+            let tab_start = cursor - w as i32;
+            entries.push((idx, tab_start, w, false));
+            if tab_start <= inner_x as i32 {
+                break;
+            }
+            cursor = tab_start - divider_width as i32;
+            idx = if idx == 0 { num_pages - 1 } else { idx - 1 };
+        }
 
-        // Build final tab_rects with center offset and scroll applied
+        // Sort entries by x position for consistent rendering
+        entries.sort_by_key(|e| e.1);
+
+        // Render the block border
+        let block = Block::bordered()
+            .border_type(BorderType::Rounded)
+            .border_style(Color::Rgb(55, 60, 70))
+            .title(Line::from(" GRIFT.RS ").alignment(Alignment::Center))
+            .title_style(Style::default().fg(Color::Rgb(207, 181, 59)).bold());
+        frame.render_widget(block, area);
+
+        // Build tab_rects, tab_page_indices, and render text directly into buffer
+        let vis_left = inner_x;
+        let vis_right = inner_x + inner_width;
+
         self.tab_rects.clear();
-        for (offset, width) in &tab_offsets {
-            let x = inner_x
-                .saturating_add(center_offset)
-                .saturating_add(*offset)
-                .saturating_sub(self.tab_h_scroll as u16);
-            self.tab_rects.push(Rect::new(x, tab_row, *width, 1));
+        self.tab_page_indices.clear();
+        self.center_tab_idx = 0;
+
+        let buf = frame.buffer_mut();
+
+        for &(page_idx, x, width, is_center) in &entries {
+            let raw_x = x;
+            let raw_right = x + width as i32;
+            let clipped_x = raw_x.max(vis_left as i32) as u16;
+            let clipped_right = (raw_right.min(vis_right as i32) as u16).min(vis_right);
+
+            if clipped_right > clipped_x {
+                let rect_idx = self.tab_rects.len();
+                self.tab_rects
+                    .push(Rect::new(clipped_x, tab_row, clipped_right - clipped_x, 1));
+                self.tab_page_indices.push(page_idx);
+
+                if is_center {
+                    self.center_tab_idx = rect_idx;
+                }
+
+                // Determine style
+                let hovered = self.is_hovered(Rect::new(
+                    clipped_x,
+                    tab_row,
+                    clipped_right - clipped_x,
+                    1,
+                ));
+                let fg = if is_center {
+                    Color::Rgb(230, 232, 240)
+                } else if hovered {
+                    Color::Rgb(255, 255, 255)
+                } else {
+                    Color::Rgb(140, 145, 155)
+                };
+                let style = if is_center {
+                    Style::default()
+                        .fg(fg)
+                        .bold()
+                        .add_modifier(Modifier::REVERSED)
+                } else if hovered {
+                    Style::default().fg(fg).bold()
+                } else {
+                    Style::default().fg(fg)
+                };
+
+                // Write tab text into buffer, handling clipping
+                let page = Page::ALL[page_idx];
+                let padded_title = format!(" {} ", page.title());
+                let chars: Vec<char> = padded_title.chars().collect();
+                let char_offset = (clipped_x as i32 - raw_x).max(0) as usize;
+
+                for (ci, &ch) in chars.iter().enumerate().skip(char_offset) {
+                    let cx = raw_x + ci as i32;
+                    if cx < vis_left as i32 {
+                        continue;
+                    }
+                    if cx >= vis_right as i32 {
+                        break;
+                    }
+                    let pos = Position::new(cx as u16, tab_row);
+                    if let Some(cell) = buf.cell_mut(pos) {
+                        cell.set_char(ch);
+                        cell.set_style(style);
+                    }
+                }
+            }
+
+            // Render divider after this tab
+            let div_x = raw_right;
+            if div_x >= vis_left as i32 && div_x < vis_right as i32 {
+                let pos = Position::new(div_x as u16, tab_row);
+                if let Some(cell) = buf.cell_mut(pos) {
+                    cell.set_char('│');
+                    cell.set_style(Style::default().fg(Color::Rgb(100, 105, 115)));
+                }
+            }
         }
-
-        let divider_str = if is_narrow { "│" } else { " │ " };
-
-        let mut spans: Vec<Span> = Vec::new();
-        for (i, p) in Page::ALL.iter().enumerate() {
-            if i > 0 {
-                spans.push(Span::styled(divider_str, Style::default().fg(Color::Rgb(100, 105, 115))));
-            }
-            let hovered = self.tab_rects.get(i).is_some_and(|r| self.is_hovered(*r));
-            let is_selected = self.page.index() == i;
-            let fg = if is_selected {
-                Color::Rgb(230, 232, 240)
-            } else if hovered {
-                Color::Rgb(255, 255, 255)
-            } else {
-                Color::Rgb(140, 145, 155)
-            };
-            let style = if is_selected {
-                Style::default().fg(fg).bold().add_modifier(Modifier::REVERSED)
-            } else if hovered {
-                Style::default().fg(fg).bold().add_modifier(Modifier::UNDERLINED)
-            } else {
-                Style::default().fg(fg)
-            };
-            if !is_narrow {
-                spans.push(Span::styled(" ", Style::default()));
-            }
-            spans.push(Span::styled(p.title(), style));
-            if !is_narrow {
-                spans.push(Span::styled(" ", Style::default()));
-            }
-        }
-
-        let tab_line = Line::from(spans);
-        let tab_paragraph = Paragraph::new(tab_line)
-            .alignment(Alignment::Center)
-            .scroll((0, self.tab_h_scroll as u16))
-            .block(
-                Block::bordered()
-                    .border_type(BorderType::Rounded)
-                    .border_style(Color::Rgb(55, 60, 70))
-                    .title(Line::from(" GRIFT.RS ").alignment(Alignment::Center))
-                    .title_style(Style::default().fg(Color::Rgb(207, 181, 59)).bold()),
-            );
-
-        frame.render_widget(tab_paragraph, area);
     }
 
     fn render_home(&mut self, frame: &mut Frame, area: Rect) {
@@ -1169,29 +2912,86 @@ impl App {
             lines.push(Line::styled(l, Style::default().fg(Color::Rgb(170, 175, 185))));
         }
 
+        lines.push(Line::from(""));
+
+        // Why Grift section
+        lines.push(Line::styled("── Why Grift? ──", Style::default().fg(Color::Rgb(160, 175, 195)).bold()));
+        lines.push(Line::from(""));
+        let why_grift = "Most Lisps distinguish between functions and macros at a fundamental level. Grift eliminates this distinction entirely through vau calculus. Every combiner is an operative that can choose whether to evaluate its arguments. This makes the language simpler, more uniform, and more powerful. If you can write a function, you can write a macro — they are the same thing.";
+        lines.push(Line::styled(why_grift, Style::default().fg(Color::Rgb(170, 175, 185))));
+        lines.push(Line::from(""));
+
+        // This Site section
+        lines.push(Line::styled("── This Site ──", Style::default().fg(Color::Rgb(207, 181, 59)).bold()));
+        lines.push(Line::from(""));
+        let this_site = "Everything you see is a Rust terminal UI compiled to WebAssembly and rendered to an HTML canvas via Ratzilla. TachyonFX provides the animated background, page transitions, and hover effects. There is no HTML layout, no CSS styling, and no JavaScript framework — just a Rust application drawing characters to a terminal grid. The same layout works on every device and screen size.";
+        lines.push(Line::styled(this_site, Style::default().fg(Color::Rgb(170, 175, 185))));
+        lines.push(Line::from(""));
+
+        // Getting Started section
+        lines.push(Line::styled("── Getting Started ──", Style::default().fg(Color::Rgb(184, 115, 51)).bold()));
+        lines.push(Line::from(""));
+        let getting_started = "Try Grift right now — switch to the REPL tab and type (+ 1 2). Browse the Docs tab for the full language reference. Check the Effects tab to see TachyonFX visual effects in action. All tabs are accessible via touch, mouse, or keyboard.";
+        lines.push(Line::styled(getting_started, Style::default().fg(Color::Rgb(170, 175, 185))));
+        lines.push(Line::from(""));
+
+        // Features at a Glance section
+        lines.push(Line::styled("── Features at a Glance ──", Style::default().fg(Color::Rgb(160, 175, 195)).bold()));
+        lines.push(Line::from(""));
+        let features = "• Interactive REPL with full Grift interpreter\n• Animated background and page transitions\n• Clickable tabs, links, and buttons\n• Mobile-first touch gesture support\n• Momentum scrolling and swipe navigation\n• Zero JavaScript frameworks — pure Rust + WASM";
+        for l in features.lines() {
+            lines.push(Line::styled(l, Style::default().fg(Color::Rgb(170, 175, 185))));
+        }
+
+        let home_hint = if self.focus_mode == FocusMode::Focused {
+            "Esc: unfocus │ ↑↓: scroll │ ←→: tabs"
+        } else {
+            "Enter/tap: focus │ ←→: tabs │ ↑↓: scroll"
+        };
+
         let mut scroll = self.home_scroll;
         self.render_scrollable_content(
             frame, area, lines, &mut scroll,
             None,
             None,
-            "swipe ↕ ↔",
+            home_hint,
         );
         self.home_scroll = scroll;
     }
 
-    fn render_repl(&self, frame: &mut Frame, area: Rect) {
+    fn render_repl(&mut self, frame: &mut Frame, area: Rect) {
+        // Determine keyboard height: 5 rows × 3 lines = 15 lines for keyboard
+        let show_keyboard = self.focus_mode == FocusMode::Focused;
+        let kbd_height = if show_keyboard { 15 } else { 0 };
+
+        let (repl_area, kbd_area) = if show_keyboard {
+            let [r, k] = Layout::vertical([
+                Constraint::Min(6),
+                Constraint::Length(kbd_height),
+            ]).areas(area);
+            (r, Some(k))
+        } else {
+            (area, None)
+        };
+
+        let hint_text = if show_keyboard {
+            "│ Esc: unfocus │ ←→: cursor │ type + ↵ │"
+        } else {
+            "│ Enter/tap: focus │ ←→: tabs │ ↑↓: scroll │"
+        };
+
         let block = Block::bordered()
             .border_type(BorderType::Rounded)
             .border_style(Color::Rgb(55, 60, 70))
             .title(" Grift REPL ".bold().fg(Color::Rgb(184, 115, 51)))
             .title_bottom(
-                Line::from("│ type + Enter │")
+                Line::from(hint_text)
                     .alignment(Alignment::Center)
                     .style(Style::default().fg(Color::Rgb(55, 60, 70))),
             );
 
-        let inner = block.inner(area);
-        frame.render_widget(block, area);
+        let inner = block.inner(repl_area);
+        frame.render_widget(block, repl_area);
 
         let [input_area, history_area] =
             Layout::vertical([Constraint::Length(3), Constraint::Min(1)]).areas(inner);
@@ -1254,6 +3054,52 @@ impl App {
                     .title(" Output ".fg(Color::Rgb(160, 165, 175))),
             );
         frame.render_widget(history, history_area);
+
+        // Render vertical scrollbar on REPL output if it overflows
+        self.render_vertical_scrollbar(frame, history_area, scroll, max_scroll);
+
+        // Render virtual keyboard when focused
+        if let Some(kbd_area) = kbd_area {
+            // Decay keyboard press flash timers
+            self.keyboard_pressed_ticks.retain_mut(|(_, ticks)| {
+                *ticks = ticks.saturating_sub(1);
+                *ticks > 0
+            });
+
+            // Build pressed keys set for rendering
+            let mut pressed: HashSet<VirtualKey> = self.keyboard_pressed_ticks
+                .iter()
+                .map(|(k, _)| *k)
+                .collect();
+            if self.keyboard_shifted {
+                pressed.insert(VirtualKey::ShiftLeft);
+            }
+
+            // Render keyboard and store button areas for click handling
+            self.keyboard_button_areas = tvk::render::render_keyboard_inline(
+                frame,
+                kbd_area,
+                &pressed,
+                &self.keyboard_layout,
+                &self.keyboard_env,
+            );
+
+            // Repeating passive silver glow effect on the keyboard area
+            let elapsed = self.frame_elapsed;
+            if self.keyboard_glow_effect.is_none() {
+                // [hue_shift, saturation_shift, lightness_shift]: neutral hue, slight desaturation, gentle brightness pulse
+                let glow = fx::hsl_shift_fg(
+                    [0.0, -3.0, 8.0],
+                    (3000, Interpolation::SineIn),
+                );
+                self.keyboard_glow_effect = Some(fx::repeating(fx::ping_pong(glow)));
+            }
+            if let Some(ref mut glow) = self.keyboard_glow_effect {
+                frame.render_effect(glow, kbd_area, elapsed);
+            }
+        } else {
+            self.keyboard_button_areas.clear();
+        }
     }
 
     fn render_blinking_cursor(&self, frame: &mut Frame, cursor_x: u16, cursor_y: u16, max_x: u16) {
@@ -1281,7 +3127,7 @@ impl App {
 
     fn render_docs(&mut self, frame: &mut Frame, area: Rect) {
         // Combine all doc sections into one scrollable text
-        let all_docs = [DOC_BASICS, DOC_FORMS, DOC_ADVANCED];
+        let all_docs = [DOC_BASICS, DOC_FORMS, DOC_ADVANCED, DOC_ENVIRONMENTS, DOC_ERRORS];
         let mut lines: Vec<Line> = Vec::new();
         // Account for outer block borders (2) + inner block borders (2) + side padding (4)
         let separator_width = area.width.saturating_sub(8) as usize;
@@ -1346,216 +3192,329 @@ impl App {
             }
         }
 
+        let docs_hint = if self.focus_mode == FocusMode::Focused {
+            "Esc: unfocus │ ↑↓: scroll"
+        } else {
+            "Enter/tap: focus │ ←→: tabs │ ↑↓: scroll"
+        };
+
         let mut scroll = self.doc_scroll;
         self.render_scrollable_content(
             frame, area, lines, &mut scroll,
             Some(" Documentation ".bold().fg(Color::Rgb(200, 200, 210)).into()),
             Some(" Grift Language Reference ".bold().fg(Color::Rgb(184, 115, 51)).into()),
-            "swipe ↕",
+            docs_hint,
         );
         self.doc_scroll = scroll;
     }
 
+    // ── Blog: Rendering ──────────────────────────────────────────────
+    // Two views dispatched from render_blog:
+    //   render_blog_post  — full post with back button and scrollable content
+    //   render_blog_list  — scrollable list of titles with selection highlight
+
     fn render_blog(&mut self, frame: &mut Frame, area: Rect) {
         self.blog_back_area = Rect::default();
-
         if self.blog_viewing_post {
-            // Show post content with a back button
-            let block = Block::bordered()
-                .border_type(BorderType::Rounded)
-                .border_style(Color::Rgb(55, 60, 70))
-                .title(" Blog ".bold().fg(Color::Rgb(200, 200, 210)));
-
-            let inner = block.inner(area);
-            frame.render_widget(block, area);
-
-            let [back_bar, scroll_area, nav_bar] =
-                Layout::vertical([Constraint::Length(1), Constraint::Min(1), Constraint::Length(1)]).areas(inner);
-
-            // Back button
-            let back_hovered = self.is_hovered(back_bar);
-            let back_style = if back_hovered {
-                Style::default().fg(Color::Rgb(255, 255, 255)).bold()
-            } else {
-                Style::default().fg(Color::Rgb(184, 115, 51))
-            };
-            frame.render_widget(
-                Paragraph::new("◄ Back to posts").style(back_style),
-                back_bar,
-            );
-            self.blog_back_area = back_bar;
-
-            // Blog content — scrollable
-            self.blog_list_area = Rect::default();
-            self.blog_item_areas.clear();
-            if let Some((title, date, content)) = BLOG_ENTRIES.get(self.blog_index) {
-                let mut lines = vec![
-                    Line::styled(*title, Style::default().fg(Color::Rgb(220, 225, 235)).bold()),
-                    Line::styled(*date, Style::default().fg(Color::Rgb(75, 80, 90))),
-                    Line::from(""),
-                ];
-                for line in content.lines() {
-                    lines.push(Line::styled(line, Style::default().fg(Color::Rgb(170, 175, 185))));
-                }
-
-                let visible_height = scroll_area.height.saturating_sub(2) as usize;
-                let content_width = scroll_area.width.saturating_sub(2) as usize;
-                let total_wrapped = Self::wrapped_line_count(&lines, content_width);
-                let max_scroll = total_wrapped.saturating_sub(visible_height);
-                self.blog_scroll = self.blog_scroll.min(max_scroll);
-
-                let blog = Paragraph::new(Text::from(lines))
-                    .wrap(Wrap { trim: false })
-                    .scroll((self.blog_scroll as u16, 0))
-                    .block(
-                        Block::bordered()
-                            .border_type(BorderType::Rounded)
-                            .border_style(Color::Rgb(40, 44, 52)),
-                    );
-                frame.render_widget(blog, scroll_area);
-                self.blog_content_area = scroll_area;
-
-                self.render_scroll_arrows(frame, nav_bar, self.blog_scroll, max_scroll, "swipe ↕");
-            }
-            return;
+            self.render_blog_post(frame, area);
+        } else {
+            self.render_blog_list(frame, area);
         }
-
-        // Show scrollable list of blog titles
-        let block = Block::bordered()
-            .border_type(BorderType::Rounded)
-            .border_style(Color::Rgb(55, 60, 70))
-            .title(" Blog ".bold().fg(Color::Rgb(200, 200, 210)))
-            .title_bottom(
-                Line::from("│ tap a post │")
-                    .alignment(Alignment::Center)
-                    .style(Style::default().fg(Color::Rgb(55, 60, 70))),
-            );
-
-        let inner = block.inner(area);
-        frame.render_widget(block, area);
-
-        let list_block = Block::bordered()
-            .border_type(BorderType::Rounded)
-            .border_style(Color::Rgb(40, 44, 52))
-            .title(" Posts ".fg(Color::Rgb(200, 200, 210)));
-
-        let list_inner = list_block.inner(inner);
-
-        self.blog_item_areas.clear();
-        self.blog_list_area = inner;
-        self.blog_content_area = Rect::default();
-
-        for i in 0..BLOG_ENTRIES.len() {
-            let item_y = list_inner.y + (i as u16 * 2);
-            if item_y + 2 <= list_inner.bottom() {
-                self.blog_item_areas.push(Rect::new(
-                    list_inner.x,
-                    item_y,
-                    list_inner.width,
-                    2,
-                ));
-            }
-        }
-
-        let items: Vec<ListItem> = BLOG_ENTRIES
-            .iter()
-            .enumerate()
-            .map(|(i, (title, date, _))| {
-                let hovered = self
-                    .blog_item_areas
-                    .get(i)
-                    .is_some_and(|r| self.is_hovered(*r));
-                let style = if i == self.blog_index {
-                    Style::default().fg(Color::Rgb(230, 232, 240)).bold()
-                } else if hovered {
-                    Style::default().fg(Color::Rgb(200, 200, 210))
-                } else {
-                    Style::default().fg(Color::Rgb(140, 145, 155))
-                };
-                let marker = if i == self.blog_index { "> " } else if hovered { "~ " } else { "  " };
-                ListItem::new(vec![
-                    Line::from(format!("{marker}{title}")).style(style),
-                    Line::from(format!("  {date}"))
-                        .style(Style::default().fg(Color::Rgb(75, 80, 90))),
-                ])
-            })
-            .collect();
-
-        let list = List::new(items).block(list_block);
-        frame.render_widget(list, inner);
     }
 
-    fn render_links(&mut self, frame: &mut Frame, area: Rect) {
+    fn render_blog_post(&mut self, frame: &mut Frame, area: Rect) {
+        self.blog_list_area = Rect::default();
+        self.blog_item_areas.clear();
+
         let block = Block::bordered()
             .border_type(BorderType::Rounded)
             .border_style(Color::Rgb(55, 60, 70))
-            .title(" Links ".bold().fg(Color::Rgb(200, 200, 210)));
-
+            .title(" Blog ".bold().fg(Color::Rgb(200, 200, 210)));
         let inner = block.inner(area);
         frame.render_widget(block, area);
 
-        let [scroll_area, nav_bar] =
-            Layout::vertical([Constraint::Min(1), Constraint::Length(1)]).areas(inner);
+        let [back_bar, scroll_area, nav_bar] =
+            Layout::vertical([Constraint::Length(1), Constraint::Min(1), Constraint::Length(1)]).areas(inner);
 
-        // Build all links + info as one scrollable text
-        let mut lines: Vec<Line> = Vec::new();
-        lines.push(Line::styled("Repositories & Resources", Style::default().fg(Color::Rgb(200, 200, 210)).bold()));
-        lines.push(Line::styled("────────────────────────", Style::default().fg(Color::Rgb(140, 145, 155))));
+        // Back button
+        let back_style = if self.is_hovered(back_bar) {
+            Style::default().fg(Color::Rgb(255, 255, 255)).bold()
+        } else {
+            Style::default().fg(Color::Rgb(184, 115, 51))
+        };
+        frame.render_widget(Paragraph::new("◄ Back to posts").style(back_style), back_bar);
+        self.blog_back_area = back_bar;
 
-        for (i, (label, _url)) in LINKS.iter().enumerate() {
-            let hovered = self.link_areas.get(i).is_some_and(|r| self.is_hovered(*r));
-            let style = if hovered {
-                Style::default().fg(Color::Rgb(160, 175, 195)).add_modifier(Modifier::REVERSED)
-            } else {
-                Style::default().fg(Color::Rgb(160, 175, 195))
-            };
-            lines.push(Line::styled(format!("  {label}"), style));
-        }
+        // Post content — parse markdown via md-tui
+        let (_title, _date, content) = match BLOG_ENTRIES.get(self.blog_index) {
+            Some(entry) => *entry,
+            None => return,
+        };
 
-        lines.push(Line::from(""));
-        lines.push(Line::from(vec![
-            "  gold.silver.copper ".fg(Color::Rgb(207, 181, 59)).bold(),
-            "— Software developer".fg(Color::Rgb(140, 145, 155)),
-        ]));
-        lines.push(Line::from(vec![
-            "  Grift ".fg(Color::Rgb(184, 115, 51)).bold(),
-            "– Lisp with vau calculus".fg(Color::Rgb(140, 145, 155)),
-        ]));
-        lines.push(Line::from(""));
-        lines.push(Line::from("  Terminal UI in your browser.".fg(Color::Rgb(100, 105, 115))));
-        lines.push(Line::from("  Ratzilla + TachyonFX + WASM.".fg(Color::Rgb(100, 105, 115))));
+        let content_width = scroll_area.width.saturating_sub(4);
+        let lines = md_to_lines(content, content_width);
 
         let visible_height = scroll_area.height.saturating_sub(2) as usize;
         let content_width = scroll_area.width.saturating_sub(2) as usize;
         let total_wrapped = Self::wrapped_line_count(&lines, content_width);
         let max_scroll = total_wrapped.saturating_sub(visible_height);
-        self.links_scroll = self.links_scroll.min(max_scroll);
+        self.blog_scroll = self.blog_scroll.min(max_scroll);
 
-        // Track clickable link areas in scroll view
-        let links_block = Block::bordered()
+        let post = Paragraph::new(Text::from(lines))
+            .wrap(Wrap { trim: false })
+            .scroll((self.blog_scroll as u16, 0))
+            .block(
+                Block::bordered()
+                    .border_type(BorderType::Rounded)
+                    .border_style(Color::Rgb(40, 44, 52)),
+            );
+        frame.render_widget(post, scroll_area);
+        self.blog_content_area = scroll_area;
+
+        self.render_vertical_scrollbar(frame, scroll_area, self.blog_scroll, max_scroll);
+
+        let hint = if self.focus_mode == FocusMode::Focused {
+            "Esc/←: back │ ↑↓: scroll"
+        } else {
+            "Enter/tap: focus │ ←→: tabs"
+        };
+        self.render_scroll_arrows(frame, nav_bar, self.blog_scroll, max_scroll, hint);
+    }
+
+    fn render_blog_list(&mut self, frame: &mut Frame, area: Rect) {
+        self.blog_list_area = area;
+        self.blog_content_area = Rect::default();
+
+        // Build list lines — one title + date + blank per entry
+        let mut lines: Vec<Line> = Vec::new();
+        let mut entry_line_indices: Vec<usize> = Vec::new();
+
+        for (i, (title, date, _)) in BLOG_ENTRIES.iter().enumerate() {
+            entry_line_indices.push(lines.len());
+
+            let is_selected = self.blog_index == i;
+            let is_hovered = self.blog_item_areas.get(i).is_some_and(|r| self.is_hovered(*r));
+
+            // Unified single selector: hover updates selection on mobile, highlight is always consistent
+            let active = is_selected || is_hovered;
+            let (style, marker) = if active {
+                (Style::default().fg(Color::Rgb(207, 181, 59)).bold(), "▸ ")
+            } else {
+                (Style::default().fg(Color::Rgb(200, 200, 210)), "  ")
+            };
+
+            lines.push(Line::from(format!("{marker}{title}")).style(style));
+
+            let date_style = if active {
+                Style::default().fg(Color::Rgb(184, 115, 51))
+            } else {
+                Style::default().fg(Color::Rgb(75, 80, 90))
+            };
+            lines.push(Line::styled(format!("    {date}"), date_style));
+            lines.push(Line::from(""));
+        }
+
+        let hint = if self.focus_mode == FocusMode::Focused {
+            "Esc: unfocus │ ↑↓: select │ Enter/→: read"
+        } else {
+            "Enter/tap: focus │ ←→: tabs │ tap post"
+        };
+
+        let mut scroll = self.blog_scroll;
+        let scroll_area = self.render_scrollable_content(
+            frame, area, lines, &mut scroll,
+            Some(" Blog ".bold().fg(Color::Rgb(200, 200, 210)).into()),
+            Some(" Posts — tap to read ".bold().fg(Color::Rgb(184, 115, 51)).into()),
+            hint,
+        );
+        self.blog_scroll = scroll;
+
+        // Compute click areas for each blog title relative to scroll position
+        let content_inner = Block::bordered()
+            .border_type(BorderType::Rounded)
+            .border_style(Color::Rgb(40, 44, 52))
+            .inner(scroll_area);
+
+        self.blog_item_areas.clear();
+        for &line_idx in &entry_line_indices {
+            if line_idx >= self.blog_scroll {
+                let visible_row = (line_idx - self.blog_scroll) as u16;
+                if visible_row + 2 <= content_inner.height {
+                    // Touch target covers both title and date rows for mobile usability
+                    self.blog_item_areas.push(Rect::new(
+                        content_inner.x, content_inner.y + visible_row,
+                        content_inner.width, 2,
+                    ));
+                } else if visible_row < content_inner.height {
+                    self.blog_item_areas.push(Rect::new(
+                        content_inner.x, content_inner.y + visible_row,
+                        content_inner.width, 1,
+                    ));
+                } else {
+                    self.blog_item_areas.push(Rect::default());
+                }
+            } else {
+                self.blog_item_areas.push(Rect::default());
+            }
+        }
+    }
+
+    fn render_about(&mut self, frame: &mut Frame, area: Rect) {
+        // Build the About page: bio → grift description → links with descriptions → interesting info
+        let mut lines: Vec<Line> = Vec::new();
+
+        // ── Bio ──
+        lines.push(Line::styled("── gold silver copper ──", Style::default().fg(Color::Rgb(207, 181, 59)).bold()));
+        lines.push(Line::from(""));
+        lines.push(Line::styled(
+            "Software developer building open-source tools in Rust. Interested in programming language design, terminal user interfaces, WebAssembly, and making the web a stranger and more interesting place. Creator of Grift and this terminal-in-a-browser website.",
+            Style::default().fg(Color::Rgb(170, 175, 185)),
+        ));
+        lines.push(Line::from(""));
+
+        // ── Grift ──
+        lines.push(Line::styled("── Grift ──", Style::default().fg(Color::Rgb(184, 115, 51)).bold()));
+        lines.push(Line::from(""));
+        for l in DESCRIPTION.lines() {
+            lines.push(Line::styled(l, Style::default().fg(Color::Rgb(170, 175, 185))));
+        }
+        lines.push(Line::from(""));
+
+        // ── Links ──
+        lines.push(Line::styled("── Links ──", Style::default().fg(Color::Rgb(200, 200, 210)).bold()));
+        lines.push(Line::styled("────────────", Style::default().fg(Color::Rgb(140, 145, 155))));
+
+        // Link lines: each link label is on its own line, followed by a description line
+        // We track the logical line index where each link label appears for click tracking
+        let mut link_line_indices: Vec<usize> = Vec::new();
+        for (label, _url, desc) in LINKS.iter() {
+            link_line_indices.push(lines.len());
+            lines.push(Line::styled(format!("  {label}"), Style::default().fg(Color::Rgb(160, 175, 195))));
+            lines.push(Line::styled(format!("    — {desc}"), Style::default().fg(Color::Rgb(110, 115, 125))));
+        }
+
+        lines.push(Line::from(""));
+
+        // ── Interesting info (merged from showcase) ──
+        lines.push(Line::styled("── This Website ──", Style::default().fg(Color::Rgb(207, 181, 59)).bold()));
+        lines.push(Line::from(""));
+        lines.push(Line::styled(
+            "Everything you see is a Rust terminal UI compiled to WebAssembly and rendered to an HTML canvas via Ratzilla. TachyonFX provides the animated background, page transitions, and hover effects. There is no HTML layout, no CSS styling, and no JavaScript framework — just a Rust application drawing characters to a terminal grid.",
+            Style::default().fg(Color::Rgb(170, 175, 185)),
+        ));
+        lines.push(Line::from(""));
+
+        lines.push(Line::styled("── How It Works ──", Style::default().fg(Color::Rgb(184, 115, 51)).bold()));
+        lines.push(Line::from(""));
+        lines.push(Line::styled(
+            "Traditional web apps use HTML/CSS/JavaScript to render DOM elements. This site takes a different approach: the entire UI is a Rust application compiled to WASM, rendering a terminal grid to an HTML canvas. There is no DOM manipulation, no CSS layout engine, and no JavaScript framework involved.",
+            Style::default().fg(Color::Rgb(170, 175, 185)),
+        ));
+        lines.push(Line::from(""));
+
+        lines.push(Line::styled("── Built With ──", Style::default().fg(Color::Rgb(200, 200, 210)).bold()));
+        lines.push(Line::from(""));
+        lines.push(Line::styled("  • Ratzilla — terminal web apps with Rust + WASM", Style::default().fg(Color::Rgb(170, 175, 185))));
+        lines.push(Line::styled("  • Ratatui — terminal UI framework for Rust", Style::default().fg(Color::Rgb(170, 175, 185))));
+        lines.push(Line::styled("  • TachyonFX — shader-like effects for terminal UIs", Style::default().fg(Color::Rgb(170, 175, 185))));
+        lines.push(Line::styled("  • Grift — minimalistic Lisp with vau calculus", Style::default().fg(Color::Rgb(170, 175, 185))));
+        lines.push(Line::styled("  • WebGL2 rendering at 60fps on modern devices", Style::default().fg(Color::Rgb(170, 175, 185))));
+        lines.push(Line::from(""));
+
+        lines.push(Line::styled("── Interactions ──", Style::default().fg(Color::Rgb(207, 181, 59)).bold()));
+        lines.push(Line::from(""));
+        lines.push(Line::styled("  • Swipe LEFT / RIGHT to switch between tabs", Style::default().fg(Color::Rgb(170, 175, 185))));
+        lines.push(Line::styled("  • Swipe UP / DOWN to scroll content", Style::default().fg(Color::Rgb(170, 175, 185))));
+        lines.push(Line::styled("  • Tap on tabs, links, and buttons to interact", Style::default().fg(Color::Rgb(170, 175, 185))));
+        lines.push(Line::styled("  • Mouse wheel scrolling works everywhere", Style::default().fg(Color::Rgb(170, 175, 185))));
+        lines.push(Line::styled("  • Keyboard input works on the REPL tab", Style::default().fg(Color::Rgb(170, 175, 185))));
+        lines.push(Line::styled("  • Paste text with Ctrl+V / Cmd+V in the REPL", Style::default().fg(Color::Rgb(170, 175, 185))));
+        lines.push(Line::from(""));
+
+        lines.push(Line::styled("── Performance ──", Style::default().fg(Color::Rgb(184, 115, 51)).bold()));
+        lines.push(Line::from(""));
+        lines.push(Line::styled("  • WASM binary is ~200KB compressed", Style::default().fg(Color::Rgb(170, 175, 185))));
+        lines.push(Line::styled("  • No garbage collection pauses (arena allocator)", Style::default().fg(Color::Rgb(170, 175, 185))));
+        lines.push(Line::styled("  • Minimal memory footprint — fixed arena with const generics", Style::default().fg(Color::Rgb(170, 175, 185))));
+        lines.push(Line::styled("  • Single codebase for all screen sizes", Style::default().fg(Color::Rgb(170, 175, 185))));
+        lines.push(Line::styled("  • Full offline capability once cached by the browser", Style::default().fg(Color::Rgb(170, 175, 185))));
+
+        // Precompute visual row offsets for link labels BEFORE lines is consumed by render.
+        // We need the content width from the layout to do wrapped-line calculation.
+        let block_for_layout = Block::bordered()
+            .border_type(BorderType::Rounded)
+            .border_style(Color::Rgb(55, 60, 70));
+        let inner_for_layout = block_for_layout.inner(area);
+        let [scroll_area_for_layout, _] =
+            Layout::vertical([Constraint::Min(1), Constraint::Length(1)]).areas(inner_for_layout);
+        let content_width = scroll_area_for_layout.width.saturating_sub(2) as usize;
+
+        // Compute visual (wrapped) row for each link label line
+        let mut link_visual_rows: Vec<usize> = Vec::new();
+        for &line_idx in &link_line_indices {
+            let visual_row = Self::wrapped_line_count(&lines[..line_idx], content_width);
+            link_visual_rows.push(visual_row);
+        }
+
+        let about_hint = if self.focus_mode == FocusMode::Focused {
+            "Esc: unfocus │ ↑↓: scroll │ tap links"
+        } else {
+            "Enter/tap: focus │ ←→: tabs │ tap links"
+        };
+
+        // Use render_scrollable_content which handles the bordered block, scroll, and nav bar
+        let mut scroll = self.about_scroll;
+        self.render_scrollable_content(
+            frame, area, lines, &mut scroll,
+            Some(" About ".bold().fg(Color::Rgb(207, 181, 59)).into()),
+            Some(" gold.silver.copper ".bold().fg(Color::Rgb(184, 115, 51)).into()),
+            about_hint,
+        );
+        self.about_scroll = scroll;
+
+        // Track clickable link areas inside the scrollable view
+        // The scrollable content is rendered inside a double-bordered area
+        let content_block = Block::bordered()
             .border_type(BorderType::Rounded)
             .border_style(Color::Rgb(40, 44, 52));
-        let links_inner = links_block.inner(scroll_area);
+        let content_inner = content_block.inner(scroll_area_for_layout);
 
         self.link_areas.clear();
-        for i in 0..LINKS.len() {
-            let line_idx = i + 2; // offset for header lines
-            if line_idx >= self.links_scroll {
-                let visible_row = (line_idx - self.links_scroll) as u16;
-                if visible_row < links_inner.height {
-                    let link_area = Rect::new(links_inner.x, links_inner.y + visible_row, links_inner.width, 1);
+        for &visual_row in &link_visual_rows {
+            if visual_row >= self.about_scroll {
+                let visible_row = (visual_row - self.about_scroll) as u16;
+                if visible_row < content_inner.height {
+                    let link_area = Rect::new(content_inner.x, content_inner.y + visible_row, content_inner.width, 1);
                     self.link_areas.push(link_area);
+                } else {
+                    // Off-screen below: push empty rect to preserve index mapping
+                    self.link_areas.push(Rect::default());
                 }
+            } else {
+                // Off-screen above: push empty rect to preserve index mapping
+                self.link_areas.push(Rect::default());
             }
         }
 
-        let content = Paragraph::new(Text::from(lines))
-            .wrap(Wrap { trim: false })
-            .scroll((self.links_scroll as u16, 0))
-            .block(links_block);
-        frame.render_widget(content, scroll_area);
-
-        self.render_scroll_arrows(frame, nav_bar, self.links_scroll, max_scroll, "tap to open");
+        // Apply hover styling to link lines (re-render hovered links with REVERSED style)
+        for (i, link_area) in self.link_areas.iter().enumerate() {
+            if self.is_hovered(*link_area) {
+                if let Some((label, _, _)) = LINKS.get(i) {
+                    let text = format!("  {label}");
+                    let style = Style::default().fg(Color::Rgb(160, 175, 195)).add_modifier(Modifier::REVERSED);
+                    let buf = frame.buffer_mut();
+                    for (k, ch) in text.chars().enumerate() {
+                        let x = link_area.x + k as u16;
+                        if x < link_area.right() {
+                            if let Some(cell) = buf.cell_mut(Position::new(x, link_area.y)) {
+                                cell.set_char(ch);
+                                cell.set_style(style);
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 
     /// Compute total display rows after wrapping lines to the given width.
@@ -1674,6 +3633,9 @@ impl App {
             .block(content_block);
         frame.render_widget(content, scroll_area);
 
+        // Render vertical scrollbar on the right border if content overflows
+        self.render_vertical_scrollbar(frame, scroll_area, *scroll, max_scroll);
+
         self.render_scroll_arrows(frame, nav_bar, *scroll, max_scroll, hint);
 
         scroll_area
@@ -1727,7 +3689,29 @@ impl App {
         } else {
             "─".to_string()
         };
-        let center_text = format!("{hint} │ {indicator}");
+        let available = center_area.width as usize;
+        let full_text = format!("{hint} │ {indicator}");
+        let center_text = if full_text.chars().count() <= available {
+            full_text
+        } else {
+            // Progressively drop hint segments (split by │) from the left until it fits
+            let segments: Vec<&str> = hint.split('│').collect();
+            let mut trimmed_hint = hint.to_string();
+            for drop_count in 1..segments.len() {
+                trimmed_hint = segments[drop_count..].iter().map(|s| s.trim()).collect::<Vec<_>>().join(" │ ");
+                let candidate = format!("{trimmed_hint} │ {indicator}");
+                if candidate.chars().count() <= available {
+                    break;
+                }
+            }
+            let candidate = format!("{trimmed_hint} │ {indicator}");
+            if candidate.chars().count() <= available {
+                candidate
+            } else {
+                // Last resort: just show indicator
+                indicator.clone()
+            }
+        };
         frame.render_widget(
             Paragraph::new(center_text)
                 .alignment(Alignment::Center)
@@ -1736,62 +3720,278 @@ impl App {
         );
     }
 
-    fn render_showcase(&mut self, frame: &mut Frame, area: Rect) {
-        // Render showcase content with syntax highlighting for headers
-        let lines: Vec<Line> = SHOWCASE_INFO
-            .lines()
-            .map(|line| {
-                if line.contains('─') && !line.starts_with(' ') {
-                    Line::styled(line, Style::default().fg(Color::Rgb(140, 145, 155)))
-                } else if !line.starts_with(' ') && !line.is_empty() {
-                    Line::styled(line, Style::default().fg(Color::Rgb(220, 225, 235)).bold())
-                } else if line.starts_with("  •") {
-                    let parts: Vec<&str> = line.splitn(2, '•').collect();
-                    if parts.len() == 2 {
-                        Line::from(vec![
-                            Span::styled("  •", Style::default().fg(Color::Rgb(207, 181, 59))),
-                            Span::styled(parts[1], Style::default().fg(Color::Rgb(170, 175, 185))),
-                        ])
-                    } else {
-                        Line::styled(line, Style::default().fg(Color::Rgb(170, 175, 185)))
-                    }
-                } else if line.starts_with("  ") && line.contains("   ") {
-                    // Two-column items like "  Ratzilla   Terminal web apps..."
-                    let trimmed = line.trim_start();
-                    if let Some(idx) = trimmed.find("   ") {
-                        let name = &trimmed[..idx];
-                        let desc = trimmed[idx..].trim_start();
-                        Line::from(vec![
-                            Span::styled("  ", Style::default()),
-                            Span::styled(name, Style::default().fg(Color::Rgb(184, 115, 51)).bold()),
-                            Span::styled("  ", Style::default()),
-                            Span::styled(desc, Style::default().fg(Color::Rgb(140, 145, 155))),
-                        ])
-                    } else {
-                        Line::styled(line, Style::default().fg(Color::Rgb(170, 175, 185)))
-                    }
+    /// Render a vertical scrollbar on the right border of the given area.
+    /// Only renders if the content overflows (max_scroll > 0).
+    fn render_vertical_scrollbar(&self, frame: &mut Frame, area: Rect, scroll: usize, max_scroll: usize) {
+        if max_scroll == 0 || area.height < 4 {
+            return; // Content fits — no scrollbar needed
+        }
+        let track_height = area.height.saturating_sub(2) as usize; // exclude top/bottom border
+        if track_height == 0 {
+            return;
+        }
+        // Compute thumb size and position
+        let thumb_size = (track_height * track_height / (track_height + max_scroll)).max(1);
+        let thumb_pos = if max_scroll > 0 {
+            scroll * (track_height - thumb_size) / max_scroll
+        } else {
+            0
+        };
+        let bar_x = area.right().saturating_sub(1); // right border column
+        let buf = frame.buffer_mut();
+        for i in 0..track_height {
+            let y = area.y + 1 + i as u16; // skip top border
+            let pos = Position::new(bar_x, y);
+            if let Some(cell) = buf.cell_mut(pos) {
+                if i >= thumb_pos && i < thumb_pos + thumb_size {
+                    // Thumb: bright scrollbar indicator
+                    cell.set_char('┃');
+                    cell.set_fg(Color::Rgb(140, 145, 160));
                 } else {
-                    Line::styled(line, Style::default().fg(Color::Rgb(170, 175, 185)))
+                    // Track: subtle indicator
+                    cell.set_char('│');
+                    cell.set_fg(Color::Rgb(35, 38, 46));
                 }
-            })
-            .collect();
+            }
+        }
+    }
 
-        let mut scroll = self.showcase_scroll;
-        self.render_scrollable_content(
-            frame, area, lines, &mut scroll,
-            Some(" Mobile Showcase ".bold().fg(Color::Rgb(207, 181, 59)).into()),
-            Some(" Ratzilla & Grift ".bold().fg(Color::Rgb(184, 115, 51)).into()),
-            "swipe ↕",
+    /// Get (category, title, dsl_src) for the given global index into the
+    /// combined static + procedural effect list.
+    fn dsl_entry_info(global_index: usize) -> (String, String, String) {
+        if global_index < DSL_SHOWCASE.len() {
+            let e = &DSL_SHOWCASE[global_index];
+            (
+                e.category.to_string(),
+                e.title.to_string(),
+                e.dsl.to_string(),
+            )
+        } else {
+            procedural_dsl_entry(global_index - DSL_SHOWCASE.len())
+        }
+    }
+
+    /// Ensure the DSL effects cache has an entry at `index`, compiling on
+    /// demand. Returns true if an effect exists at that slot.
+    fn ensure_dsl_effect(&mut self, index: usize) -> bool {
+        // Grow cache if needed
+        if index >= self.dsl_effects_cache.len() {
+            self.dsl_effects_cache
+                .resize_with(index + 1, || None);
+        }
+        if self.dsl_effects_cache[index].is_none() {
+            let (_cat, _title, dsl_src) = Self::dsl_entry_info(index);
+            self.dsl_effects_cache[index] = compile_dsl_effect(&dsl_src);
+        }
+        self.dsl_effects_cache[index].is_some()
+    }
+
+    fn render_effects(&mut self, frame: &mut Frame, area: Rect) {
+        let elapsed = self.frame_elapsed;
+        let total = total_dsl_effects();
+
+        // ── outer border ────────────────────────────────────────────────
+        let block = Block::bordered()
+            .border_type(BorderType::Rounded)
+            .border_style(Color::Rgb(55, 60, 70))
+            .title(
+                " TachyonFX DSL Showcase "
+                    .bold()
+                    .fg(Color::Rgb(207, 181, 59)),
+            );
+        let inner = block.inner(area);
+        frame.render_widget(block, area);
+
+        if inner.height < 4 || inner.width < 10 {
+            return;
+        }
+
+        // ── layout: scrollable entries + nav bar ────────────────────────
+        let [entries_area, nav_bar] =
+            Layout::vertical([Constraint::Min(1), Constraint::Length(1)])
+                .areas(inner);
+
+        // Height of each effect entry: 3-row demo + title line + 1 blank
+        let entry_height: u16 = 5;
+        let visible_slots =
+            (entries_area.height / entry_height).max(1) as usize;
+        let max_scroll = total.saturating_sub(visible_slots);
+        self.dsl_effects_scroll = self.dsl_effects_scroll.min(max_scroll);
+
+        let start_idx = self.dsl_effects_scroll;
+        let end_idx = (start_idx + visible_slots).min(total);
+
+        // ── pre-compile visible effects ─────────────────────────────────
+        for idx in start_idx..end_idx {
+            self.ensure_dsl_effect(idx);
+        }
+
+        // ── render each visible entry ───────────────────────────────────
+        for (slot, idx) in (start_idx..end_idx).enumerate() {
+            let slot_y = entries_area.y + (slot as u16) * entry_height;
+            if slot_y + entry_height > entries_area.bottom() {
+                break;
+            }
+
+            let (category, title, dsl_src) = Self::dsl_entry_info(idx);
+
+            // Title row
+            let title_area = Rect::new(
+                entries_area.x,
+                slot_y,
+                entries_area.width,
+                1,
+            );
+            let label = format!(
+                " {:>3}. [{}] {}",
+                idx + 1,
+                category,
+                title,
+            );
+            frame.render_widget(
+                Paragraph::new(label)
+                    .style(Style::default().fg(Color::Rgb(207, 181, 59)).bold()),
+                title_area,
+            );
+
+            // DSL code hint (first meaningful line, truncated)
+            let code_line = dsl_src
+                .lines()
+                .map(|l| l.trim())
+                .find(|l| !l.is_empty())
+                .unwrap_or("...");
+            let code_area = Rect::new(
+                entries_area.x + 1,
+                slot_y + 1,
+                entries_area.width.saturating_sub(2),
+                1,
+            );
+            let max_chars = code_area.width.saturating_sub(2) as usize;
+            let code_display = if code_line.chars().count() > code_area.width as usize {
+                let truncated: String = code_line.chars().take(max_chars).collect();
+                format!("{}…", truncated)
+            } else {
+                code_line.to_string()
+            };
+            frame.render_widget(
+                Paragraph::new(code_display)
+                    .style(Style::default().fg(Color::Rgb(120, 125, 140))),
+                code_area,
+            );
+
+            // Demo area (3 rows with sample text)
+            let demo_area = Rect::new(
+                entries_area.x + 1,
+                slot_y + 2,
+                entries_area.width.saturating_sub(2),
+                2,
+            );
+            let sample = format!("│ {} │", title);
+            frame.render_widget(
+                Paragraph::new(vec![
+                    Line::styled(
+                        &sample,
+                        Style::default().fg(Color::Rgb(220, 225, 235)).bold(),
+                    ),
+                    Line::styled(
+                        "─".repeat(demo_area.width as usize),
+                        Style::default().fg(Color::Rgb(55, 60, 70)),
+                    ),
+                ]),
+                demo_area,
+            );
+
+            // Apply compiled effect to the entire entry section
+            // (title + code hint + demo area) so the effect is fully visible
+            let entry_area = Rect::new(
+                entries_area.x,
+                slot_y,
+                entries_area.width,
+                entry_height.min(entries_area.bottom().saturating_sub(slot_y)),
+            );
+            if let Some(Some(ref mut effect)) = self.dsl_effects_cache.get_mut(idx) {
+                frame.render_effect(effect, entry_area, elapsed);
+            }
+        }
+
+        // ── nav bar ─────────────────────────────────────────────────────
+        let effects_hint = if self.focus_mode == FocusMode::Focused {
+            "Esc: unfocus │ ↑↓: scroll"
+        } else {
+            "Enter/tap: focus │ ←→: tabs │ ↑↓: scroll"
+        };
+        self.render_scroll_arrows(
+            frame,
+            nav_bar,
+            self.dsl_effects_scroll,
+            max_scroll,
+            effects_hint,
         );
-        self.showcase_scroll = scroll;
     }
 }
 
 fn open_url(url: &str) {
-    // Open in a new background tab using web_sys directly (avoids JS string interpolation)
-    if let Some(window) = web_sys::window() {
-        let _ = window.open_with_url_and_target_and_features(url, "_blank", "noopener");
-        let _ = window.focus();
+    // Defer opening the URL to avoid RefCell double-borrow.
+    // window.open() can trigger synchronous browser events (focus, blur)
+    // that re-enter draw() while handle_mouse_event() still holds borrow_mut().
+    // Using setTimeout(0) ensures the URL opens after the current borrow is released.
+    let escaped = url
+        .replace('\\', "\\\\")
+        .replace('\'', "\\'")
+        .replace('"', "\\\"")
+        .replace('\n', "\\n")
+        .replace('\r', "\\r");
+    let js = format!("setTimeout(function(){{window.open('{}','_blank','noopener')}},500)", escaped);
+    let _ = web_sys::js_sys::eval(&js);
+}
+
+fn keycode_to_virtual_key(code: &KeyCode) -> Option<VirtualKey> {
+    match code {
+        KeyCode::Char(c) => match c.to_ascii_lowercase() {
+            'a' => Some(VirtualKey::KeyA),
+            'b' => Some(VirtualKey::KeyB),
+            'c' => Some(VirtualKey::KeyC),
+            'd' => Some(VirtualKey::KeyD),
+            'e' => Some(VirtualKey::KeyE),
+            'f' => Some(VirtualKey::KeyF),
+            'g' => Some(VirtualKey::KeyG),
+            'h' => Some(VirtualKey::KeyH),
+            'i' => Some(VirtualKey::KeyI),
+            'j' => Some(VirtualKey::KeyJ),
+            'k' => Some(VirtualKey::KeyK),
+            'l' => Some(VirtualKey::KeyL),
+            'm' => Some(VirtualKey::KeyM),
+            'n' => Some(VirtualKey::KeyN),
+            'o' => Some(VirtualKey::KeyO),
+            'p' => Some(VirtualKey::KeyP),
+            'q' => Some(VirtualKey::KeyQ),
+            'r' => Some(VirtualKey::KeyR),
+            's' => Some(VirtualKey::KeyS),
+            't' => Some(VirtualKey::KeyT),
+            'u' => Some(VirtualKey::KeyU),
+            'v' => Some(VirtualKey::KeyV),
+            'w' => Some(VirtualKey::KeyW),
+            'x' => Some(VirtualKey::KeyX),
+            'y' => Some(VirtualKey::KeyY),
+            'z' => Some(VirtualKey::KeyZ),
+            '0' => Some(VirtualKey::Num0),
+            '1' => Some(VirtualKey::Num1),
+            '2' => Some(VirtualKey::Num2),
+            '3' => Some(VirtualKey::Num3),
+            '4' => Some(VirtualKey::Num4),
+            '5' => Some(VirtualKey::Num5),
+            '6' => Some(VirtualKey::Num6),
+            '7' => Some(VirtualKey::Num7),
+            '8' => Some(VirtualKey::Num8),
+            '9' => Some(VirtualKey::Num9),
+            ' ' => Some(VirtualKey::Space),
+            _ => None,
+        },
+        KeyCode::Enter => Some(VirtualKey::Return),
+        KeyCode::Backspace => Some(VirtualKey::Backspace),
+        KeyCode::Tab => Some(VirtualKey::Tab),
+        KeyCode::Esc => Some(VirtualKey::Escape),
+        _ => None,
     }
 }
 
