@@ -93,7 +93,7 @@ test.describe('Desktop viewport sizing', () => {
 // ─── Mobile orientation tests ──────────────────────────────────────
 
 test.describe('Mobile orientation changes', () => {
-  test('canvas fills viewport after portrait → landscape → portrait', async ({ page, browserName }) => {
+  test('canvas fills viewport after portrait → landscape → portrait', async ({ page }) => {
     // iPhone 12 portrait dimensions
     const portrait = { width: 390, height: 844 };
     const landscape = { width: 844, height: 390 };
@@ -270,9 +270,15 @@ test.describe('GriftApp interaction layer', () => {
     await page.goto('/');
 
     const zones = await page.evaluate(() => {
-      const topZone = window.GriftApp.zone(10);  // near top
-      const bottomZone = window.GriftApp.zone(500);  // in content area
-      return { topZone, bottomZone };
+      // Use viewport height to compute reliable coordinates
+      var h = window.innerHeight || 600;
+      var tabFraction = window.GriftApp.CFG.TAB_ZONE_FRACTION;
+      var inTabZone = Math.round(h * tabFraction * 0.5);   // middle of tab zone
+      var inContentZone = Math.round(h * (tabFraction + 0.5)); // well into content zone
+      return {
+        topZone: window.GriftApp.zone(inTabZone),
+        bottomZone: window.GriftApp.zone(inContentZone),
+      };
     });
 
     expect(zones.topZone).toBe('tabs');
