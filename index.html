@@ -243,24 +243,11 @@
         }, { passive: false });
 
         // ── Viewport / resize handling ─────────────────────────────────
-        // The fixed-position body (inset: 0) is the single source of truth
-        // for viewport dimensions. The canvas inherits from it via CSS, and
-        // the backing store is sized from the body's clientWidth/clientHeight
-        // to avoid stale getBoundingClientRect() values during orientation
-        // transitions.
-        var _resizeObserver = null;
-        var _resizeTimers = [];
-
-        function forceReflow() {
-          void document.body.offsetHeight;
-        }
+        // Simple approach: poll once per second and update canvas backing
+        // store to match body dimensions. No complex event juggling.
 
         function updateBackingStore(c) {
           if (!c) return;
-          forceReflow();
-          // Read dimensions from the fixed-position body — the single
-          // authoritative source — rather than getBoundingClientRect()
-          // on the canvas, which can return stale values mid-transition.
           var w = document.body.clientWidth;
           var h = document.body.clientHeight;
           var dpr = window.devicePixelRatio || 1;
@@ -272,79 +259,19 @@
           }
         }
 
-        // Schedule multiple delayed re-measurements to catch settled
-        // dimensions after orientation changes / viewport transitions.
-        // Each callback is wrapped in requestAnimationFrame to ensure
-        // dimensions are read after the browser has completed layout.
-        function scheduleResizeUpdates() {
-          _resizeTimers.forEach(function(id) { clearTimeout(id); });
-          _resizeTimers = [];
-          [50, 150, 300, 500].forEach(function(delay) {
-            _resizeTimers.push(setTimeout(function() {
-              requestAnimationFrame(function() {
-                resetCanvas();
-                var c = canvas();
-                if (c) updateBackingStore(c);
-              });
-            }, delay));
-          });
-        }
-
-        function setupResizeObserver() {
-          var c = canvas();
-          if (!c) return;
-          if (_resizeObserver) _resizeObserver.disconnect();
-          _resizeObserver = new ResizeObserver(function() {
-            resetCanvas();
-            var fresh = canvas();
-            if (fresh) updateBackingStore(fresh);
-          });
-          _resizeObserver.observe(c);
-          updateBackingStore(c);
-        }
-
-        // Fallback: also listen for resize events
-        window.addEventListener('resize', function() {
-          window.scrollTo(0, 0);
-          resetCanvas();
+        setInterval(function() {
           var c = canvas();
           if (c) updateBackingStore(c);
-          scheduleResizeUpdates();
-        });
-
-        // Orientation change: viewport dimensions may not be final
-        // when the event fires. Use requestAnimationFrame for an
-        // immediate first-frame update, then schedule delayed
-        // re-measurements for browsers that settle slowly.
-        window.addEventListener('orientationchange', function() {
-          window.scrollTo(0, 0);
-          requestAnimationFrame(function() {
-            resetCanvas();
-            var c = canvas();
-            if (c) updateBackingStore(c);
-          });
-          scheduleResizeUpdates();
-        });
-
-        if (screen && screen.orientation) {
-          screen.orientation.addEventListener('change', function() {
-            window.scrollTo(0, 0);
-            requestAnimationFrame(function() {
-              resetCanvas();
-              var c = canvas();
-              if (c) updateBackingStore(c);
-            });
-            scheduleResizeUpdates();
-          });
-        }
+        }, 1000);
 
         // Watch for canvas element creation via MutationObserver
         function watchForCanvas() {
-          if (canvas()) { setupResizeObserver(); return; }
+          var c = canvas();
+          if (c) { updateBackingStore(c); return; }
           var mo = new MutationObserver(function() {
             if (canvas()) {
               mo.disconnect();
-              setupResizeObserver();
+              updateBackingStore(canvas());
             }
           });
           mo.observe(document.body, { childList: true, subtree: true });
@@ -354,19 +281,6 @@
           watchForCanvas();
         } else {
           window.addEventListener('load', watchForCanvas);
-        }
-
-        if (window.visualViewport) {
-          window.visualViewport.addEventListener('resize', function() {
-            window.scrollTo(0, 0);
-            resetCanvas();
-            var c = canvas();
-            if (c) updateBackingStore(c);
-            scheduleResizeUpdates();
-          });
-          window.visualViewport.addEventListener('scroll', function() {
-            document.body.style.transform = 'translateY(' + (-window.visualViewport.offsetTop) + 'px)';
-          });
         }
 
         // ── Paste support (dispatches pasted text as key events) ───────

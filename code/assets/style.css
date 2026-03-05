@@ -5,8 +5,6 @@ html {
 body {
   margin: 0;
   padding: 0;
-  padding-top: env(safe-area-inset-top, 0px);
-  padding-bottom: env(safe-area-inset-bottom, 0px);
   overflow: hidden;
   background-color: #08090e;
   touch-action: none;
@@ -15,23 +13,16 @@ body {
   overscroll-behavior: none;
   user-select: none;
   -webkit-user-select: none;
-  /* Single source of truth for sizing: fixed positioning with inset: 0
-     ensures dimensions always match the settled viewport, avoiding
-     transient disagreements with 100dvh during orientation changes. */
   position: fixed;
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
-  box-sizing: border-box;
 }
 
 canvas,
 .ratzilla {
   display: block;
-  position: absolute;
-  top: 0;
-  left: 0;
   width: 100%;
   height: 100%;
   touch-action: none;
@@ -51,31 +42,15 @@ canvas,
   background: transparent;
   color: transparent;
   caret-color: transparent;
-  font-size: 16px; /* Prevent iOS zoom on focus */
+  font-size: 16px;
 }
 
-/* Remove focus outlines globally (canvas-based app) */
 *:focus,
 *:focus-visible {
   outline: none;
 }
 
-canvas:focus,
-canvas:focus-visible,
-body:focus,
-body:focus-visible {
-  outline: none;
-}
-
-/* Hide scrollbars globally */
 ::-webkit-scrollbar {
   display: none;
-}
-
-/* Standalone/fullscreen mode: maximize screen real estate */
-@media (display-mode: standalone), (display-mode: fullscreen) {
-  body {
-    padding: 0;
-  }
 }
 
