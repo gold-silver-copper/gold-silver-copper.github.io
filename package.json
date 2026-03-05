@@ -1,0 +1,27 @@
+{
+  "name": "gold-silver-copper.github.io",
+  "version": "1.0.0",
+  "description": "A terminal-themed personal website, blog, project showcase, and interactive REPL for the [Grift](https://github.com/skyfskyf/grift) programming language.",
+  "main": "grift-site-f602dd1c3886563b.js",
+  "scripts": {
+    "test": "npx playwright test",
+    "test:chromium": "npx playwright test --project=chromium",
+    "test:mobile": "npx playwright test --project='Mobile Chrome' --project='Mobile Safari'"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/skyfskyf/gold-silver-copper.github.io.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/skyfskyf/gold-silver-copper.github.io/issues"
+  },
+  "homepage": "https://github.com/skyfskyf/gold-silver-copper.github.io#readme",
+  "devDependencies": {
+    "@playwright/test": "^1.58.2",
+    "serve": "^14.2.6"
+  }
+}

@@ -246,16 +246,37 @@
         // Use ResizeObserver on the canvas for reliable sizing that
         // correctly handles orientation changes without stale dimensions.
         var _resizeObserver = null;
+        var _resizeTimers = [];
+
+        function forceReflow() {
+          void document.documentElement.offsetHeight;
+        }
 
         function updateBackingStore(c) {
+          if (!c) return;
+          forceReflow();
           var rect = c.getBoundingClientRect();
           var dpr = window.devicePixelRatio || 1;
           var newW = Math.round(rect.width * dpr);
           var newH = Math.round(rect.height * dpr);
-          if (c.width !== newW || c.height !== newH) {
+          if (newW > 0 && newH > 0 && (c.width !== newW || c.height !== newH)) {
             c.width  = newW;
             c.height = newH;
           }
+        }
+
+        // Schedule multiple delayed re-measurements to catch settled
+        // dimensions after orientation changes / viewport transitions.
+        function scheduleResizeUpdates() {
+          _resizeTimers.forEach(function(id) { clearTimeout(id); });
+          _resizeTimers = [];
+          [50, 150, 300, 500].forEach(function(delay) {
+            _resizeTimers.push(setTimeout(function() {
+              resetCanvas();
+              var c = canvas();
+              if (c) updateBackingStore(c);
+            }, delay));
+          });
         }
 
         function setupResizeObserver() {
@@ -263,7 +284,9 @@
           if (!c) return;
           if (_resizeObserver) _resizeObserver.disconnect();
           _resizeObserver = new ResizeObserver(function() {
-            updateBackingStore(c);
+            resetCanvas();
+            var fresh = canvas();
+            if (fresh) updateBackingStore(fresh);
           });
           _resizeObserver.observe(c);
           updateBackingStore(c);
@@ -271,10 +294,26 @@
 
         // Fallback: also listen for resize events
         window.addEventListener('resize', function() {
+          window.scrollTo(0, 0);
           resetCanvas();
           var c = canvas();
           if (c) updateBackingStore(c);
+          scheduleResizeUpdates();
         });
+
+        // Orientation change: viewport dimensions may not be final
+        // when the event fires, so schedule delayed re-measurements.
+        window.addEventListener('orientationchange', function() {
+          window.scrollTo(0, 0);
+          scheduleResizeUpdates();
+        });
+
+        if (screen && screen.orientation) {
+          screen.orientation.addEventListener('change', function() {
+            window.scrollTo(0, 0);
+            scheduleResizeUpdates();
+          });
+        }
 
         // Watch for canvas element creation via MutationObserver
         function watchForCanvas() {
@@ -296,9 +335,11 @@
 
         if (window.visualViewport) {
           window.visualViewport.addEventListener('resize', function() {
+            window.scrollTo(0, 0);
             resetCanvas();
             var c = canvas();
             if (c) updateBackingStore(c);
+            scheduleResizeUpdates();
           });
           window.visualViewport.addEventListener('scroll', function() {
             document.body.style.transform = 'translateY(' + (-window.visualViewport.offsetTop) + 'px)';
