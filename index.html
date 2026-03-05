@@ -243,45 +243,26 @@
         }, { passive: false });
 
         // ── Viewport / resize handling ─────────────────────────────────
-        // Simple approach: poll once per second and update canvas backing
-        // store to match body dimensions. No complex event juggling.
-
-        function updateBackingStore(c) {
+        // Minimal approach: resize listener + 1-second polling backup.
+        function fitCanvas() {
+          var c = canvas();
           if (!c) return;
           var w = document.body.clientWidth;
           var h = document.body.clientHeight;
+          if (w <= 0 || h <= 0) return;
           var dpr = window.devicePixelRatio || 1;
-          var newW = Math.round(w * dpr);
-          var newH = Math.round(h * dpr);
-          if (newW > 0 && newH > 0 && (c.width !== newW || c.height !== newH)) {
-            c.width  = newW;
-            c.height = newH;
+          c.style.width  = w + 'px';
+          c.style.height = h + 'px';
+          var bw = Math.round(w * dpr);
+          var bh = Math.round(h * dpr);
+          if (c.width !== bw || c.height !== bh) {
+            c.width  = bw;
+            c.height = bh;
           }
         }
 
-        setInterval(function() {
-          var c = canvas();
-          if (c) updateBackingStore(c);
-        }, 1000);
-
-        // Watch for canvas element creation via MutationObserver
-        function watchForCanvas() {
-          var c = canvas();
-          if (c) { updateBackingStore(c); return; }
-          var mo = new MutationObserver(function() {
-            if (canvas()) {
-              mo.disconnect();
-              updateBackingStore(canvas());
-            }
-          });
-          mo.observe(document.body, { childList: true, subtree: true });
-        }
-
-        if (document.readyState === 'complete') {
-          watchForCanvas();
-        } else {
-          window.addEventListener('load', watchForCanvas);
-        }
+        window.addEventListener('resize', fitCanvas);
+        setInterval(fitCanvas, 1000);
 
         // ── Paste support (dispatches pasted text as key events) ───────
         document.addEventListener('paste', function(e) {
