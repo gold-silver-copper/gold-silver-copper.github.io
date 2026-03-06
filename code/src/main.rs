@@ -103,156 +103,14 @@ const LINKS: &[(&str, &str, &str)] = &[
     ),
 ];
 
-const DOC_BASICS: &str = "\
-Grift Basics\n\
-────────────\n\
-\n\
-Grift is a Kernel-style Lisp with first-class operatives (fexprs).\n\
-All values live in a fixed-size arena with const-generic capacity.\n\
-\n\
-Atoms:\n\
-  42          ; number\n\
-  #t #f       ; booleans\n\
-  hello       ; symbol\n\
-  \"hello\"     ; string\n\
-  ()          ; nil / empty list\n\
-  #inert      ; inert value (side-effect returns)\n\
-  #ignore     ; ignore (parameter matching)\n\
-\n\
-Arithmetic:\n\
-  (+ 1 2)           => 3\n\
-  (* 6 7)           => 42\n\
-  (- 10 3)          => 7\n\
-  (/ 20 4)          => 5\n\
-  (mod 10 3)        => 1\n\
-\n\
-Comparison:\n\
-  (=? 1 1)          => #t\n\
-  (<? 1 2)          => #t\n\
-  (>? 2 1)          => #t\n\
-  (<=? 1 1)         => #t\n\
-  (>=? 2 1)         => #t";
-
-const DOC_FORMS: &str = "\
-Special Forms & Definitions\n\
-───────────────────────────\n\
-\n\
-Define variables:\n\
-  (define! x 42)\n\
-  x                 => 42\n\
-\n\
-Lambda (applicative):\n\
-  (define! double (lambda (x) (* x 2)))\n\
-  (double 21)       => 42\n\
-\n\
-Conditionals:\n\
-  (if #t 1 2)       => 1\n\
-  (if #f 1 2)       => 2\n\
-  (cond (#f 1) (#t 2))  => 2\n\
-\n\
-Lists:\n\
-  (list 1 2 3)      => (1 2 3)\n\
-  (cons 1 (list 2)) => (1 2)\n\
-  (car (list 1 2))  => 1\n\
-  (cdr (list 1 2))  => (2)\n\
-\n\
-Operatives (vau / fexprs):\n\
-  ($vau (x) e x)    ; raw operative\n\
-  (wrap ($vau (x) #ignore x)) ; applicative\n\
-\n\
-Let bindings:\n\
-  (let ((x 1) (y 2)) (+ x y)) => 3\n\
-\n\
-Sequencing:\n\
-  (begin (define! a 1) (+ a 2)) => 3";
-
-const DOC_ADVANCED: &str = "\
-Advanced Features\n\
-─────────────────\n\
-\n\
-String operations:\n\
-  (string-length \"hello\")     => 5\n\
-  (string-append \"hi\" \" \" \"there\") => \"hi there\"\n\
-\n\
-Higher-order functions:\n\
-  (map (lambda (x) (* x x)) (list 1 2 3))\n\
-    => (1 4 9)\n\
-  (filter (lambda (x) (>? x 2)) (list 1 2 3 4))\n\
-    => (3 4)\n\
-  (reduce + 0 (list 1 2 3))\n\
-    => 6\n\
-\n\
-Recursion (tail-call optimized):\n\
-  (define! fact\n\
-    (lambda (n)\n\
-      (if (=? n 0) 1\n\
-        (* n (fact (- n 1))))))\n\
-  (fact 10)           => 3628800\n\
-\n\
-Boolean logic:\n\
-  (and? #t #f)        => #f\n\
-  (or? #t #f)         => #t\n\
-  (not? #t)           => #f\n\
-\n\
-Type checking:\n\
-  (number? 42)        => #t\n\
-  (string? \"hi\")      => #t\n\
-  (pair? (list 1))    => #t\n\
-  (null? ())          => #t\n\
-  (boolean? #t)       => #t";
-
-const DOC_ENVIRONMENTS: &str = "\
-Environments & Evaluation\n\
-─────────────────────────\n\
-\n\
-Environments are first-class in Grift:\n\
-  (get-current-environment)  => <environment>\n\
-  (make-environment)         => <empty-env>\n\
-  (eval expr env)            => evaluate expr in env\n\
-\n\
-Operatives receive the dynamic environment:\n\
-  ($vau (x) e (eval x e))   ; like lambda\n\
-  (wrap ($vau (x) #ignore x)) ; applicative from operative\n\
-\n\
-The evaluator:\n\
-  1. Symbols are looked up in the current environment\n\
-  2. Pairs: evaluate the operator, then combine\n\
-  3. Operatives receive operands unevaluated\n\
-  4. Applicatives evaluate operands first, then call\n\
-\n\
-Tail-call optimization:\n\
-  Grift optimizes tail positions so recursive functions\n\
-  run in constant stack space. This applies to if, cond,\n\
-  begin, let, and operative/applicative bodies.";
-
-const DOC_ERRORS: &str = "\
-Error Handling & Debugging\n\
-──────────────────────────\n\
-\n\
-Grift reports errors as readable messages:\n\
-  (/ 1 0)               => Error: DivisionByZero\n\
-  (car 42)              => Error: TypeMismatch\n\
-  undefined-sym          => Error: UnboundSymbol\n\
-\n\
-Common errors:\n\
-  TypeMismatch    — wrong argument type\n\
-  ArityMismatch   — wrong number of arguments\n\
-  UnboundSymbol   — symbol not defined in scope\n\
-  DivisionByZero  — division by zero\n\
-  ArenaFull       — arena capacity exceeded\n\
-\n\
-Debugging tips:\n\
-  1. Check types with predicates: number?, pair?, string?\n\
-  2. Inspect environments with get-current-environment\n\
-  3. Use begin to sequence debug prints\n\
-  4. Break complex expressions into smaller define! steps";
 
 // ---------------------------------------------------------------------------
 // Expanded Effects DSL Showcase
 // ---------------------------------------------------------------------------
 // Each entry: (category, title, DSL expression string).
 // The DSL expressions are compiled at runtime by tachyonfx::dsl::EffectDsl.
-// Effects are wrapped with repeating(ping_pong(...)) so they loop forever.
+// Effects are wrapped with repeating(sequence(ping_pong(...), sleep(1500)))
+// so they loop forever with a readable pause between repetitions.
 // ---------------------------------------------------------------------------
 
 struct DslShowcaseEntry {
@@ -3202,25 +3060,35 @@ fn procedural_dsl_entry(index: usize) -> (String, String, String) {
 
 /// Compile a DSL expression string into a looping Effect.
 /// Tries multiple wrapping strategies to ensure all effects get infinite repeat.
+/// A pause is inserted between repetitions so the effect name remains readable.
 fn compile_dsl_effect(dsl_src: &str) -> Option<Effect> {
     let dsl = EffectDsl::new();
     let trimmed = dsl_src.trim();
 
-    // Strategy 1: wrap in repeating(ping_pong(...)) via DSL for smooth forward/backward loop
-    let wrapped_pp = format!("fx::repeating(fx::ping_pong({}))", trimmed);
+    // Strategy 1: wrap in repeating(sequence(ping_pong(...), sleep)) via DSL
+    let wrapped_pp = format!(
+        "fx::repeating(fx::sequence(&[fx::ping_pong({}), fx::sleep(1500)]))",
+        trimmed
+    );
     if let Ok(effect) = dsl.compiler().compile(&wrapped_pp) {
         return Some(effect);
     }
 
-    // Strategy 2: wrap in repeating(...) via DSL (for effects that don't support ping_pong)
-    let wrapped_rep = format!("fx::repeating({})", trimmed);
+    // Strategy 2: wrap in repeating(sequence(..., sleep)) via DSL (for effects that don't support ping_pong)
+    let wrapped_rep = format!(
+        "fx::repeating(fx::sequence(&[{}, fx::sleep(1500)]))",
+        trimmed
+    );
     if let Ok(effect) = dsl.compiler().compile(&wrapped_rep) {
         return Some(effect);
     }
 
     // Strategy 3: compile raw DSL (handles let bindings), wrap with Rust code
     if let Ok(effect) = dsl.compiler().compile(trimmed) {
-        return Some(fx::repeating(fx::ping_pong(effect)));
+        return Some(fx::repeating(fx::sequence(&[
+            fx::ping_pong(effect),
+            fx::sleep(1500),
+        ])));
     }
 
     None
@@ -3269,6 +3137,29 @@ const BLOG_ENTRIES: &[(&str, &str, &str)] = &[
     ),
 ];
 
+const DOC_ENTRIES: &[(&str, &str)] = &[
+    (
+        "Grift Basics",
+        include_str!("../docs/01-basics.md"),
+    ),
+    (
+        "Special Forms & Definitions",
+        include_str!("../docs/02-forms.md"),
+    ),
+    (
+        "Advanced Features",
+        include_str!("../docs/03-advanced.md"),
+    ),
+    (
+        "Environments & Evaluation",
+        include_str!("../docs/04-environments.md"),
+    ),
+    (
+        "Error Handling & Debugging",
+        include_str!("../docs/05-errors.md"),
+    ),
+];
+
 #[derive(Clone, Copy, PartialEq)]
 enum FocusMode {
     Outer,   // Arrow keys move across tabs; content scrolls passively
@@ -3308,7 +3199,6 @@ impl Page {
 enum ScrollTarget {
     Home,
     About,
-    Docs,
 }
 
 /// Convert a markdown string into styled ratatui Lines using md-tui parser.
@@ -3432,7 +3322,15 @@ struct App {
     repl_scroll: usize,
     lisp: Box<Lisp<2000>>,
     // Docs state
+    doc_index: usize,
+    doc_viewing_section: bool,
     doc_scroll: usize,
+    doc_item_areas: Vec<Rect>,
+    doc_back_area: Rect,
+    doc_list_area: Rect,
+    doc_content_area: Rect,
+    doc_nav_effect: Option<Effect>,
+    prev_doc_index: usize,
     // Blog state
     blog_index: usize,
     blog_viewing_post: bool,
@@ -3513,7 +3411,15 @@ impl App {
             repl_history: Vec::new(),
             repl_scroll: 0,
             lisp,
+            doc_index: 0,
+            doc_viewing_section: false,
             doc_scroll: 0,
+            doc_item_areas: Vec::new(),
+            doc_back_area: Rect::default(),
+            doc_list_area: Rect::default(),
+            doc_content_area: Rect::default(),
+            doc_nav_effect: None,
+            prev_doc_index: 0,
             blog_index: 0,
             blog_viewing_post: false,
             blog_scroll: 0,
@@ -3736,6 +3642,11 @@ impl App {
                         self.blog_exit_post();
                         return;
                     }
+                    // For Docs section view, first exit to section list (stay focused)
+                    if self.page == Page::Docs && self.doc_viewing_section {
+                        self.doc_exit_section();
+                        return;
+                    }
                     self.focus_mode = FocusMode::Outer;
                     self.keyboard_shifted = false;
                     self.keyboard_pressed_ticks.clear();
@@ -3745,7 +3656,7 @@ impl App {
                 match self.page {
                     Page::Repl => self.handle_repl_event(key),
                     Page::Blog => self.handle_blog_event(key),
-                    Page::Docs => self.handle_scroll_event_focused(key, ScrollTarget::Docs),
+                    Page::Docs => self.handle_docs_event(key),
                     Page::Home => self.handle_scroll_event_focused(key, ScrollTarget::Home),
                     Page::About => self.handle_scroll_event_focused(key, ScrollTarget::About),
                     Page::Effects => self.handle_effects_event_focused(key),
@@ -3924,6 +3835,34 @@ impl App {
                     {
                         self.trigger_btn_effect(*area);
                         self.blog_open_post(i);
+                        return;
+                    }
+                }
+            }
+
+            // Check docs item clicks
+            if self.page == Page::Docs {
+                // Check back button click
+                if self.doc_back_area.width > 0
+                    && col >= self.doc_back_area.x
+                    && col < self.doc_back_area.right()
+                    && row >= self.doc_back_area.y
+                    && row < self.doc_back_area.bottom()
+                {
+                    self.trigger_btn_effect(self.doc_back_area);
+                    self.doc_exit_section();
+                    return;
+                }
+
+                for (i, area) in self.doc_item_areas.iter().enumerate() {
+                    if col >= area.x
+                        && col < area.right()
+                        && row >= area.y
+                        && row < area.bottom()
+                        && i < DOC_ENTRIES.len()
+                    {
+                        self.trigger_btn_effect(*area);
+                        self.doc_open_section(i);
                         return;
                     }
                 }
@@ -4120,6 +4059,72 @@ impl App {
         self.trigger_transition();
     }
 
+    // ── Docs: Event Handling ──────────────────────────────────────────
+    // Two modes: list (browsing sections) and section (reading content).
+    // Focused list: Up/Down select, Enter/Right open.
+    // Focused section: Up/Down scroll, Left/Esc back to list.
+
+    fn handle_docs_event(&mut self, key: KeyEvent) {
+        if self.doc_viewing_section {
+            match key.code {
+                KeyCode::Up => self.doc_scroll = self.doc_scroll.saturating_sub(1),
+                KeyCode::Down => self.doc_scroll += 1,
+                KeyCode::Left => self.doc_exit_section(),
+                _ => {}
+            }
+        } else {
+            let count = DOC_ENTRIES.len();
+            match key.code {
+                KeyCode::Up if count > 0 => {
+                    self.doc_select(self.doc_index.saturating_sub(1));
+                }
+                KeyCode::Down if count > 0 => {
+                    self.doc_select((self.doc_index + 1).min(count - 1));
+                }
+                KeyCode::Enter | KeyCode::Right => {
+                    self.doc_open_section(self.doc_index);
+                }
+                _ => {}
+            }
+        }
+    }
+
+    /// Move doc selection to `index`, triggering a nav effect.
+    fn doc_select(&mut self, index: usize) {
+        if index >= DOC_ENTRIES.len() || index == self.doc_index {
+            return;
+        }
+        self.prev_doc_index = self.doc_index;
+        self.doc_index = index;
+        self.doc_scroll = 0;
+        self.doc_nav_effect = Some(fx::fade_from(
+            Color::Rgb(60, 65, 75),
+            Color::Rgb(8, 9, 14),
+            EffectTimer::from_ms(250, Interpolation::QuadOut),
+        ));
+    }
+
+    /// Open a doc section by index.
+    fn doc_open_section(&mut self, index: usize) {
+        if index >= DOC_ENTRIES.len() {
+            return;
+        }
+        if self.doc_index != index {
+            self.doc_select(index);
+        }
+        self.doc_viewing_section = true;
+        self.doc_scroll = 0;
+        self.focus_mode = FocusMode::Focused;
+        self.trigger_transition();
+    }
+
+    /// Return from section view to the section list.
+    fn doc_exit_section(&mut self) {
+        self.doc_viewing_section = false;
+        self.doc_scroll = 0;
+        self.trigger_transition();
+    }
+
     fn handle_keyboard_tap(&mut self, display_name: &str) {
         match display_name {
             "⇧" => {
@@ -4155,7 +4160,6 @@ impl App {
         let scroll = match target {
             ScrollTarget::Home => &mut self.home_scroll,
             ScrollTarget::About => &mut self.about_scroll,
-            ScrollTarget::Docs => &mut self.doc_scroll,
         };
         let step = 2;
         match key.code {
@@ -4931,87 +4935,141 @@ impl App {
         }
     }
 
+    // ── Docs: Rendering ──────────────────────────────────────────────
+    // Two views dispatched from render_docs:
+    //   render_doc_section — full section with back button and scrollable content
+    //   render_docs_list   — scrollable list of section titles with selection highlight
+
     fn render_docs(&mut self, frame: &mut Frame, area: Rect) {
-        // Combine all doc sections into one scrollable text
-        let all_docs = [DOC_BASICS, DOC_FORMS, DOC_ADVANCED, DOC_ENVIRONMENTS, DOC_ERRORS];
+        self.doc_back_area = Rect::default();
+        if self.doc_viewing_section {
+            self.render_doc_section(frame, area);
+        } else {
+            self.render_docs_list(frame, area);
+        }
+    }
+
+    fn render_doc_section(&mut self, frame: &mut Frame, area: Rect) {
+        self.doc_list_area = Rect::default();
+        self.doc_item_areas.clear();
+
+        let block = Block::bordered()
+            .border_type(BorderType::Rounded)
+            .border_style(Color::Rgb(55, 60, 70))
+            .title(" Documentation ".bold().fg(Color::Rgb(200, 200, 210)));
+        let inner = block.inner(area);
+        frame.render_widget(block, area);
+
+        let [back_bar, scroll_area, nav_bar] =
+            Layout::vertical([Constraint::Length(1), Constraint::Min(1), Constraint::Length(1)]).areas(inner);
+
+        // Back button
+        let back_style = if self.is_hovered(back_bar) {
+            Style::default().fg(Color::Rgb(255, 255, 255)).bold()
+        } else {
+            Style::default().fg(Color::Rgb(184, 115, 51))
+        };
+        frame.render_widget(Paragraph::new("◄ Back to sections").style(back_style), back_bar);
+        self.doc_back_area = back_bar;
+
+        // Section content — parse markdown via md-tui
+        let (_title, content) = match DOC_ENTRIES.get(self.doc_index) {
+            Some(entry) => *entry,
+            None => return,
+        };
+
+        let content_width = scroll_area.width.saturating_sub(4);
+        let lines = md_to_lines(content, content_width);
+
+        let visible_height = scroll_area.height.saturating_sub(2) as usize;
+        let content_width = scroll_area.width.saturating_sub(2) as usize;
+        let total_wrapped = Self::wrapped_line_count(&lines, content_width);
+        let max_scroll = total_wrapped.saturating_sub(visible_height);
+        self.doc_scroll = self.doc_scroll.min(max_scroll);
+
+        let section = Paragraph::new(Text::from(lines))
+            .wrap(Wrap { trim: false })
+            .scroll((self.doc_scroll as u16, 0))
+            .block(
+                Block::bordered()
+                    .border_type(BorderType::Rounded)
+                    .border_style(Color::Rgb(40, 44, 52)),
+            );
+        frame.render_widget(section, scroll_area);
+        self.doc_content_area = scroll_area;
+
+        self.render_vertical_scrollbar(frame, scroll_area, self.doc_scroll, max_scroll);
+
+        let hint = if self.focus_mode == FocusMode::Focused {
+            "Esc/←: back │ ↑↓: scroll"
+        } else {
+            "Enter/tap: focus │ ←→: tabs"
+        };
+        self.render_scroll_arrows(frame, nav_bar, self.doc_scroll, max_scroll, hint);
+    }
+
+    fn render_docs_list(&mut self, frame: &mut Frame, area: Rect) {
+        self.doc_list_area = area;
+        self.doc_content_area = Rect::default();
+
+        // Build list lines — one title per entry
         let mut lines: Vec<Line> = Vec::new();
-        // Account for outer block borders (2) + inner block borders (2) + side padding (4)
-        let separator_width = area.width.saturating_sub(8) as usize;
+        let mut entry_line_indices: Vec<usize> = Vec::new();
 
-        for (idx, doc) in all_docs.iter().enumerate() {
-            if idx > 0 {
-                lines.push(Line::from(""));
-                lines.push(Line::styled(
-                    "━".repeat(separator_width),
-                    Style::default().fg(Color::Rgb(55, 60, 70)),
-                ));
-                lines.push(Line::from(""));
-            }
+        for (i, (title, _)) in DOC_ENTRIES.iter().enumerate() {
+            entry_line_indices.push(lines.len());
 
-            for line in doc.lines() {
-                if line.starts_with("  (") || line.starts_with("    (") {
-                    if let Some((code, comment)) = line.split_once(';') {
-                        if let Some((expr, result)) = code.split_once("=>") {
-                            lines.push(Line::from(vec![
-                                Span::styled(expr, Style::default().fg(Color::Rgb(200, 200, 210))),
-                                Span::styled("=>", Style::default().fg(Color::Rgb(80, 85, 95))),
-                                Span::styled(result, Style::default().fg(Color::Rgb(160, 165, 175))),
-                                Span::styled(format!(";{comment}"), Style::default().fg(Color::Rgb(75, 80, 90))),
-                            ]));
-                        } else {
-                            lines.push(Line::from(vec![
-                                Span::styled(code, Style::default().fg(Color::Rgb(200, 200, 210))),
-                                Span::styled(format!(";{comment}"), Style::default().fg(Color::Rgb(75, 80, 90))),
-                            ]));
-                        }
-                    } else if let Some((expr, result)) = line.split_once("=>") {
-                        lines.push(Line::from(vec![
-                            Span::styled(expr, Style::default().fg(Color::Rgb(200, 200, 210))),
-                            Span::styled("=>", Style::default().fg(Color::Rgb(80, 85, 95))),
-                            Span::styled(result, Style::default().fg(Color::Rgb(160, 165, 175))),
-                        ]));
-                    } else {
-                        lines.push(Line::styled(line, Style::default().fg(Color::Rgb(200, 200, 210))));
-                    }
-                } else if line.starts_with("  ") && !line.trim().is_empty() {
-                    if let Some((code, comment)) = line.split_once(';') {
-                        lines.push(Line::from(vec![
-                            Span::styled(code, Style::default().fg(Color::Rgb(200, 200, 210))),
-                            Span::styled(format!(";{comment}"), Style::default().fg(Color::Rgb(75, 80, 90))),
-                        ]));
-                    } else if let Some((expr, result)) = line.split_once("=>") {
-                        lines.push(Line::from(vec![
-                            Span::styled(expr, Style::default().fg(Color::Rgb(200, 200, 210))),
-                            Span::styled("=>", Style::default().fg(Color::Rgb(80, 85, 95))),
-                            Span::styled(result, Style::default().fg(Color::Rgb(160, 165, 175))),
-                        ]));
-                    } else {
-                        lines.push(Line::styled(line, Style::default().fg(Color::Rgb(200, 200, 210))));
-                    }
-                } else if line.contains('─') {
-                    lines.push(Line::styled(line, Style::default().fg(Color::Rgb(140, 145, 155))));
-                } else if !line.trim().is_empty() {
-                    lines.push(Line::styled(line, Style::default().fg(Color::Rgb(220, 225, 235)).bold()));
-                } else {
-                    lines.push(Line::from(""));
-                }
-            }
+            let is_selected = self.doc_index == i;
+            let is_hovered = self.doc_item_areas.get(i).is_some_and(|r| self.is_hovered(*r));
+
+            let active = is_selected || is_hovered;
+            let (style, marker) = if active {
+                (Style::default().fg(Color::Rgb(207, 181, 59)).bold(), "▸ ")
+            } else {
+                (Style::default().fg(Color::Rgb(200, 200, 210)), "  ")
+            };
+
+            lines.push(Line::from(format!("{marker}{title}")).style(style));
+            lines.push(Line::from(""));
         }
 
-        let docs_hint = if self.focus_mode == FocusMode::Focused {
-            "Esc: unfocus │ ↑↓: scroll"
+        let hint = if self.focus_mode == FocusMode::Focused {
+            "Esc: unfocus │ ↑↓: select │ Enter/→: read"
         } else {
-            "Enter/tap: focus │ ←→: tabs │ ↑↓: scroll"
+            "Enter/tap: focus │ ←→: tabs │ tap section"
         };
 
         let mut scroll = self.doc_scroll;
-        self.render_scrollable_content(
+        let scroll_area = self.render_scrollable_content(
             frame, area, lines, &mut scroll,
             Some(" Documentation ".bold().fg(Color::Rgb(200, 200, 210)).into()),
-            Some(" Grift Language Reference ".bold().fg(Color::Rgb(184, 115, 51)).into()),
-            docs_hint,
+            Some(" Grift Language Reference — tap to read ".bold().fg(Color::Rgb(184, 115, 51)).into()),
+            hint,
         );
         self.doc_scroll = scroll;
+
+        // Compute click areas for each doc title relative to scroll position
+        let content_inner = Block::bordered()
+            .border_type(BorderType::Rounded)
+            .border_style(Color::Rgb(40, 44, 52))
+            .inner(scroll_area);
+
+        self.doc_item_areas.clear();
+        for &line_idx in &entry_line_indices {
+            if line_idx >= self.doc_scroll {
+                let visible_row = (line_idx - self.doc_scroll) as u16;
+                if visible_row + 1 <= content_inner.height {
+                    self.doc_item_areas.push(Rect::new(
+                        content_inner.x, content_inner.y + visible_row,
+                        content_inner.width, 1,
+                    ));
+                } else {
+                    self.doc_item_areas.push(Rect::default());
+                }
+            } else {
+                self.doc_item_areas.push(Rect::default());
+            }
+        }
     }
 
     // ── Blog: Rendering ──────────────────────────────────────────────
