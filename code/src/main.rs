@@ -548,12 +548,12 @@ const DSL_SHOWCASE: &[DslShowcaseEntry] = &[
     },
     DslShowcaseEntry {
         category: "Explosion & Motion",
-        title: "expand L→R",
+        title: "expand Horizontal",
         dsl: "fx::expand(ExpandDirection::Horizontal, Style::default(), (3000, CubicOut))",
     },
     DslShowcaseEntry {
         category: "Explosion & Motion",
-        title: "expand U→D",
+        title: "expand Vertical",
         dsl: "fx::expand(ExpandDirection::Vertical, Style::default(), (3000, QuadOut))",
     },
     DslShowcaseEntry {
