@@ -298,7 +298,7 @@ const DSL_SHOWCASE: &[DslShowcaseEntry] = &[
         title: "dissolve_to amber → coalesce",
         dsl: r#"
             fx::sequence(&[
-                fx::dissolve_to(Color::Rgb(207, 181, 59), (2000, QuadOut)),
+                fx::dissolve_to(Style::default().fg(Color::Rgb(207, 181, 59)), (2000, QuadOut)),
                 fx::coalesce((2000, SineOut))
             ])
         "#,
@@ -309,7 +309,7 @@ const DSL_SHOWCASE: &[DslShowcaseEntry] = &[
         dsl: r#"
             fx::sequence(&[
                 fx::dissolve((2000, QuadOut)),
-                fx::coalesce_from(Color::Rgb(0, 180, 180), (2000, CubicOut))
+                fx::coalesce_from(Style::default().fg(Color::Rgb(0, 180, 180)), (2000, CubicOut))
             ])
         "#,
     },
@@ -534,42 +534,42 @@ const DSL_SHOWCASE: &[DslShowcaseEntry] = &[
     DslShowcaseEntry {
         category: "Explosion & Motion",
         title: "explode",
-        dsl: "fx::explode((3000, QuadOut))",
+        dsl: "fx::explode(1.0, 0.5, (3000, QuadOut))",
     },
     DslShowcaseEntry {
         category: "Explosion & Motion",
         title: "stretch L→R",
-        dsl: "fx::stretch(Motion::LeftToRight, (3000, CubicOut))",
+        dsl: "fx::stretch(Motion::LeftToRight, Style::default(), (3000, CubicOut))",
     },
     DslShowcaseEntry {
         category: "Explosion & Motion",
         title: "stretch U→D",
-        dsl: "fx::stretch(Motion::UpToDown, (3000, QuadOut))",
+        dsl: "fx::stretch(Motion::UpToDown, Style::default(), (3000, QuadOut))",
     },
     DslShowcaseEntry {
         category: "Explosion & Motion",
-        title: "expand L→R",
-        dsl: "fx::expand(Motion::LeftToRight, (3000, CubicOut))",
+        title: "expand Horizontal",
+        dsl: "fx::expand(ExpandDirection::Horizontal, Style::default(), (3000, CubicOut))",
     },
     DslShowcaseEntry {
         category: "Explosion & Motion",
-        title: "expand U→D",
-        dsl: "fx::expand(Motion::UpToDown, (3000, QuadOut))",
+        title: "expand Vertical",
+        dsl: "fx::expand(ExpandDirection::Vertical, Style::default(), (3000, QuadOut))",
     },
     DslShowcaseEntry {
         category: "Explosion & Motion",
         title: "translate",
-        dsl: "fx::translate(3, 1, (2500, QuadOut))",
+        dsl: "fx::translate(fx::consume_tick(), Offset { x: 3, y: 1 }, (2500, QuadOut))",
     },
     DslShowcaseEntry {
         category: "Explosion & Motion",
         title: "translate reverse",
-        dsl: "fx::translate(-3, -1, (2500, CubicOut))",
+        dsl: "fx::translate(fx::consume_tick(), Offset { x: -3, y: -1 }, (2500, CubicOut))",
     },
     DslShowcaseEntry {
         category: "Explosion & Motion",
         title: "explode (BounceOut)",
-        dsl: "fx::explode((3500, BounceOut))",
+        dsl: "fx::explode(1.0, 0.5, (3500, BounceOut))",
     },
 
     // ── Sequences & Compositions ─────────────────────────────────────────
@@ -732,7 +732,7 @@ const DSL_SHOWCASE: &[DslShowcaseEntry] = &[
         title: "dissolve + sweep pattern L→R",
         dsl: r#"
             fx::dissolve((3000, QuadOut))
-                .with_pattern(SweepPattern::left_to_right())
+                .with_pattern(SweepPattern::left_to_right(5))
         "#,
     },
     DslShowcaseEntry {
@@ -1054,12 +1054,12 @@ const DSL_SHOWCASE: &[DslShowcaseEntry] = &[
     DslShowcaseEntry {
         category: "Evolution",
         title: "evolve_into Circles",
-        dsl: r#"fx::evolve_into(EvolveSymbolSet::Circles, "◉", (3000, CubicOut))"#,
+        dsl: r#"fx::evolve_into(EvolveSymbolSet::Circles, (3000, CubicOut))"#,
     },
     DslShowcaseEntry {
         category: "Evolution",
         title: "evolve_from Squares",
-        dsl: r#"fx::evolve_from(EvolveSymbolSet::Squares, "■", (3000, QuadOut))"#,
+        dsl: r#"fx::evolve_from(EvolveSymbolSet::Squares, (3000, QuadOut))"#,
     },
 
     // ── Advanced Compositions ────────────────────────────────────────────
@@ -1209,7 +1209,7 @@ const DSL_SHOWCASE: &[DslShowcaseEntry] = &[
         title: "dissolve + sweep R→L",
         dsl: r#"
             fx::dissolve((3000, QuadOut))
-                .with_pattern(SweepPattern::right_to_left())
+                .with_pattern(SweepPattern::right_to_left(5))
         "#,
     },
     DslShowcaseEntry {
@@ -1217,7 +1217,7 @@ const DSL_SHOWCASE: &[DslShowcaseEntry] = &[
         title: "dissolve + sweep T→B",
         dsl: r#"
             fx::dissolve((3000, SineOut))
-                .with_pattern(SweepPattern::top_to_bottom())
+                .with_pattern(SweepPattern::up_to_down(5))
         "#,
     },
     DslShowcaseEntry {
@@ -1225,7 +1225,7 @@ const DSL_SHOWCASE: &[DslShowcaseEntry] = &[
         title: "dissolve + sweep B→T",
         dsl: r#"
             fx::dissolve((3000, CubicOut))
-                .with_pattern(SweepPattern::bottom_to_top())
+                .with_pattern(SweepPattern::down_to_up(5))
         "#,
     },
     DslShowcaseEntry {
@@ -1233,7 +1233,7 @@ const DSL_SHOWCASE: &[DslShowcaseEntry] = &[
         title: "coalesce + sweep L→R",
         dsl: r#"
             fx::coalesce((3000, QuadOut))
-                .with_pattern(SweepPattern::left_to_right())
+                .with_pattern(SweepPattern::left_to_right(5))
         "#,
     },
     DslShowcaseEntry {
@@ -1241,7 +1241,7 @@ const DSL_SHOWCASE: &[DslShowcaseEntry] = &[
         title: "coalesce + sweep R→L",
         dsl: r#"
             fx::coalesce((3000, SineOut))
-                .with_pattern(SweepPattern::right_to_left())
+                .with_pattern(SweepPattern::right_to_left(5))
         "#,
     },
     DslShowcaseEntry {
@@ -1249,7 +1249,7 @@ const DSL_SHOWCASE: &[DslShowcaseEntry] = &[
         title: "coalesce + sweep T→B",
         dsl: r#"
             fx::coalesce((3500, CubicOut))
-                .with_pattern(SweepPattern::top_to_bottom())
+                .with_pattern(SweepPattern::up_to_down(5))
         "#,
     },
 
@@ -1394,7 +1394,7 @@ const DSL_SHOWCASE: &[DslShowcaseEntry] = &[
             fx::dissolve((4000, QuadOut))
                 .with_pattern(CombinedPattern::average(
                     SpiralPattern::center().with_arms(3),
-                    SweepPattern::left_to_right()
+                    SweepPattern::left_to_right(5)
                 ))
         "#,
     },
@@ -1416,7 +1416,7 @@ const DSL_SHOWCASE: &[DslShowcaseEntry] = &[
             fx::coalesce((4000, CubicOut))
                 .with_pattern(CombinedPattern::max(
                     SpiralPattern::center().with_arms(5),
-                    SweepPattern::top_to_bottom()
+                    SweepPattern::up_to_down(5)
                 ))
         "#,
     },
@@ -1478,7 +1478,7 @@ const DSL_SHOWCASE: &[DslShowcaseEntry] = &[
         dsl: r#"
             fx::dissolve((3500, QuadOut))
                 .with_pattern(InvertedPattern::new(
-                    SweepPattern::left_to_right()
+                    SweepPattern::left_to_right(5)
                 ))
         "#,
     },
@@ -1511,7 +1511,7 @@ const DSL_SHOWCASE: &[DslShowcaseEntry] = &[
         dsl: r#"
             fx::dissolve((4500, SineOut))
                 .with_pattern(BlendPattern::new(
-                    SweepPattern::left_to_right(),
+                    SweepPattern::left_to_right(5),
                     SpiralPattern::center().with_arms(3)
                 ))
         "#,
@@ -1545,7 +1545,7 @@ const DSL_SHOWCASE: &[DslShowcaseEntry] = &[
             fx::coalesce((4500, SineOut))
                 .with_pattern(BlendPattern::new(
                     DiamondPattern::center(),
-                    SweepPattern::right_to_left()
+                    SweepPattern::right_to_left(5)
                 ))
         "#,
     },
@@ -1727,22 +1727,22 @@ const DSL_SHOWCASE: &[DslShowcaseEntry] = &[
     DslShowcaseEntry {
         category: "Direction Showcase",
         title: "stretch R→L",
-        dsl: "fx::stretch(Motion::RightToLeft, (3000, QuadOut))",
+        dsl: "fx::stretch(Motion::RightToLeft, Style::default(), (3000, QuadOut))",
     },
     DslShowcaseEntry {
         category: "Direction Showcase",
         title: "stretch D→U",
-        dsl: "fx::stretch(Motion::DownToUp, (3000, SineOut))",
+        dsl: "fx::stretch(Motion::DownToUp, Style::default(), (3000, SineOut))",
     },
     DslShowcaseEntry {
         category: "Direction Showcase",
-        title: "expand R→L",
-        dsl: "fx::expand(Motion::RightToLeft, (3000, CubicOut))",
+        title: "expand Horizontal",
+        dsl: "fx::expand(ExpandDirection::Horizontal, Style::default(), (3000, CubicOut))",
     },
     DslShowcaseEntry {
         category: "Direction Showcase",
-        title: "expand D→U",
-        dsl: "fx::expand(Motion::DownToUp, (3000, QuadOut))",
+        title: "expand Vertical",
+        dsl: "fx::expand(ExpandDirection::Vertical, Style::default(), (3000, QuadOut))",
     },
     DslShowcaseEntry {
         category: "Direction Showcase",
@@ -1795,22 +1795,22 @@ const DSL_SHOWCASE: &[DslShowcaseEntry] = &[
     DslShowcaseEntry {
         category: "Direction Showcase",
         title: "translate diagonal +5,+2",
-        dsl: "fx::translate(5, 2, (3000, QuadOut))",
+        dsl: "fx::translate(fx::consume_tick(), Offset { x: 5, y: 2 }, (3000, QuadOut))",
     },
     DslShowcaseEntry {
         category: "Direction Showcase",
         title: "translate diagonal -5,-2",
-        dsl: "fx::translate(-5, -2, (3000, SineOut))",
+        dsl: "fx::translate(fx::consume_tick(), Offset { x: -5, y: -2 }, (3000, SineOut))",
     },
     DslShowcaseEntry {
         category: "Direction Showcase",
         title: "translate horizontal +8",
-        dsl: "fx::translate(8, 0, (3000, CubicOut))",
+        dsl: "fx::translate(fx::consume_tick(), Offset { x: 8, y: 0 }, (3000, CubicOut))",
     },
     DslShowcaseEntry {
         category: "Direction Showcase",
         title: "translate vertical +4",
-        dsl: "fx::translate(0, 4, (3000, BounceOut))",
+        dsl: "fx::translate(fx::consume_tick(), Offset { x: 0, y: 4 }, (3000, BounceOut))",
     },
 
     // ── Advanced HSL Combinations ────────────────────────────────────────
@@ -2285,17 +2285,17 @@ const DSL_SHOWCASE: &[DslShowcaseEntry] = &[
     DslShowcaseEntry {
         category: "Evolution Ext",
         title: "evolve_into BlocksH ▓",
-        dsl: r#"fx::evolve_into(EvolveSymbolSet::BlocksHorizontal, "▓", (3000, QuadOut))"#,
+        dsl: r#"fx::evolve_into(EvolveSymbolSet::BlocksHorizontal, (3000, QuadOut))"#,
     },
     DslShowcaseEntry {
         category: "Evolution Ext",
         title: "evolve_from Shaded ░",
-        dsl: r#"fx::evolve_from(EvolveSymbolSet::Shaded, "░", (3000, SineOut))"#,
+        dsl: r#"fx::evolve_from(EvolveSymbolSet::Shaded, (3000, SineOut))"#,
     },
     DslShowcaseEntry {
         category: "Evolution Ext",
         title: "evolve_into Quadrants ▙",
-        dsl: r#"fx::evolve_into(EvolveSymbolSet::Quadrants, "▙", (3000, CubicOut))"#,
+        dsl: r#"fx::evolve_into(EvolveSymbolSet::Quadrants, (3000, CubicOut))"#,
     },
     DslShowcaseEntry {
         category: "Evolution Ext",
@@ -2456,7 +2456,7 @@ const DSL_SHOWCASE: &[DslShowcaseEntry] = &[
         title: "explode + paint pink",
         dsl: r#"
             fx::parallel(&[
-                fx::explode((3500, QuadOut)),
+                fx::explode(1.0, 0.5, (3500, QuadOut)),
                 fx::paint_fg(Color::Rgb(255, 105, 180), (3500, SineOut))
             ])
         "#,
@@ -2466,7 +2466,7 @@ const DSL_SHOWCASE: &[DslShowcaseEntry] = &[
         title: "stretch + fade amber",
         dsl: r#"
             fx::parallel(&[
-                fx::stretch(Motion::LeftToRight, (3500, CubicOut)),
+                fx::stretch(Motion::LeftToRight, Style::default(), (3500, CubicOut)),
                 fx::fade_to_fg(Color::Rgb(207, 181, 59), (3500, QuadOut))
             ])
         "#,
@@ -2476,7 +2476,7 @@ const DSL_SHOWCASE: &[DslShowcaseEntry] = &[
         title: "expand + hsl shift neon",
         dsl: r#"
             fx::parallel(&[
-                fx::expand(Motion::UpToDown, (3500, QuadOut)),
+                fx::expand(ExpandDirection::Vertical, Style::default(), (3500, QuadOut)),
                 fx::hsl_shift_fg([90.0, 40.0, 20.0], (3500, SineOut))
             ])
         "#,
@@ -2545,37 +2545,37 @@ const DSL_SHOWCASE: &[DslShowcaseEntry] = &[
     DslShowcaseEntry {
         category: "Explode Variations",
         title: "explode (QuadOut)",
-        dsl: "fx::explode((3000, QuadOut))",
+        dsl: "fx::explode(1.0, 0.5, (3000, QuadOut))",
     },
     DslShowcaseEntry {
         category: "Explode Variations",
         title: "explode (SineOut)",
-        dsl: "fx::explode((3000, SineOut))",
+        dsl: "fx::explode(1.0, 0.5, (3000, SineOut))",
     },
     DslShowcaseEntry {
         category: "Explode Variations",
         title: "explode (CubicOut)",
-        dsl: "fx::explode((3000, CubicOut))",
+        dsl: "fx::explode(1.0, 0.5, (3000, CubicOut))",
     },
     DslShowcaseEntry {
         category: "Explode Variations",
         title: "explode (ElasticOut)",
-        dsl: "fx::explode((4000, ElasticOut))",
+        dsl: "fx::explode(1.0, 0.5, (4000, ElasticOut))",
     },
     DslShowcaseEntry {
         category: "Explode Variations",
         title: "explode (ExpoOut)",
-        dsl: "fx::explode((3000, ExpoOut))",
+        dsl: "fx::explode(1.0, 0.5, (3000, ExpoOut))",
     },
     DslShowcaseEntry {
         category: "Explode Variations",
         title: "explode fast",
-        dsl: "fx::explode((1500, QuadOut))",
+        dsl: "fx::explode(1.0, 0.5, (1500, QuadOut))",
     },
     DslShowcaseEntry {
         category: "Explode Variations",
         title: "explode slow",
-        dsl: "fx::explode((5000, Linear))",
+        dsl: "fx::explode(1.0, 0.5, (5000, Linear))",
     },
 
     // ── Color Space Comparisons ──────────────────────────────────────────
@@ -2692,7 +2692,7 @@ const DSL_SHOWCASE: &[DslShowcaseEntry] = &[
         dsl: r#"
             fx::parallel(&[
                 fx::dissolve((4000, CubicOut))
-                    .with_pattern(SweepPattern::left_to_right()),
+                    .with_pattern(SweepPattern::left_to_right(5)),
                 fx::fade_to_fg(Color::Rgb(220, 20, 60), (4000, QuadOut))
             ])
         "#,
@@ -2933,9 +2933,9 @@ const DSL_SHOWCASE: &[DslShowcaseEntry] = &[
         dsl: r#"
             fx::sequence(&[
                 fx::dissolve((2000, QuadOut))
-                    .with_pattern(SweepPattern::left_to_right()),
+                    .with_pattern(SweepPattern::left_to_right(5)),
                 fx::coalesce((2000, SineOut))
-                    .with_pattern(SweepPattern::right_to_left())
+                    .with_pattern(SweepPattern::right_to_left(5))
             ])
         "#,
     },
@@ -3039,7 +3039,7 @@ fn procedural_dsl_entry(index: usize) -> (String, String, String) {
                 format!("SpiralPattern::center().with_arms({})", arms),
                 "DiagonalPattern::top_left_to_bottom_right()".to_string(),
                 "CheckerboardPattern::default()".to_string(),
-                "SweepPattern::left_to_right()".to_string(),
+                "SweepPattern::left_to_right(5)".to_string(),
             ];
             let pat = &patterns[pick(patterns.len(), 9)];
             (
@@ -3200,21 +3200,30 @@ fn procedural_dsl_entry(index: usize) -> (String, String, String) {
     (category, title, dsl)
 }
 
-/// Compile a DSL expression string into a looping (repeating + ping_pong) Effect.
+/// Compile a DSL expression string into a looping Effect.
+/// Tries multiple wrapping strategies to ensure all effects get infinite repeat.
 fn compile_dsl_effect(dsl_src: &str) -> Option<Effect> {
     let dsl = EffectDsl::new();
-    // Wrap the user expression in repeating(ping_pong(...)) for infinite loop
-    let wrapped = format!("fx::repeating(fx::ping_pong({}))", dsl_src.trim());
-    match dsl.compiler().compile(&wrapped) {
-        Ok(effect) => Some(effect),
-        Err(_) => {
-            // Fallback: try without wrapping (some effects might not support ping_pong)
-            match dsl.compiler().compile(dsl_src.trim()) {
-                Ok(effect) => Some(fx::repeating(fx::ping_pong(effect))),
-                Err(_) => None,
-            }
-        }
+    let trimmed = dsl_src.trim();
+
+    // Strategy 1: wrap in repeating(ping_pong(...)) via DSL for smooth forward/backward loop
+    let wrapped_pp = format!("fx::repeating(fx::ping_pong({}))", trimmed);
+    if let Ok(effect) = dsl.compiler().compile(&wrapped_pp) {
+        return Some(effect);
     }
+
+    // Strategy 2: wrap in repeating(...) via DSL (for effects that don't support ping_pong)
+    let wrapped_rep = format!("fx::repeating({})", trimmed);
+    if let Ok(effect) = dsl.compiler().compile(&wrapped_rep) {
+        return Some(effect);
+    }
+
+    // Strategy 3: compile raw DSL (handles let bindings), wrap with Rust code
+    if let Ok(effect) = dsl.compiler().compile(trimmed) {
+        return Some(fx::repeating(fx::ping_pong(effect)));
+    }
+
+    None
 }
 
 const BLOG_ENTRIES: &[(&str, &str, &str)] = &[
