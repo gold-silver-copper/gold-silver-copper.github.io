@@ -3,7 +3,7 @@
 // from network in the background. Navigation requests use network-first.
 // Hashed assets (JS, WASM, CSS) are immutable and cached on first fetch.
 
-var CACHE_NAME = 'grift-v3';
+var CACHE_NAME = 'grift-v4';
 
 var PRECACHE_URLS = [
   './',
@@ -11,12 +11,12 @@ var PRECACHE_URLS = [
   './manifest.json',
   './icon-192.png',
   './icon-512.png',
-  './fonts/firacode.css',
-  './fonts/FiraCode-Regular.woff2',
-  './fonts/FiraCode-Bold.woff2',
-  './fonts/FiraCode-Light.woff2',
-  './fonts/FiraCode-Medium.woff2',
-  './fonts/FiraCode-SemiBold.woff2'
+  './fonts/jetbrainsmono.css',
+  './fonts/JetBrainsMono-Regular.woff2',
+  './fonts/JetBrainsMono-Bold.woff2',
+  './fonts/JetBrainsMono-Light.woff2',
+  './fonts/JetBrainsMono-Medium.woff2',
+  './fonts/JetBrainsMono-SemiBold.woff2'
 ];
 
 self.addEventListener('install', function (event) {
