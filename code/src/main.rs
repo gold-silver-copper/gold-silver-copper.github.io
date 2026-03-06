@@ -295,13 +295,23 @@ const DSL_SHOWCASE: &[DslShowcaseEntry] = &[
     },
     DslShowcaseEntry {
         category: "Dissolve & Coalesce",
-        title: "dissolve_to amber",
-        dsl: "fx::dissolve_to(Color::Rgb(207, 181, 59), (2500, QuadOut))",
+        title: "dissolve_to amber → coalesce",
+        dsl: r#"
+            fx::sequence(&[
+                fx::dissolve_to(Color::Rgb(207, 181, 59), (2000, QuadOut)),
+                fx::coalesce((2000, SineOut))
+            ])
+        "#,
     },
     DslShowcaseEntry {
         category: "Dissolve & Coalesce",
-        title: "coalesce_from teal",
-        dsl: "fx::coalesce_from(Color::Rgb(0, 180, 180), (2500, CubicOut))",
+        title: "dissolve → coalesce_from teal",
+        dsl: r#"
+            fx::sequence(&[
+                fx::dissolve((2000, QuadOut)),
+                fx::coalesce_from(Color::Rgb(0, 180, 180), (2000, CubicOut))
+            ])
+        "#,
     },
 
     // ── Slide / Sweep ────────────────────────────────────────────────────
@@ -1139,6 +1149,1793 @@ const DSL_SHOWCASE: &[DslShowcaseEntry] = &[
                 fx::dissolve((3500, CubicOut))
                     .with_pattern(DiamondPattern::center()),
                 fx::darken_fg(30.0, (3500, QuadOut))
+            ])
+        "#,
+    },
+
+    // ── Diagonal Pattern Showcase ────────────────────────────────────────
+    DslShowcaseEntry {
+        category: "Diagonal Patterns",
+        title: "dissolve TL→BR",
+        dsl: r#"
+            fx::dissolve((3500, QuadOut))
+                .with_pattern(DiagonalPattern::top_left_to_bottom_right())
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Diagonal Patterns",
+        title: "dissolve TR→BL",
+        dsl: r#"
+            fx::dissolve((3500, SineOut))
+                .with_pattern(DiagonalPattern::top_right_to_bottom_left())
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Diagonal Patterns",
+        title: "dissolve BL→TR",
+        dsl: r#"
+            fx::dissolve((3500, CubicOut))
+                .with_pattern(DiagonalPattern::bottom_left_to_top_right())
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Diagonal Patterns",
+        title: "dissolve BR→TL",
+        dsl: r#"
+            fx::dissolve((3500, QuadOut))
+                .with_pattern(DiagonalPattern::bottom_right_to_top_left())
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Diagonal Patterns",
+        title: "coalesce TL→BR",
+        dsl: r#"
+            fx::coalesce((3500, SineOut))
+                .with_pattern(DiagonalPattern::top_left_to_bottom_right())
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Diagonal Patterns",
+        title: "coalesce BR→TL",
+        dsl: r#"
+            fx::coalesce((3500, CubicOut))
+                .with_pattern(DiagonalPattern::bottom_right_to_top_left())
+        "#,
+    },
+
+    // ── Sweep Pattern Directions ─────────────────────────────────────────
+    DslShowcaseEntry {
+        category: "Sweep Patterns",
+        title: "dissolve + sweep R→L",
+        dsl: r#"
+            fx::dissolve((3000, QuadOut))
+                .with_pattern(SweepPattern::right_to_left())
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Sweep Patterns",
+        title: "dissolve + sweep T→B",
+        dsl: r#"
+            fx::dissolve((3000, SineOut))
+                .with_pattern(SweepPattern::top_to_bottom())
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Sweep Patterns",
+        title: "dissolve + sweep B→T",
+        dsl: r#"
+            fx::dissolve((3000, CubicOut))
+                .with_pattern(SweepPattern::bottom_to_top())
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Sweep Patterns",
+        title: "coalesce + sweep L→R",
+        dsl: r#"
+            fx::coalesce((3000, QuadOut))
+                .with_pattern(SweepPattern::left_to_right())
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Sweep Patterns",
+        title: "coalesce + sweep R→L",
+        dsl: r#"
+            fx::coalesce((3000, SineOut))
+                .with_pattern(SweepPattern::right_to_left())
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Sweep Patterns",
+        title: "coalesce + sweep T→B",
+        dsl: r#"
+            fx::coalesce((3500, CubicOut))
+                .with_pattern(SweepPattern::top_to_bottom())
+        "#,
+    },
+
+    // ── Checkerboard Variations ──────────────────────────────────────────
+    DslShowcaseEntry {
+        category: "Checkerboard",
+        title: "coalesce + checkerboard",
+        dsl: r#"
+            fx::coalesce((3500, QuadOut))
+                .with_pattern(CheckerboardPattern::default())
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Checkerboard",
+        title: "dissolve + checkerboard size 2",
+        dsl: r#"
+            fx::dissolve((3500, SineOut))
+                .with_pattern(CheckerboardPattern::with_cell_size(2))
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Checkerboard",
+        title: "coalesce + checkerboard size 3",
+        dsl: r#"
+            fx::coalesce((3500, CubicOut))
+                .with_pattern(CheckerboardPattern::with_cell_size(3))
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Checkerboard",
+        title: "dissolve + checkerboard size 4",
+        dsl: r#"
+            fx::dissolve((4000, QuadOut))
+                .with_pattern(CheckerboardPattern::with_cell_size(4))
+        "#,
+    },
+
+    // ── Spiral Variations ────────────────────────────────────────────────
+    DslShowcaseEntry {
+        category: "Spiral Patterns",
+        title: "dissolve + spiral 2 arms",
+        dsl: r#"
+            fx::dissolve((3500, QuadOut))
+                .with_pattern(SpiralPattern::center().with_arms(2))
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Spiral Patterns",
+        title: "dissolve + spiral 3 arms",
+        dsl: r#"
+            fx::dissolve((3500, SineOut))
+                .with_pattern(SpiralPattern::center().with_arms(3))
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Spiral Patterns",
+        title: "dissolve + spiral 5 arms",
+        dsl: r#"
+            fx::dissolve((4000, CubicOut))
+                .with_pattern(SpiralPattern::center().with_arms(5))
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Spiral Patterns",
+        title: "dissolve + spiral 8 arms",
+        dsl: r#"
+            fx::dissolve((4000, QuadOut))
+                .with_pattern(SpiralPattern::center().with_arms(8))
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Spiral Patterns",
+        title: "coalesce + spiral 2 arms wide",
+        dsl: r#"
+            fx::coalesce((4000, SineOut))
+                .with_pattern(
+                    SpiralPattern::center()
+                        .with_arms(2)
+                        .with_transition_width(3.0)
+                )
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Spiral Patterns",
+        title: "coalesce + spiral 4 arms narrow",
+        dsl: r#"
+            fx::coalesce((3500, CubicOut))
+                .with_pattern(
+                    SpiralPattern::center()
+                        .with_arms(4)
+                        .with_transition_width(1.0)
+                )
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Spiral Patterns",
+        title: "dissolve + spiral 7 arms",
+        dsl: r#"
+            fx::dissolve((4500, Linear))
+                .with_pattern(SpiralPattern::center().with_arms(7))
+        "#,
+    },
+
+    // ── Combined Pattern Showcase ────────────────────────────────────────
+    DslShowcaseEntry {
+        category: "Combined Patterns",
+        title: "multiply radial × spiral",
+        dsl: r#"
+            fx::dissolve((4000, QuadOut))
+                .with_pattern(CombinedPattern::multiply(
+                    RadialPattern::center(),
+                    SpiralPattern::center().with_arms(4)
+                ))
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Combined Patterns",
+        title: "max radial | diamond",
+        dsl: r#"
+            fx::dissolve((4000, SineOut))
+                .with_pattern(CombinedPattern::max(
+                    RadialPattern::center(),
+                    DiamondPattern::center()
+                ))
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Combined Patterns",
+        title: "min radial & diamond",
+        dsl: r#"
+            fx::dissolve((4000, CubicOut))
+                .with_pattern(CombinedPattern::min(
+                    RadialPattern::center(),
+                    DiamondPattern::center()
+                ))
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Combined Patterns",
+        title: "average spiral + sweep",
+        dsl: r#"
+            fx::dissolve((4000, QuadOut))
+                .with_pattern(CombinedPattern::average(
+                    SpiralPattern::center().with_arms(3),
+                    SweepPattern::left_to_right()
+                ))
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Combined Patterns",
+        title: "multiply diagonal × checker",
+        dsl: r#"
+            fx::dissolve((4500, SineOut))
+                .with_pattern(CombinedPattern::multiply(
+                    DiagonalPattern::top_left_to_bottom_right(),
+                    CheckerboardPattern::default()
+                ))
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Combined Patterns",
+        title: "max spiral | sweep",
+        dsl: r#"
+            fx::coalesce((4000, CubicOut))
+                .with_pattern(CombinedPattern::max(
+                    SpiralPattern::center().with_arms(5),
+                    SweepPattern::top_to_bottom()
+                ))
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Combined Patterns",
+        title: "min checker & radial",
+        dsl: r#"
+            fx::coalesce((4000, QuadOut))
+                .with_pattern(CombinedPattern::min(
+                    CheckerboardPattern::default(),
+                    RadialPattern::center()
+                ))
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Combined Patterns",
+        title: "average diamond + diagonal",
+        dsl: r#"
+            fx::dissolve((4500, SineOut))
+                .with_pattern(CombinedPattern::average(
+                    DiamondPattern::center(),
+                    DiagonalPattern::bottom_left_to_top_right()
+                ))
+        "#,
+    },
+
+    // ── Inverted Patterns ────────────────────────────────────────────────
+    DslShowcaseEntry {
+        category: "Inverted Patterns",
+        title: "inverted diamond",
+        dsl: r#"
+            fx::dissolve((3500, QuadOut))
+                .with_pattern(InvertedPattern::new(DiamondPattern::center()))
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Inverted Patterns",
+        title: "inverted spiral",
+        dsl: r#"
+            fx::dissolve((4000, SineOut))
+                .with_pattern(InvertedPattern::new(
+                    SpiralPattern::center().with_arms(4)
+                ))
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Inverted Patterns",
+        title: "inverted diagonal",
+        dsl: r#"
+            fx::coalesce((3500, CubicOut))
+                .with_pattern(InvertedPattern::new(
+                    DiagonalPattern::top_left_to_bottom_right()
+                ))
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Inverted Patterns",
+        title: "inverted sweep L→R",
+        dsl: r#"
+            fx::dissolve((3500, QuadOut))
+                .with_pattern(InvertedPattern::new(
+                    SweepPattern::left_to_right()
+                ))
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Inverted Patterns",
+        title: "inverted checkerboard",
+        dsl: r#"
+            fx::coalesce((3500, SineOut))
+                .with_pattern(InvertedPattern::new(
+                    CheckerboardPattern::default()
+                ))
+        "#,
+    },
+
+    // ── Blend Patterns ───────────────────────────────────────────────────
+    DslShowcaseEntry {
+        category: "Blend Patterns",
+        title: "blend radial↔diamond",
+        dsl: r#"
+            fx::dissolve((4500, QuadOut))
+                .with_pattern(BlendPattern::new(
+                    RadialPattern::center(),
+                    DiamondPattern::center()
+                ))
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Blend Patterns",
+        title: "blend sweep↔spiral",
+        dsl: r#"
+            fx::dissolve((4500, SineOut))
+                .with_pattern(BlendPattern::new(
+                    SweepPattern::left_to_right(),
+                    SpiralPattern::center().with_arms(3)
+                ))
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Blend Patterns",
+        title: "blend checker↔radial",
+        dsl: r#"
+            fx::coalesce((4500, CubicOut))
+                .with_pattern(BlendPattern::new(
+                    CheckerboardPattern::default(),
+                    RadialPattern::center()
+                ))
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Blend Patterns",
+        title: "blend diagonal↔spiral",
+        dsl: r#"
+            fx::dissolve((5000, QuadOut))
+                .with_pattern(BlendPattern::new(
+                    DiagonalPattern::top_left_to_bottom_right(),
+                    SpiralPattern::center().with_arms(5)
+                ))
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Blend Patterns",
+        title: "blend diamond↔sweep",
+        dsl: r#"
+            fx::coalesce((4500, SineOut))
+                .with_pattern(BlendPattern::new(
+                    DiamondPattern::center(),
+                    SweepPattern::right_to_left()
+                ))
+        "#,
+    },
+
+    // ── Multi-Stage Sequences ────────────────────────────────────────────
+    DslShowcaseEntry {
+        category: "Multi-Stage",
+        title: "dissolve → fade → coalesce",
+        dsl: r#"
+            fx::sequence(&[
+                fx::dissolve(1200),
+                fx::fade_to_fg(Color::Rgb(207, 181, 59), 1200),
+                fx::coalesce(1200)
+            ])
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Multi-Stage",
+        title: "sweep → dissolve → sweep back",
+        dsl: r#"
+            let bg = Color::Rgb(8, 9, 14);
+            fx::sequence(&[
+                fx::sweep_in(Motion::LeftToRight, 10, 3, bg, (1200, QuadOut)),
+                fx::dissolve(1200),
+                fx::sweep_in(Motion::RightToLeft, 10, 3, bg, (1200, CubicOut))
+            ])
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Multi-Stage",
+        title: "evolve → paint → dissolve",
+        dsl: r#"
+            fx::sequence(&[
+                fx::evolve(EvolveSymbolSet::Shaded, (1200, QuadOut)),
+                fx::paint_fg(Color::Rgb(184, 115, 51), 1200),
+                fx::dissolve((1200, SineOut))
+            ])
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Multi-Stage",
+        title: "4-color paint cascade",
+        dsl: r#"
+            fx::sequence(&[
+                fx::paint_fg(Color::Rgb(220, 20, 60), 800),
+                fx::paint_fg(Color::Rgb(255, 140, 0), 800),
+                fx::paint_fg(Color::Rgb(207, 181, 59), 800),
+                fx::paint_fg(Color::Rgb(50, 205, 50), 800),
+                fx::paint_fg(Color::Rgb(100, 149, 237), 800)
+            ])
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Multi-Stage",
+        title: "5-fade rainbow chain",
+        dsl: r#"
+            fx::sequence(&[
+                fx::fade_to_fg(Color::Red, 700),
+                fx::fade_to_fg(Color::Yellow, 700),
+                fx::fade_to_fg(Color::Green, 700),
+                fx::fade_to_fg(Color::Cyan, 700),
+                fx::fade_to_fg(Color::Blue, 700)
+            ])
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Multi-Stage",
+        title: "slide L → sleep → slide R",
+        dsl: r#"
+            let bg = Color::Rgb(8, 9, 14);
+            fx::sequence(&[
+                fx::slide_in(Motion::LeftToRight, 8, 3, bg, (1200, QuadOut)),
+                fx::sleep(500),
+                fx::slide_in(Motion::RightToLeft, 8, 3, bg, (1200, CubicOut))
+            ])
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Multi-Stage",
+        title: "dissolve → sleep → coalesce → sleep",
+        dsl: r#"
+            fx::sequence(&[
+                fx::dissolve(1500),
+                fx::sleep(300),
+                fx::coalesce((1500, SineOut)),
+                fx::sleep(300)
+            ])
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Multi-Stage",
+        title: "4-sweep pinwheel",
+        dsl: r#"
+            let bg = Color::Rgb(8, 9, 14);
+            fx::sequence(&[
+                fx::sweep_in(Motion::LeftToRight, 10, 3, bg, (900, QuadOut)),
+                fx::sweep_in(Motion::UpToDown, 8, 2, bg, (900, QuadOut)),
+                fx::sweep_in(Motion::RightToLeft, 10, 3, bg, (900, QuadOut)),
+                fx::sweep_in(Motion::DownToUp, 8, 2, bg, (900, CubicOut))
+            ])
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Multi-Stage",
+        title: "hsl shift → saturate → lighten",
+        dsl: r#"
+            fx::sequence(&[
+                fx::hsl_shift_fg([60.0, 20.0, 0.0], 1200),
+                fx::saturate_fg(30.0, 1200),
+                fx::lighten_fg(25.0, (1200, SineOut))
+            ])
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Multi-Stage",
+        title: "evolve chain 3 styles",
+        dsl: r#"
+            fx::sequence(&[
+                fx::evolve(EvolveSymbolSet::BlocksHorizontal, (1200, QuadOut)),
+                fx::evolve(EvolveSymbolSet::Shaded, (1200, SineOut)),
+                fx::evolve(EvolveSymbolSet::Quadrants, (1200, CubicOut))
+            ])
+        "#,
+    },
+
+    // ── Color Crossfade Showcase ─────────────────────────────────────────
+    DslShowcaseEntry {
+        category: "Color Crossfade",
+        title: "fade_to red→blue",
+        dsl: r#"fx::fade_to(Color::Red, Color::Blue, (3000, QuadOut))"#,
+    },
+    DslShowcaseEntry {
+        category: "Color Crossfade",
+        title: "fade_to cyan→magenta",
+        dsl: r#"fx::fade_to(Color::Cyan, Color::Magenta, (3000, SineOut))"#,
+    },
+    DslShowcaseEntry {
+        category: "Color Crossfade",
+        title: "fade_to green→yellow",
+        dsl: r#"fx::fade_to(Color::Green, Color::Yellow, (3000, CubicOut))"#,
+    },
+    DslShowcaseEntry {
+        category: "Color Crossfade",
+        title: "fade_from crimson",
+        dsl: r#"fx::fade_from(Color::Rgb(220, 20, 60), Color::Rgb(220, 20, 60), (3000, SineOut))"#,
+    },
+    DslShowcaseEntry {
+        category: "Color Crossfade",
+        title: "fade_from violet",
+        dsl: r#"fx::fade_from(Color::Rgb(138, 43, 226), Color::Rgb(138, 43, 226), (3000, CubicOut))"#,
+    },
+    DslShowcaseEntry {
+        category: "Color Crossfade",
+        title: "fade_from lime",
+        dsl: r#"fx::fade_from(Color::Rgb(50, 205, 50), Color::Rgb(50, 205, 50), (3500, QuadOut))"#,
+    },
+    DslShowcaseEntry {
+        category: "Color Crossfade",
+        title: "fade_to gold→copper",
+        dsl: r#"fx::fade_to(Color::Rgb(207, 181, 59), Color::Rgb(184, 115, 51), (3000, SineOut))"#,
+    },
+    DslShowcaseEntry {
+        category: "Color Crossfade",
+        title: "fade_from_fg teal",
+        dsl: "fx::fade_from_fg(Color::Rgb(0, 180, 180), (3000, QuadOut))",
+    },
+    DslShowcaseEntry {
+        category: "Color Crossfade",
+        title: "fade_from_fg gold",
+        dsl: "fx::fade_from_fg(Color::Rgb(207, 181, 59), (3000, SineOut))",
+    },
+    DslShowcaseEntry {
+        category: "Color Crossfade",
+        title: "fade_to_fg violet (CubicInOut)",
+        dsl: "fx::fade_to_fg(Color::Rgb(138, 43, 226), (3000, CubicInOut))",
+    },
+
+    // ── Direction Showcase ───────────────────────────────────────────────
+    DslShowcaseEntry {
+        category: "Direction Showcase",
+        title: "stretch R→L",
+        dsl: "fx::stretch(Motion::RightToLeft, (3000, QuadOut))",
+    },
+    DslShowcaseEntry {
+        category: "Direction Showcase",
+        title: "stretch D→U",
+        dsl: "fx::stretch(Motion::DownToUp, (3000, SineOut))",
+    },
+    DslShowcaseEntry {
+        category: "Direction Showcase",
+        title: "expand R→L",
+        dsl: "fx::expand(Motion::RightToLeft, (3000, CubicOut))",
+    },
+    DslShowcaseEntry {
+        category: "Direction Showcase",
+        title: "expand D→U",
+        dsl: "fx::expand(Motion::DownToUp, (3000, QuadOut))",
+    },
+    DslShowcaseEntry {
+        category: "Direction Showcase",
+        title: "sweep_out R→L",
+        dsl: r#"
+            let bg = Color::Rgb(8, 9, 14);
+            fx::sweep_out(Motion::RightToLeft, 10, 3, bg, (3000, QuadOut))
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Direction Showcase",
+        title: "sweep_out U→D",
+        dsl: r#"
+            let bg = Color::Rgb(8, 9, 14);
+            fx::sweep_out(Motion::UpToDown, 8, 2, bg, (3000, SineOut))
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Direction Showcase",
+        title: "sweep_out D→U",
+        dsl: r#"
+            let bg = Color::Rgb(8, 9, 14);
+            fx::sweep_out(Motion::DownToUp, 8, 2, bg, (3000, CubicOut))
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Direction Showcase",
+        title: "slide_out L→R",
+        dsl: r#"
+            let bg = Color::Rgb(8, 9, 14);
+            fx::slide_out(Motion::LeftToRight, 8, 3, bg, (3000, QuadOut))
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Direction Showcase",
+        title: "slide_out U→D",
+        dsl: r#"
+            let bg = Color::Rgb(8, 9, 14);
+            fx::slide_out(Motion::UpToDown, 8, 3, bg, (3000, SineOut))
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Direction Showcase",
+        title: "slide_out D→U",
+        dsl: r#"
+            let bg = Color::Rgb(8, 9, 14);
+            fx::slide_out(Motion::DownToUp, 8, 3, bg, (3000, CubicOut))
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Direction Showcase",
+        title: "translate diagonal +5,+2",
+        dsl: "fx::translate(5, 2, (3000, QuadOut))",
+    },
+    DslShowcaseEntry {
+        category: "Direction Showcase",
+        title: "translate diagonal -5,-2",
+        dsl: "fx::translate(-5, -2, (3000, SineOut))",
+    },
+    DslShowcaseEntry {
+        category: "Direction Showcase",
+        title: "translate horizontal +8",
+        dsl: "fx::translate(8, 0, (3000, CubicOut))",
+    },
+    DslShowcaseEntry {
+        category: "Direction Showcase",
+        title: "translate vertical +4",
+        dsl: "fx::translate(0, 4, (3000, BounceOut))",
+    },
+
+    // ── Advanced HSL Combinations ────────────────────────────────────────
+    DslShowcaseEntry {
+        category: "HSL Advanced",
+        title: "hsl_shift_fg deep blue shift",
+        dsl: "fx::hsl_shift_fg([-60.0, 30.0, -20.0], (4000, QuadOut))",
+    },
+    DslShowcaseEntry {
+        category: "HSL Advanced",
+        title: "hsl_shift_fg golden warm",
+        dsl: "fx::hsl_shift_fg([40.0, 35.0, 20.0], (3500, SineOut))",
+    },
+    DslShowcaseEntry {
+        category: "HSL Advanced",
+        title: "hsl_shift_fg ice cold",
+        dsl: "fx::hsl_shift_fg([-90.0, 20.0, 30.0], (3500, CubicOut))",
+    },
+    DslShowcaseEntry {
+        category: "HSL Advanced",
+        title: "saturate_fg intense",
+        dsl: "fx::saturate_fg(80.0, (3000, QuadOut))",
+    },
+    DslShowcaseEntry {
+        category: "HSL Advanced",
+        title: "lighten_fg bright",
+        dsl: "fx::lighten_fg(60.0, (3000, SineOut))",
+    },
+    DslShowcaseEntry {
+        category: "HSL Advanced",
+        title: "darken_fg deep",
+        dsl: "fx::darken_fg(60.0, (3000, CubicOut))",
+    },
+    DslShowcaseEntry {
+        category: "HSL Advanced",
+        title: "saturate + hsl shift",
+        dsl: r#"
+            fx::parallel(&[
+                fx::saturate_fg(40.0, (3500, QuadOut)),
+                fx::hsl_shift_fg([30.0, 0.0, 0.0], (3500, SineOut))
+            ])
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "HSL Advanced",
+        title: "lighten + hsl shift",
+        dsl: r#"
+            fx::parallel(&[
+                fx::lighten_fg(30.0, (3500, SineOut)),
+                fx::hsl_shift_fg([90.0, 0.0, 0.0], (3500, Linear))
+            ])
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "HSL Advanced",
+        title: "darken + saturate",
+        dsl: r#"
+            fx::parallel(&[
+                fx::darken_fg(25.0, (3500, QuadOut)),
+                fx::saturate_fg(35.0, (3500, CubicOut))
+            ])
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "HSL Advanced",
+        title: "triple hsl: shift+sat+light",
+        dsl: r#"
+            fx::parallel(&[
+                fx::hsl_shift_fg([45.0, 0.0, 0.0], (4000, Linear)),
+                fx::saturate_fg(25.0, (4000, SineOut)),
+                fx::lighten_fg(15.0, (4000, QuadOut))
+            ])
+        "#,
+    },
+
+    // ── Filter Combinations ──────────────────────────────────────────────
+    DslShowcaseEntry {
+        category: "Filter Combos",
+        title: "coalesce Text only",
+        dsl: r#"
+            fx::coalesce((3000, QuadOut))
+                .with_filter(CellFilter::Text)
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Filter Combos",
+        title: "fade_to_fg Text + gold",
+        dsl: r#"
+            fx::fade_to_fg(Color::Rgb(207, 181, 59), (3000, SineOut))
+                .with_filter(CellFilter::Text)
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Filter Combos",
+        title: "dissolve NonEmpty",
+        dsl: r#"
+            fx::dissolve((3000, CubicOut))
+                .with_filter(CellFilter::NonEmpty)
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Filter Combos",
+        title: "coalesce NonEmpty",
+        dsl: r#"
+            fx::coalesce((3000, QuadOut))
+                .with_filter(CellFilter::NonEmpty)
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Filter Combos",
+        title: "paint_fg Text + copper",
+        dsl: r#"
+            fx::paint_fg(Color::Rgb(184, 115, 51), (3000, SineOut))
+                .with_filter(CellFilter::Text)
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Filter Combos",
+        title: "hsl_shift NonEmpty",
+        dsl: r#"
+            fx::hsl_shift_fg([60.0, 30.0, 15.0], (3500, QuadOut))
+                .with_filter(CellFilter::NonEmpty)
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Filter Combos",
+        title: "evolve Text filter",
+        dsl: r#"
+            fx::evolve(EvolveSymbolSet::Shaded, (3000, QuadOut))
+                .with_filter(CellFilter::Text)
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Filter Combos",
+        title: "dissolve Text + radial",
+        dsl: r#"
+            fx::dissolve((3500, QuadOut))
+                .with_filter(CellFilter::Text)
+                .with_pattern(RadialPattern::center())
+        "#,
+    },
+
+    // ── Advanced Wave Patterns ───────────────────────────────────────────
+    DslShowcaseEntry {
+        category: "Advanced Waves",
+        title: "wave sin fast horizontal",
+        dsl: r#"
+            fx::dissolve((4000, Linear))
+                .with_pattern(WavePattern::new(
+                    WaveLayer::new(Oscillator::sin(4.0, 0.0, 2.0))
+                ))
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Advanced Waves",
+        title: "wave cos vertical",
+        dsl: r#"
+            fx::dissolve((4000, Linear))
+                .with_pattern(WavePattern::new(
+                    WaveLayer::new(Oscillator::cos(0.0, 4.0, 1.5))
+                ))
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Advanced Waves",
+        title: "wave sin diagonal",
+        dsl: r#"
+            fx::dissolve((4500, Linear))
+                .with_pattern(WavePattern::new(
+                    WaveLayer::new(Oscillator::sin(2.0, 2.0, 1.0))
+                ))
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Advanced Waves",
+        title: "wave triangle fast",
+        dsl: r#"
+            fx::coalesce((4000, Linear))
+                .with_pattern(WavePattern::new(
+                    WaveLayer::new(Oscillator::triangle(3.0, 0.0, 1.5))
+                ))
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Advanced Waves",
+        title: "wave sawtooth diagonal",
+        dsl: r#"
+            fx::dissolve((4500, Linear))
+                .with_pattern(WavePattern::new(
+                    WaveLayer::new(Oscillator::sawtooth(2.0, 2.0, 1.0))
+                ))
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Advanced Waves",
+        title: "wave sin phase shift",
+        dsl: r#"
+            fx::dissolve((4500, Linear))
+                .with_pattern(WavePattern::new(
+                    WaveLayer::new(
+                        Oscillator::sin(2.0, 0.0, 1.0).phase(1.57)
+                    )
+                ))
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Advanced Waves",
+        title: "wave modulated FM",
+        dsl: r#"
+            fx::dissolve((5000, Linear))
+                .with_pattern(WavePattern::new(
+                    WaveLayer::new(
+                        Oscillator::sin(3.0, 0.0, 1.0)
+                            .modulated_by(
+                                Modulator::cos(0.0, 2.0, 0.5)
+                                    .intensity(0.8)
+                                    .on_phase()
+                            )
+                    )
+                ))
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Advanced Waves",
+        title: "wave modulated AM",
+        dsl: r#"
+            fx::coalesce((5000, Linear))
+                .with_pattern(WavePattern::new(
+                    WaveLayer::new(
+                        Oscillator::cos(2.0, 0.0, 0.8)
+                            .modulated_by(
+                                Modulator::sin(0.5, 0.5, 0.3)
+                                    .intensity(0.6)
+                                    .on_amplitude()
+                            )
+                    )
+                ))
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Advanced Waves",
+        title: "wave multiply sin×cos",
+        dsl: r#"
+            fx::dissolve((5000, Linear))
+                .with_pattern(WavePattern::new(
+                    WaveLayer::new(Oscillator::sin(3.0, 0.0, 1.0))
+                        .multiply(Oscillator::cos(0.0, 2.0, 0.8))
+                ))
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Advanced Waves",
+        title: "wave average sin+triangle",
+        dsl: r#"
+            fx::dissolve((5000, Linear))
+                .with_pattern(WavePattern::new(
+                    WaveLayer::new(Oscillator::sin(2.0, 0.0, 1.0))
+                        .average(Oscillator::triangle(0.0, 3.0, 0.5))
+                ))
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Advanced Waves",
+        title: "wave max sin|sawtooth",
+        dsl: r#"
+            fx::coalesce((5000, Linear))
+                .with_pattern(WavePattern::new(
+                    WaveLayer::new(Oscillator::sin(2.0, 1.0, 0.8))
+                        .max(Oscillator::sawtooth(1.0, 0.0, 1.2))
+                ))
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Advanced Waves",
+        title: "wave high contrast",
+        dsl: r#"
+            fx::dissolve((4000, Linear))
+                .with_pattern(
+                    WavePattern::new(
+                        WaveLayer::new(Oscillator::sin(2.0, 0.0, 1.0))
+                            .amplitude(1.0)
+                    ).with_contrast(5)
+                )
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Advanced Waves",
+        title: "wave low amplitude",
+        dsl: r#"
+            fx::dissolve((5000, Linear))
+                .with_pattern(WavePattern::new(
+                    WaveLayer::new(Oscillator::sin(2.0, 0.0, 1.0))
+                        .amplitude(0.4)
+                ))
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Advanced Waves",
+        title: "wave power squared",
+        dsl: r#"
+            fx::dissolve((4500, Linear))
+                .with_pattern(WavePattern::new(
+                    WaveLayer::new(Oscillator::sin(2.0, 0.0, 1.0))
+                        .power(2)
+                ))
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Advanced Waves",
+        title: "wave power cubed",
+        dsl: r#"
+            fx::coalesce((4500, Linear))
+                .with_pattern(WavePattern::new(
+                    WaveLayer::new(Oscillator::cos(0.0, 3.0, 0.8))
+                        .power(3)
+                ))
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Advanced Waves",
+        title: "wave abs value",
+        dsl: r#"
+            fx::dissolve((4500, Linear))
+                .with_pattern(WavePattern::new(
+                    WaveLayer::new(Oscillator::sin(2.0, 0.0, 1.0))
+                        .abs()
+                ))
+        "#,
+    },
+
+    // ── Timing Chain Showcase ────────────────────────────────────────────
+    DslShowcaseEntry {
+        category: "Timing Chains",
+        title: "prolong_start 1s dissolve",
+        dsl: "fx::prolong_start(1000, fx::dissolve((2000, QuadOut)))",
+    },
+    DslShowcaseEntry {
+        category: "Timing Chains",
+        title: "prolong_end 1s coalesce",
+        dsl: "fx::prolong_end(1000, fx::coalesce((2000, SineOut)))",
+    },
+    DslShowcaseEntry {
+        category: "Timing Chains",
+        title: "with_duration 5s dissolve",
+        dsl: "fx::with_duration(5000, fx::dissolve((2500, CubicOut)))",
+    },
+    DslShowcaseEntry {
+        category: "Timing Chains",
+        title: "delay 800ms + sweep",
+        dsl: r#"
+            let bg = Color::Rgb(8, 9, 14);
+            fx::sequence(&[
+                fx::sleep(800),
+                fx::sweep_in(Motion::LeftToRight, 10, 3, bg, (2500, QuadOut))
+            ])
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Timing Chains",
+        title: "sleep → dissolve → sleep → coalesce",
+        dsl: r#"
+            fx::sequence(&[
+                fx::sleep(400),
+                fx::dissolve(1500),
+                fx::sleep(400),
+                fx::coalesce((1500, SineOut))
+            ])
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Timing Chains",
+        title: "prolong_start sweep",
+        dsl: r#"
+            let bg = Color::Rgb(8, 9, 14);
+            fx::prolong_start(600, fx::sweep_in(Motion::LeftToRight, 10, 3, bg, (2500, QuadOut)))
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Timing Chains",
+        title: "prolong_end fade",
+        dsl: "fx::prolong_end(600, fx::fade_to_fg(Color::Rgb(207, 181, 59), (2000, QuadOut)))",
+    },
+
+    // ── Interpolation Showcase Extended ──────────────────────────────────
+    DslShowcaseEntry {
+        category: "Interpolation Ext",
+        title: "dissolve QuadInOut",
+        dsl: "fx::dissolve((3000, QuadInOut))",
+    },
+    DslShowcaseEntry {
+        category: "Interpolation Ext",
+        title: "dissolve SineInOut",
+        dsl: "fx::dissolve((3000, SineInOut))",
+    },
+    DslShowcaseEntry {
+        category: "Interpolation Ext",
+        title: "dissolve ExpoIn",
+        dsl: "fx::dissolve((3000, ExpoIn))",
+    },
+    DslShowcaseEntry {
+        category: "Interpolation Ext",
+        title: "dissolve ExpoInOut",
+        dsl: "fx::dissolve((3000, ExpoInOut))",
+    },
+    DslShowcaseEntry {
+        category: "Interpolation Ext",
+        title: "dissolve ElasticIn",
+        dsl: "fx::dissolve((3000, ElasticIn))",
+    },
+    DslShowcaseEntry {
+        category: "Interpolation Ext",
+        title: "dissolve ElasticInOut",
+        dsl: "fx::dissolve((3000, ElasticInOut))",
+    },
+    DslShowcaseEntry {
+        category: "Interpolation Ext",
+        title: "dissolve BounceInOut",
+        dsl: "fx::dissolve((3000, BounceInOut))",
+    },
+    DslShowcaseEntry {
+        category: "Interpolation Ext",
+        title: "coalesce QuadInOut",
+        dsl: "fx::coalesce((3000, QuadInOut))",
+    },
+    DslShowcaseEntry {
+        category: "Interpolation Ext",
+        title: "coalesce CubicInOut",
+        dsl: "fx::coalesce((3000, CubicInOut))",
+    },
+    DslShowcaseEntry {
+        category: "Interpolation Ext",
+        title: "coalesce SineInOut",
+        dsl: "fx::coalesce((3000, SineInOut))",
+    },
+    DslShowcaseEntry {
+        category: "Interpolation Ext",
+        title: "coalesce ExpoOut",
+        dsl: "fx::coalesce((3000, ExpoOut))",
+    },
+    DslShowcaseEntry {
+        category: "Interpolation Ext",
+        title: "coalesce BounceOut",
+        dsl: "fx::coalesce((3000, BounceOut))",
+    },
+    DslShowcaseEntry {
+        category: "Interpolation Ext",
+        title: "coalesce ElasticOut",
+        dsl: "fx::coalesce((3000, ElasticOut))",
+    },
+
+    // ── Evolution Extended ───────────────────────────────────────────────
+    DslShowcaseEntry {
+        category: "Evolution Ext",
+        title: "evolve CircleFill",
+        dsl: "fx::evolve(EvolveSymbolSet::CircleFill, (3000, QuadOut))",
+    },
+    DslShowcaseEntry {
+        category: "Evolution Ext",
+        title: "evolve Squares (BounceOut)",
+        dsl: "fx::evolve(EvolveSymbolSet::Squares, (3500, BounceOut))",
+    },
+    DslShowcaseEntry {
+        category: "Evolution Ext",
+        title: "evolve Circles (SineOut)",
+        dsl: "fx::evolve(EvolveSymbolSet::Circles, (3000, SineOut))",
+    },
+    DslShowcaseEntry {
+        category: "Evolution Ext",
+        title: "evolve Shaded (CubicInOut)",
+        dsl: "fx::evolve(EvolveSymbolSet::Shaded, (3000, CubicInOut))",
+    },
+    DslShowcaseEntry {
+        category: "Evolution Ext",
+        title: "evolve_into BlocksH ▓",
+        dsl: r#"fx::evolve_into(EvolveSymbolSet::BlocksHorizontal, "▓", (3000, QuadOut))"#,
+    },
+    DslShowcaseEntry {
+        category: "Evolution Ext",
+        title: "evolve_from Shaded ░",
+        dsl: r#"fx::evolve_from(EvolveSymbolSet::Shaded, "░", (3000, SineOut))"#,
+    },
+    DslShowcaseEntry {
+        category: "Evolution Ext",
+        title: "evolve_into Quadrants ▙",
+        dsl: r#"fx::evolve_into(EvolveSymbolSet::Quadrants, "▙", (3000, CubicOut))"#,
+    },
+    DslShowcaseEntry {
+        category: "Evolution Ext",
+        title: "evolve BlocksVertical slow",
+        dsl: "fx::evolve(EvolveSymbolSet::BlocksVertical, (4000, Linear))",
+    },
+
+    // ── Paint Extended ───────────────────────────────────────────────────
+    DslShowcaseEntry {
+        category: "Paint Extended",
+        title: "paint_fg crimson",
+        dsl: "fx::paint_fg(Color::Rgb(220, 20, 60), (2500, QuadOut))",
+    },
+    DslShowcaseEntry {
+        category: "Paint Extended",
+        title: "paint_fg violet",
+        dsl: "fx::paint_fg(Color::Rgb(138, 43, 226), (2500, SineOut))",
+    },
+    DslShowcaseEntry {
+        category: "Paint Extended",
+        title: "paint_fg lime",
+        dsl: "fx::paint_fg(Color::Rgb(50, 205, 50), (2500, CubicOut))",
+    },
+    DslShowcaseEntry {
+        category: "Paint Extended",
+        title: "paint_fg cornflower",
+        dsl: "fx::paint_fg(Color::Rgb(100, 149, 237), (2500, QuadOut))",
+    },
+    DslShowcaseEntry {
+        category: "Paint Extended",
+        title: "paint_fg dark orange",
+        dsl: "fx::paint_fg(Color::Rgb(255, 140, 0), (2500, SineOut))",
+    },
+    DslShowcaseEntry {
+        category: "Paint Extended",
+        title: "paint_fg white",
+        dsl: "fx::paint_fg(Color::Rgb(240, 240, 245), (2500, CubicOut))",
+    },
+
+    // ── Radial Pattern Variations ────────────────────────────────────────
+    DslShowcaseEntry {
+        category: "Radial Variations",
+        title: "radial wide transition",
+        dsl: r#"
+            fx::dissolve((4000, QuadOut))
+                .with_pattern(
+                    RadialPattern::center()
+                        .with_transition_width(3.0)
+                )
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Radial Variations",
+        title: "radial narrow transition",
+        dsl: r#"
+            fx::dissolve((3500, SineOut))
+                .with_pattern(
+                    RadialPattern::center()
+                        .with_transition_width(0.5)
+                )
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Radial Variations",
+        title: "radial off-center 0.2,0.3",
+        dsl: r#"
+            fx::dissolve((3500, CubicOut))
+                .with_pattern(
+                    RadialPattern::center()
+                        .with_center(0.2, 0.3)
+                )
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Radial Variations",
+        title: "radial off-center 0.8,0.2",
+        dsl: r#"
+            fx::coalesce((3500, QuadOut))
+                .with_pattern(
+                    RadialPattern::center()
+                        .with_center(0.8, 0.2)
+                )
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Radial Variations",
+        title: "radial corner 0.0,0.0",
+        dsl: r#"
+            fx::dissolve((4000, SineOut))
+                .with_pattern(
+                    RadialPattern::center()
+                        .with_center(0.0, 0.0)
+                )
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Radial Variations",
+        title: "radial corner 1.0,1.0",
+        dsl: r#"
+            fx::coalesce((4000, CubicOut))
+                .with_pattern(
+                    RadialPattern::center()
+                        .with_center(1.0, 1.0)
+                )
+        "#,
+    },
+
+    // ── Complex Parallel Compositions ────────────────────────────────────
+    DslShowcaseEntry {
+        category: "Complex Parallel",
+        title: "dissolve + fade + saturate",
+        dsl: r#"
+            fx::parallel(&[
+                fx::dissolve((4000, QuadOut))
+                    .with_pattern(RadialPattern::center()),
+                fx::fade_to_fg(Color::Rgb(207, 181, 59), (4000, SineOut)),
+                fx::saturate_fg(30.0, (4000, CubicOut))
+            ])
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Complex Parallel",
+        title: "coalesce + lighten + shift",
+        dsl: r#"
+            fx::parallel(&[
+                fx::coalesce((4000, SineOut))
+                    .with_pattern(DiamondPattern::center()),
+                fx::lighten_fg(25.0, (4000, QuadOut)),
+                fx::hsl_shift_fg([30.0, 10.0, 0.0], (4000, Linear))
+            ])
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Complex Parallel",
+        title: "sweep + paint + darken",
+        dsl: r#"
+            let bg = Color::Rgb(8, 9, 14);
+            fx::parallel(&[
+                fx::sweep_in(Motion::LeftToRight, 10, 3, bg, (4000, QuadOut)),
+                fx::paint_fg(Color::Rgb(0, 180, 180), (4000, SineOut)),
+                fx::darken_fg(15.0, (4000, CubicOut))
+            ])
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Complex Parallel",
+        title: "evolve + hsl + fade",
+        dsl: r#"
+            fx::parallel(&[
+                fx::evolve(EvolveSymbolSet::Shaded, (4000, QuadOut)),
+                fx::hsl_shift_fg([60.0, 20.0, 10.0], (4000, SineOut)),
+                fx::fade_to_fg(Color::Rgb(184, 115, 51), (4000, CubicOut))
+            ])
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Complex Parallel",
+        title: "explode + paint pink",
+        dsl: r#"
+            fx::parallel(&[
+                fx::explode((3500, QuadOut)),
+                fx::paint_fg(Color::Rgb(255, 105, 180), (3500, SineOut))
+            ])
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Complex Parallel",
+        title: "stretch + fade amber",
+        dsl: r#"
+            fx::parallel(&[
+                fx::stretch(Motion::LeftToRight, (3500, CubicOut)),
+                fx::fade_to_fg(Color::Rgb(207, 181, 59), (3500, QuadOut))
+            ])
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Complex Parallel",
+        title: "expand + hsl shift neon",
+        dsl: r#"
+            fx::parallel(&[
+                fx::expand(Motion::UpToDown, (3500, QuadOut)),
+                fx::hsl_shift_fg([90.0, 40.0, 20.0], (3500, SineOut))
+            ])
+        "#,
+    },
+
+    // ── Complex Nested Compositions ──────────────────────────────────────
+    DslShowcaseEntry {
+        category: "Nested Compositions",
+        title: "seq of parallels",
+        dsl: r#"
+            fx::sequence(&[
+                fx::parallel(&[
+                    fx::dissolve(1500),
+                    fx::fade_to_fg(Color::Red, 1500)
+                ]),
+                fx::parallel(&[
+                    fx::coalesce(1500),
+                    fx::fade_to_fg(Color::Blue, 1500)
+                ])
+            ])
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Nested Compositions",
+        title: "par sweeps + seq fades",
+        dsl: r#"
+            let bg = Color::Rgb(8, 9, 14);
+            fx::parallel(&[
+                fx::sweep_in(Motion::LeftToRight, 10, 3, bg, (4000, QuadOut)),
+                fx::sequence(&[
+                    fx::fade_to_fg(Color::Rgb(207, 181, 59), 2000),
+                    fx::fade_to_fg(Color::Rgb(184, 115, 51), 2000)
+                ])
+            ])
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Nested Compositions",
+        title: "seq dissolve + parallel shift",
+        dsl: r#"
+            fx::sequence(&[
+                fx::dissolve((1500, QuadOut)),
+                fx::parallel(&[
+                    fx::coalesce((2000, SineOut)),
+                    fx::hsl_shift_fg([45.0, 20.0, 10.0], (2000, CubicOut))
+                ])
+            ])
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Nested Compositions",
+        title: "triple nested sequence",
+        dsl: r#"
+            fx::sequence(&[
+                fx::dissolve(1000),
+                fx::sequence(&[
+                    fx::fade_to_fg(Color::Red, 800),
+                    fx::fade_to_fg(Color::Green, 800)
+                ]),
+                fx::coalesce(1000)
+            ])
+        "#,
+    },
+
+    // ── Explode Variations ───────────────────────────────────────────────
+    DslShowcaseEntry {
+        category: "Explode Variations",
+        title: "explode (QuadOut)",
+        dsl: "fx::explode((3000, QuadOut))",
+    },
+    DslShowcaseEntry {
+        category: "Explode Variations",
+        title: "explode (SineOut)",
+        dsl: "fx::explode((3000, SineOut))",
+    },
+    DslShowcaseEntry {
+        category: "Explode Variations",
+        title: "explode (CubicOut)",
+        dsl: "fx::explode((3000, CubicOut))",
+    },
+    DslShowcaseEntry {
+        category: "Explode Variations",
+        title: "explode (ElasticOut)",
+        dsl: "fx::explode((4000, ElasticOut))",
+    },
+    DslShowcaseEntry {
+        category: "Explode Variations",
+        title: "explode (ExpoOut)",
+        dsl: "fx::explode((3000, ExpoOut))",
+    },
+    DslShowcaseEntry {
+        category: "Explode Variations",
+        title: "explode fast",
+        dsl: "fx::explode((1500, QuadOut))",
+    },
+    DslShowcaseEntry {
+        category: "Explode Variations",
+        title: "explode slow",
+        dsl: "fx::explode((5000, Linear))",
+    },
+
+    // ── Color Space Comparisons ──────────────────────────────────────────
+    DslShowcaseEntry {
+        category: "Color Space Cmp",
+        title: "fade red HSV",
+        dsl: r#"
+            fx::fade_to_fg(Color::Red, (3000, QuadOut))
+                .with_color_space(ColorSpace::Hsv)
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Color Space Cmp",
+        title: "fade red HSL",
+        dsl: r#"
+            fx::fade_to_fg(Color::Red, (3000, QuadOut))
+                .with_color_space(ColorSpace::Hsl)
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Color Space Cmp",
+        title: "fade red RGB",
+        dsl: r#"
+            fx::fade_to_fg(Color::Red, (3000, QuadOut))
+                .with_color_space(ColorSpace::Rgb)
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Color Space Cmp",
+        title: "fade cyan HSV",
+        dsl: r#"
+            fx::fade_to_fg(Color::Cyan, (3000, SineOut))
+                .with_color_space(ColorSpace::Hsv)
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Color Space Cmp",
+        title: "fade cyan HSL",
+        dsl: r#"
+            fx::fade_to_fg(Color::Cyan, (3000, SineOut))
+                .with_color_space(ColorSpace::Hsl)
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Color Space Cmp",
+        title: "fade cyan RGB",
+        dsl: r#"
+            fx::fade_to_fg(Color::Cyan, (3000, SineOut))
+                .with_color_space(ColorSpace::Rgb)
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Color Space Cmp",
+        title: "fade gold HSV",
+        dsl: r#"
+            fx::fade_to_fg(Color::Rgb(207, 181, 59), (3000, CubicOut))
+                .with_color_space(ColorSpace::Hsv)
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Color Space Cmp",
+        title: "fade gold HSL",
+        dsl: r#"
+            fx::fade_to_fg(Color::Rgb(207, 181, 59), (3000, CubicOut))
+                .with_color_space(ColorSpace::Hsl)
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Color Space Cmp",
+        title: "fade gold RGB",
+        dsl: r#"
+            fx::fade_to_fg(Color::Rgb(207, 181, 59), (3000, CubicOut))
+                .with_color_space(ColorSpace::Rgb)
+        "#,
+    },
+
+    // ── Pattern + Color Effect Combos ────────────────────────────────────
+    DslShowcaseEntry {
+        category: "Pattern+Color",
+        title: "spiral dissolve + gold fade",
+        dsl: r#"
+            fx::parallel(&[
+                fx::dissolve((4000, Linear))
+                    .with_pattern(SpiralPattern::center().with_arms(4)),
+                fx::fade_to_fg(Color::Rgb(207, 181, 59), (4000, QuadOut))
+            ])
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Pattern+Color",
+        title: "diamond coalesce + copper paint",
+        dsl: r#"
+            fx::parallel(&[
+                fx::coalesce((4000, SineOut))
+                    .with_pattern(DiamondPattern::center()),
+                fx::paint_fg(Color::Rgb(184, 115, 51), (4000, CubicOut))
+            ])
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Pattern+Color",
+        title: "radial dissolve + teal paint",
+        dsl: r#"
+            fx::parallel(&[
+                fx::dissolve((4000, QuadOut))
+                    .with_pattern(RadialPattern::center()),
+                fx::paint_fg(Color::Rgb(0, 180, 180), (4000, SineOut))
+            ])
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Pattern+Color",
+        title: "sweep dissolve + crimson fade",
+        dsl: r#"
+            fx::parallel(&[
+                fx::dissolve((4000, CubicOut))
+                    .with_pattern(SweepPattern::left_to_right()),
+                fx::fade_to_fg(Color::Rgb(220, 20, 60), (4000, QuadOut))
+            ])
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Pattern+Color",
+        title: "checker dissolve + violet paint",
+        dsl: r#"
+            fx::parallel(&[
+                fx::dissolve((4000, SineOut))
+                    .with_pattern(CheckerboardPattern::default()),
+                fx::paint_fg(Color::Rgb(138, 43, 226), (4000, CubicOut))
+            ])
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Pattern+Color",
+        title: "diagonal dissolve + lime fade",
+        dsl: r#"
+            fx::parallel(&[
+                fx::dissolve((4000, QuadOut))
+                    .with_pattern(DiagonalPattern::top_left_to_bottom_right()),
+                fx::fade_to_fg(Color::Rgb(50, 205, 50), (4000, SineOut))
+            ])
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Pattern+Color",
+        title: "wave coalesce + orange paint",
+        dsl: r#"
+            fx::parallel(&[
+                fx::coalesce((5000, Linear))
+                    .with_pattern(WavePattern::new(
+                        WaveLayer::new(Oscillator::sin(2.0, 1.0, 0.5))
+                    )),
+                fx::paint_fg(Color::Rgb(255, 140, 0), (5000, QuadOut))
+            ])
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Pattern+Color",
+        title: "inverted radial + blue fade",
+        dsl: r#"
+            fx::parallel(&[
+                fx::dissolve((4000, CubicOut))
+                    .with_pattern(InvertedPattern::new(RadialPattern::center())),
+                fx::fade_to_fg(Color::Blue, (4000, SineOut))
+            ])
+        "#,
+    },
+
+    // ── Sweep Speed Variations ───────────────────────────────────────────
+    DslShowcaseEntry {
+        category: "Sweep Speed",
+        title: "sweep_in fast L→R",
+        dsl: r#"
+            let bg = Color::Rgb(8, 9, 14);
+            fx::sweep_in(Motion::LeftToRight, 10, 3, bg, (1500, QuadOut))
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Sweep Speed",
+        title: "sweep_in slow L→R",
+        dsl: r#"
+            let bg = Color::Rgb(8, 9, 14);
+            fx::sweep_in(Motion::LeftToRight, 10, 3, bg, (5000, SineOut))
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Sweep Speed",
+        title: "sweep_in narrow L→R",
+        dsl: r#"
+            let bg = Color::Rgb(8, 9, 14);
+            fx::sweep_in(Motion::LeftToRight, 4, 1, bg, (2500, CubicOut))
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Sweep Speed",
+        title: "sweep_in ultra-wide L→R",
+        dsl: r#"
+            let bg = Color::Rgb(8, 9, 14);
+            fx::sweep_in(Motion::LeftToRight, 30, 8, bg, (4500, SineOut))
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Sweep Speed",
+        title: "sweep_in bounce L→R",
+        dsl: r#"
+            let bg = Color::Rgb(8, 9, 14);
+            fx::sweep_in(Motion::LeftToRight, 10, 3, bg, (3000, BounceOut))
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Sweep Speed",
+        title: "sweep_in elastic R→L",
+        dsl: r#"
+            let bg = Color::Rgb(8, 9, 14);
+            fx::sweep_in(Motion::RightToLeft, 10, 3, bg, (3500, ElasticOut))
+        "#,
+    },
+
+    // ── Slide Speed Variations ───────────────────────────────────────────
+    DslShowcaseEntry {
+        category: "Slide Speed",
+        title: "slide_in fast L→R",
+        dsl: r#"
+            let bg = Color::Rgb(8, 9, 14);
+            fx::slide_in(Motion::LeftToRight, 8, 3, bg, (1500, QuadOut))
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Slide Speed",
+        title: "slide_in slow R→L",
+        dsl: r#"
+            let bg = Color::Rgb(8, 9, 14);
+            fx::slide_in(Motion::RightToLeft, 8, 3, bg, (5000, SineOut))
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Slide Speed",
+        title: "slide_in narrow U→D",
+        dsl: r#"
+            let bg = Color::Rgb(8, 9, 14);
+            fx::slide_in(Motion::UpToDown, 3, 1, bg, (2500, CubicOut))
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Slide Speed",
+        title: "slide_in bounce D→U",
+        dsl: r#"
+            let bg = Color::Rgb(8, 9, 14);
+            fx::slide_in(Motion::DownToUp, 8, 3, bg, (3000, BounceOut))
+        "#,
+    },
+
+    // ── Dissolve Speed Variations ────────────────────────────────────────
+    DslShowcaseEntry {
+        category: "Dissolve Speed",
+        title: "dissolve ultra-fast 500ms",
+        dsl: "fx::dissolve(500)",
+    },
+    DslShowcaseEntry {
+        category: "Dissolve Speed",
+        title: "dissolve fast 1000ms",
+        dsl: "fx::dissolve(1000)",
+    },
+    DslShowcaseEntry {
+        category: "Dissolve Speed",
+        title: "dissolve medium 2000ms",
+        dsl: "fx::dissolve(2000)",
+    },
+    DslShowcaseEntry {
+        category: "Dissolve Speed",
+        title: "dissolve slow 4000ms",
+        dsl: "fx::dissolve(4000)",
+    },
+    DslShowcaseEntry {
+        category: "Dissolve Speed",
+        title: "dissolve very slow 6000ms",
+        dsl: "fx::dissolve((6000, Linear))",
+    },
+    DslShowcaseEntry {
+        category: "Dissolve Speed",
+        title: "coalesce ultra-fast 500ms",
+        dsl: "fx::coalesce(500)",
+    },
+    DslShowcaseEntry {
+        category: "Dissolve Speed",
+        title: "coalesce fast 1000ms",
+        dsl: "fx::coalesce(1000)",
+    },
+    DslShowcaseEntry {
+        category: "Dissolve Speed",
+        title: "coalesce slow 4000ms",
+        dsl: "fx::coalesce((4000, SineOut))",
+    },
+
+    // ── Dissolve-Coalesce Cycle Combos ───────────────────────────────────
+    DslShowcaseEntry {
+        category: "Dissolve Cycles",
+        title: "dissolve → coalesce fast",
+        dsl: r#"
+            fx::sequence(&[
+                fx::dissolve(800),
+                fx::coalesce(800)
+            ])
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Dissolve Cycles",
+        title: "dissolve → coalesce slow",
+        dsl: r#"
+            fx::sequence(&[
+                fx::dissolve((2500, SineOut)),
+                fx::coalesce((2500, CubicOut))
+            ])
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Dissolve Cycles",
+        title: "dissolve radial → coalesce radial",
+        dsl: r#"
+            fx::sequence(&[
+                fx::dissolve((2000, QuadOut))
+                    .with_pattern(RadialPattern::center()),
+                fx::coalesce((2000, SineOut))
+                    .with_pattern(RadialPattern::center())
+            ])
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Dissolve Cycles",
+        title: "dissolve diamond → coalesce spiral",
+        dsl: r#"
+            fx::sequence(&[
+                fx::dissolve((2000, CubicOut))
+                    .with_pattern(DiamondPattern::center()),
+                fx::coalesce((2000, QuadOut))
+                    .with_pattern(SpiralPattern::center().with_arms(4))
+            ])
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Dissolve Cycles",
+        title: "dissolve spiral → coalesce checker",
+        dsl: r#"
+            fx::sequence(&[
+                fx::dissolve((2000, SineOut))
+                    .with_pattern(SpiralPattern::center().with_arms(3)),
+                fx::coalesce((2000, CubicOut))
+                    .with_pattern(CheckerboardPattern::default())
+            ])
+        "#,
+    },
+    DslShowcaseEntry {
+        category: "Dissolve Cycles",
+        title: "dissolve sweep → coalesce sweep",
+        dsl: r#"
+            fx::sequence(&[
+                fx::dissolve((2000, QuadOut))
+                    .with_pattern(SweepPattern::left_to_right()),
+                fx::coalesce((2000, SineOut))
+                    .with_pattern(SweepPattern::right_to_left())
             ])
         "#,
     },
