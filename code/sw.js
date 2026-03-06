@@ -1,9 +1,9 @@
 // Service Worker for GRIFT.RS — offline-first caching
-// Pre-caches all essential assets on install for full offline support.
-// Hashed assets (JS, WASM, CSS) are immutable → cache-first.
-// Navigation requests (HTML) → network-first with cache fallback.
+// Stale-while-revalidate: serve from cache immediately, then update cache
+// from network in the background. Navigation requests use network-first.
+// Hashed assets (JS, WASM, CSS) are immutable and cached on first fetch.
 
-var CACHE_NAME = 'grift-v2';
+var CACHE_NAME = 'grift-v3';
 
 var PRECACHE_URLS = [
   './',
@@ -22,7 +22,14 @@ var PRECACHE_URLS = [
 self.addEventListener('install', function (event) {
   event.waitUntil(
     caches.open(CACHE_NAME).then(function (cache) {
-      return cache.addAll(PRECACHE_URLS);
+      // Use individual add() calls so one 404 doesn't block everything
+      return Promise.all(
+        PRECACHE_URLS.map(function (url) {
+          return cache.add(url).catch(function () {
+            // Ignore individual failures — the asset may not exist yet
+          });
+        })
+      );
     }).then(function () {
       return self.skipWaiting();
     })
@@ -49,7 +56,7 @@ self.addEventListener('fetch', function (event) {
   // Only handle GET requests
   if (request.method !== 'GET') return;
 
-  // Navigation requests (HTML pages): network-first
+  // Navigation requests (HTML pages): network-first with cache fallback
   if (request.mode === 'navigate') {
     event.respondWith(
       fetch(request)
@@ -67,11 +74,33 @@ self.addEventListener('fetch', function (event) {
     return;
   }
 
-  // All other requests (JS, WASM, CSS, fonts, icons): cache-first
+  // Hashed assets (contain a hash in filename): cache-first, immutable
+  var url = new URL(request.url);
+  var isHashedAsset = /\-[a-f0-9]{8,}\.(js|wasm|css)$/.test(url.pathname);
+
+  if (isHashedAsset) {
+    event.respondWith(
+      caches.match(request).then(function (cached) {
+        if (cached) return cached;
+        return fetch(request).then(function (response) {
+          if (response.ok) {
+            var clone = response.clone();
+            caches.open(CACHE_NAME).then(function (cache) {
+              cache.put(request, clone);
+            });
+          }
+          return response;
+        });
+      })
+    );
+    return;
+  }
+
+  // All other assets: stale-while-revalidate
+  // Serve from cache immediately, update cache from network in background
   event.respondWith(
     caches.match(request).then(function (cached) {
-      if (cached) return cached;
-      return fetch(request).then(function (response) {
+      var fetchPromise = fetch(request).then(function (response) {
         if (response.ok) {
           var clone = response.clone();
           caches.open(CACHE_NAME).then(function (cache) {
@@ -80,6 +109,8 @@ self.addEventListener('fetch', function (event) {
         }
         return response;
       });
+
+      return cached || fetchPromise;
     })
   );
 });
