@@ -1,4 +1,5 @@
 {
+  "id": "/",
   "name": "GRIFT.RS – Personal Website & Grift Demo",
   "short_name": "GRIFT.RS",
   "description": "A terminal-themed personal website and Grift Lisp REPL demo, running entirely in WebAssembly.",
