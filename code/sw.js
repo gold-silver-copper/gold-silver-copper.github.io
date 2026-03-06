@@ -76,7 +76,7 @@ self.addEventListener('fetch', function (event) {
 
   // Hashed assets (contain a hash in filename): cache-first, immutable
   var url = new URL(request.url);
-  var isHashedAsset = /\-[a-f0-9]{16,}\.(js|wasm|css)$/.test(url.pathname);
+  var isHashedAsset = /\-[a-f0-9]{8,}\.(js|wasm|css)$/.test(url.pathname);
 
   if (isHashedAsset) {
     event.respondWith(
