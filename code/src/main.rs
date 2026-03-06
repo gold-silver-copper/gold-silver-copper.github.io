@@ -3200,7 +3200,6 @@ fn procedural_dsl_entry(index: usize) -> (String, String, String) {
     (category, title, dsl)
 }
 
-/// Compile a DSL expression string into a looping (repeating + ping_pong) Effect.
 /// Compile a DSL expression string into a looping Effect.
 /// Tries multiple wrapping strategies to ensure all effects get infinite repeat.
 fn compile_dsl_effect(dsl_src: &str) -> Option<Effect> {
