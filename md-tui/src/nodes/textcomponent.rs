@@ -7,12 +7,12 @@ use ratatui::style::Color;
 #[cfg(feature = "syntax-highlight")]
 use tree_sitter_highlight::HighlightEvent;
 
+#[cfg(feature = "syntax-highlight")]
+use crate::highlight::COLOR_MAP;
 use crate::{
     highlight::{HighlightInfo, highlight_code},
     nodes::word::MetaData,
 };
-#[cfg(feature = "syntax-highlight")]
-use crate::highlight::COLOR_MAP;
 
 use super::word::{Word, WordType};
 

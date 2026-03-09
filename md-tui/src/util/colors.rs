@@ -1,10 +1,10 @@
 use std::sync::{Arc, LazyLock, RwLock};
 
 #[cfg(feature = "terminal")]
-use std::str::FromStr;
-#[cfg(feature = "terminal")]
 use config::{Config, Environment, File};
 use ratatui::style::Color;
+#[cfg(feature = "terminal")]
+use std::str::FromStr;
 
 #[derive(Debug, Clone, Copy)]
 pub struct ColorConfig {

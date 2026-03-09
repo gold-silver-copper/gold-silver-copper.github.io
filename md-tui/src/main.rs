@@ -59,6 +59,148 @@ fn main() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
+fn watch_file_change_events(
+    rx: &mpsc::Receiver<notify::Result<notify::Event>>,
+    markdown: &mut ComponentRoot,
+    app: &mut App,
+    height: u16,
+) {
+    for event in rx.try_iter().flatten() {
+        if let notify::EventKind::Modify(_) = event.kind {
+            let file_name = markdown.file_name().map(str::to_owned);
+            if reload_markdown_from_file(file_name.as_deref(), markdown, app.width() - 2).is_ok() {
+                app.mode = Mode::View;
+                app.vertical_scroll = cmp::min(
+                    app.vertical_scroll,
+                    markdown.height().saturating_sub(height / 2),
+                );
+            }
+
+            break;
+        }
+    }
+}
+
+fn reload_markdown_from_file(
+    path: Option<&str>,
+    markdown: &mut ComponentRoot,
+    width: u16,
+) -> io::Result<()> {
+    let Some(path) = path else {
+        return Err(io::Error::new(
+            io::ErrorKind::NotFound,
+            "no markdown file is currently loaded",
+        ));
+    };
+
+    let file = read_to_string(path)?;
+    *markdown = parse_markdown(Some(path), &file, width);
+    Ok(())
+}
+
+fn load_initial_markdown(app: &mut App, watcher: &mut PollWatcher) -> ComponentRoot {
+    let mut markdown = parse_markdown(None, EMPTY_FILE, app.width() - 2);
+    let potential_input = io::stdin();
+    let mut stdin_buf = String::new();
+
+    let args: Vec<String> = std::env::args().collect();
+    if let Some(arg) = args.get(1) {
+        match read_to_string(arg) {
+            Ok(file) => {
+                let path = std::path::Path::new(arg);
+                let _ = watcher.watch(path, notify::RecursiveMode::NonRecursive);
+                markdown = parse_markdown(Some(arg), &file, app.width() - 2);
+                app.mode = Mode::View;
+            }
+            Err(_) => {
+                app.message_box
+                    .set_message(format!("Could not open file {arg}"));
+                app.boxes = Boxes::Error;
+            }
+        }
+    } else if !potential_input.is_terminal() {
+        let _ = potential_input.lock().read_to_string(&mut stdin_buf);
+        markdown = parse_markdown(None, &stdin_buf, app.width() - 2);
+        app.mode = Mode::View;
+    }
+
+    markdown
+}
+
+fn populate_file_tree(file_tree: &mut FileTree, rx: &mpsc::Receiver<Option<MdFile>>) {
+    if file_tree.loaded() {
+        return;
+    }
+
+    while let Ok(entry) = rx.try_recv() {
+        match entry {
+            Some(file) => file_tree.add_file(file),
+            None => {
+                *file_tree = file_tree.clone().finish();
+                break;
+            }
+        }
+    }
+}
+
+fn render_app_mode(
+    f: &mut Frame,
+    app: &App,
+    markdown: &mut ComponentRoot,
+    file_tree: &mut FileTree,
+    f_rx: &mpsc::Receiver<Option<MdFile>>,
+) {
+    match app.mode {
+        Mode::View => render_markdown(f, app, markdown),
+        Mode::FileTree => {
+            populate_file_tree(file_tree, f_rx);
+            render_file_tree(f, app, file_tree.clone());
+        }
+    }
+}
+
+fn render_overlay(f: &mut Frame, app: &App, height: u16) {
+    match app.boxes {
+        Boxes::Search => {
+            let (search_height, search_width) = app.search_box.dimensions();
+            let search_area = Rect {
+                x: app.search_box.x(),
+                y: app.search_box.y(),
+                width: search_width,
+                height: search_height,
+            };
+            f.render_widget(app.search_box.clone(), search_area);
+        }
+        Boxes::Error => {
+            let (error_height, error_width) = app.message_box.dimensions();
+            let error_area = Rect {
+                x: app.width() / 2 - error_width / 2,
+                y: height / 2,
+                width: error_width,
+                height: error_height,
+            };
+
+            if app.width() > error_width {
+                f.render_widget(Clear, error_area);
+                f.render_widget(app.message_box.clone(), error_area);
+            }
+        }
+        Boxes::LinkPreview => {
+            let (link_height, link_width) = app.link_box.dimensions();
+            let link_area = Rect {
+                x: height / 2,
+                y: height / 2,
+                width: link_width,
+                height: link_height,
+            };
+
+            f.render_widget(Clear, link_area);
+            f.render_widget(app.link_box.clone(), link_area);
+        }
+        Boxes::None => {}
+    }
+}
+
 fn run_app(terminal: &mut DefaultTerminal, mut app: App, tick_rate: Duration) -> io::Result<()> {
     let (f_tx, f_rx) = mpsc::channel::<Option<MdFile>>();
 
@@ -75,132 +217,41 @@ fn run_app(terminal: &mut DefaultTerminal, mut app: App, tick_rate: Duration) ->
     .unwrap();
 
     app.set_width(terminal.size()?.width - 1);
-    let mut markdown = parse_markdown(None, EMPTY_FILE, app.width() - 2);
-
-    let potential_input = io::stdin();
-    let mut stdin_buf = String::new();
-
-    let args: Vec<String> = std::env::args().collect();
-    if let Some(arg) = args.get(1) {
-        if let Ok(file) = read_to_string(arg) {
-            let path = std::path::Path::new(arg);
-            let _ = watcher.watch(path, notify::RecursiveMode::NonRecursive);
-            markdown = parse_markdown(Some(arg), &file, app.width() - 2);
-            app.mode = Mode::View;
-        } else {
-            app.message_box
-                .set_message(format!("Could not open file {arg}"));
-            app.boxes = Boxes::Error;
-        }
-    } else if !potential_input.is_terminal() {
-        let _ = potential_input.lock().read_to_string(&mut stdin_buf);
-        markdown = parse_markdown(None, &stdin_buf, app.width() - 2);
-        app.mode = Mode::View;
-    }
+    let mut markdown = load_initial_markdown(&mut app, &mut watcher);
 
     let mut file_tree = FileTree::default();
 
     loop {
         let height = terminal.size()?.height;
 
-        for event in rx.try_iter() {
-            if event.is_err() {
-                continue;
-            }
-            let event = event.unwrap();
+        watch_file_change_events(&rx, &mut markdown, &mut app, height);
 
-            if let notify::EventKind::Modify(_) = event.kind {
-                if let Ok(file) = read_to_string(markdown.file_name().unwrap()) {
-                    markdown =
-                        parse_markdown(Some(markdown.file_name().unwrap()), &file, app.width() - 2);
-                    app.mode = Mode::View;
-                    app.vertical_scroll = cmp::min(
-                        app.vertical_scroll,
-                        markdown.height().saturating_sub(height / 2),
-                    );
-                }
-
-                break;
-            }
-        }
         if app.set_width(terminal.size()?.width - 1) {
-            let url = if let Some(url) = markdown.file_name() {
-                url
-            } else {
+            let Some(path) = markdown.file_name() else {
                 app.mode = Mode::FileTree;
                 continue;
             };
-            let text = if let Ok(file) = read_to_string(url) {
-                app.vertical_scroll = 0;
-                file
-            } else {
-                app.message_box
-                    .set_message(format!("Could not open file {:?}", markdown.file_name()));
-                app.boxes = Boxes::Error;
-                app.mode = Mode::FileTree;
-                continue;
-            };
-            markdown = parse_markdown(markdown.file_name(), &text, app.width() - 2);
+
+            match read_to_string(path) {
+                Ok(file) => {
+                    app.vertical_scroll = 0;
+                    markdown = parse_markdown(markdown.file_name(), &file, app.width() - 2);
+                }
+                Err(_) => {
+                    app.message_box
+                        .set_message(format!("Could not open file {:?}", markdown.file_name()));
+                    app.boxes = Boxes::Error;
+                    app.mode = Mode::FileTree;
+                    continue;
+                }
+            }
         }
 
         markdown.set_scroll(app.vertical_scroll);
 
         terminal.draw(|f| {
-            match app.mode {
-                Mode::View => {
-                    render_markdown(f, &app, &mut markdown);
-                }
-                Mode::FileTree => {
-                    if !file_tree.loaded() {
-                        while let Ok(e) = f_rx.try_recv() {
-                            match e {
-                                Some(file) => {
-                                    file_tree.add_file(file);
-                                }
-                                None => {
-                                    file_tree = file_tree.clone().finish();
-                                    break;
-                                }
-                            }
-                        }
-                    }
-                    render_file_tree(f, &app, file_tree.clone());
-                }
-            }
-            if app.boxes == Boxes::Search {
-                let (search_height, search_width) = app.search_box.dimensions();
-                let search_area = Rect {
-                    x: app.search_box.x(),
-                    y: app.search_box.y(),
-                    width: search_width,
-                    height: search_height,
-                };
-                f.render_widget(app.search_box.clone(), search_area);
-            } else if app.boxes == Boxes::Error {
-                let (error_height, error_width) = app.message_box.dimensions();
-                let error_area = Rect {
-                    x: app.width() / 2 - error_width / 2,
-                    y: height / 2,
-                    width: error_width,
-                    height: error_height,
-                };
-
-                if app.width() > error_width {
-                    f.render_widget(Clear, error_area);
-                    f.render_widget(app.message_box.clone(), error_area);
-                }
-            } else if app.boxes == Boxes::LinkPreview {
-                let (link_height, link_width) = app.link_box.dimensions();
-                let link_area = Rect {
-                    x: height / 2,
-                    y: height / 2,
-                    width: link_width,
-                    height: link_height,
-                };
-
-                f.render_widget(Clear, link_area);
-                f.render_widget(app.link_box.clone(), link_area);
-            }
+            render_app_mode(f, &app, &mut markdown, &mut file_tree, &f_rx);
+            render_overlay(f, &app, height);
         })?;
 
         let timeout = tick_rate

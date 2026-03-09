@@ -8,13 +8,13 @@ use pest::{
 use pest_derive::Parser;
 use ratatui::style::Color;
 
+#[cfg(feature = "terminal")]
+use crate::nodes::image::ImageComponent;
 use crate::nodes::{
     root::{Component, ComponentRoot},
     textcomponent::{TextComponent, TextNode},
     word::{MetaData, Word, WordType},
 };
-#[cfg(feature = "terminal")]
-use crate::nodes::image::ImageComponent;
 
 #[derive(Parser)]
 #[grammar = "md.pest"]
