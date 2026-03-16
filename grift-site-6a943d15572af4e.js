@@ -115,6 +115,14 @@ function __wbg_get_imports() {
             const ret = arg0.actualBoundingBoxDescent;
             return ret;
         },
+        __wbg_actualBoundingBoxLeft_ce3e970d2a13c270: function(arg0) {
+            const ret = arg0.actualBoundingBoxLeft;
+            return ret;
+        },
+        __wbg_actualBoundingBoxRight_700aad4a2967687c: function(arg0) {
+            const ret = arg0.actualBoundingBoxRight;
+            return ret;
+        },
         __wbg_addEventListener_2d985aa8a656f6dc: function() { return handleError(function (arg0, arg1, arg2, arg3) {
             arg0.addEventListener(getStringFromWasm0(arg1, arg2), arg3);
         }, arguments); },
@@ -130,6 +138,9 @@ function __wbg_get_imports() {
             const ret = arg0.appendChild(arg1);
             return ret;
         }, arguments); },
+        __wbg_beginPath_596efed55075dbc3: function(arg0) {
+            arg0.beginPath();
+        },
         __wbg_body_5eb99e7257e5ae34: function(arg0) {
             const ret = arg0.body;
             return isLikeNone(ret) ? 0 : addToExternrefTable0(ret);
@@ -153,6 +164,9 @@ function __wbg_get_imports() {
         __wbg_clientY_6293e127369957bf: function(arg0) {
             const ret = arg0.clientY;
             return ret;
+        },
+        __wbg_clip_3112b0bb495d0e08: function(arg0) {
+            arg0.clip();
         },
         __wbg_clipboard_0285d75eacda5282: function(arg0) {
             const ret = arg0.clipboard;
@@ -305,6 +319,9 @@ function __wbg_get_imports() {
         __wbg_push_e87b0e732085a946: function(arg0, arg1) {
             const ret = arg0.push(arg1);
             return ret;
+        },
+        __wbg_rect_9fb7070ab71d27aa: function(arg0, arg1, arg2, arg3, arg4) {
+            arg0.rect(arg1, arg2, arg3, arg4);
         },
         __wbg_removeChild_dfd4207a6ece49c1: function() { return handleError(function (arg0, arg1) {
             const ret = arg0.removeChild(arg1);
@@ -461,7 +478,7 @@ function __wbg_get_imports() {
     };
     return {
         __proto__: null,
-        "./grift-site-148a4225c27ff2ab_bg.js": import0,
+        "./grift-site-6a943d15572af4e_bg.js": import0,
     };
 }
 
@@ -762,7 +779,7 @@ async function __wbg_init(module_or_path) {
     }
 
     if (module_or_path === undefined) {
-        module_or_path = new URL('grift-site-148a4225c27ff2ab_bg.wasm', import.meta.url);
+        module_or_path = new URL('grift-site-6a943d15572af4e_bg.wasm', import.meta.url);
     }
     const imports = __wbg_get_imports();
 

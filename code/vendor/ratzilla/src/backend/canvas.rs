@@ -273,6 +273,19 @@ impl CanvasBackend {
         (left, top + self.text_baseline_offset)
     }
 
+    fn needs_cell_clip(&self, symbol: &str) -> bool {
+        let Ok(metrics) = self.canvas.frame_context.measure_text(symbol) else {
+            return false;
+        };
+
+        let glyph_width =
+            metrics.actual_bounding_box_left() + metrics.actual_bounding_box_right();
+        let glyph_height =
+            metrics.actual_bounding_box_ascent() + metrics.actual_bounding_box_descent();
+
+        glyph_width > self.cell_width + 0.25 || glyph_height > self.cell_height + 0.25
+    }
+
     fn selection_range(&self) -> Option<SelectionRange> {
         self.selection_state.borrow().active
     }
@@ -627,6 +640,8 @@ impl CanvasBackend {
     /// this implementation:
     ///
     /// Tracks the last foreground color used to avoid unnecessary style changes.
+    ///
+    /// Glyphs are only clipped when their measured width or height exceeds the current cell.
     fn draw_symbols(&mut self) -> Result<(), Error> {
         self.canvas.frame_context.save();
         let mut last_color = None;
@@ -648,11 +663,26 @@ impl CanvasBackend {
                 }
 
                 let (text_x, text_y) = self.symbol_position(x, y);
-                self.canvas.frame_context.fill_text(
-                    cell.symbol(),
-                    text_x,
-                    text_y,
-                )?;
+                if self.needs_cell_clip(cell.symbol()) {
+                    let (left, top, width, height) = self.cell_rect(x, y);
+                    self.canvas.frame_context.save();
+                    self.canvas.frame_context.begin_path();
+                    self.canvas.frame_context.rect(
+                        left - 0.25,
+                        top - 0.25,
+                        width + 0.5,
+                        height + 0.5,
+                    );
+                    self.canvas.frame_context.clip();
+                    self.canvas
+                        .frame_context
+                        .fill_text(cell.symbol(), text_x, text_y)?;
+                    self.canvas.frame_context.restore();
+                } else {
+                    self.canvas
+                        .frame_context
+                        .fill_text(cell.symbol(), text_x, text_y)?;
+                }
             }
         }
         self.canvas.frame_context.restore();
