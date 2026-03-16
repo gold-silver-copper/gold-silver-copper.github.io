@@ -282,11 +282,8 @@
           c.style.width  = w + 'px';
           c.style.height = h + 'px';
 
-          // CanvasBackend on phones should use CSS pixels for the backing
-          // store; the WebGL DPR path makes the terminal visually shrink.
-          var usesCanvasBackend = isMobilePhone();
-          var bw = usesCanvasBackend ? Math.round(w) : Math.round(w * (window.devicePixelRatio || 1));
-          var bh = usesCanvasBackend ? Math.round(h) : Math.round(h * (window.devicePixelRatio || 1));
+          var bw = Math.round(w);
+          var bh = Math.round(h);
           if (c.width !== bw || c.height !== bh) {
             c.width  = bw;
             c.height = bh;
@@ -296,9 +293,6 @@
         window.addEventListener('resize', fitCanvas);
         if (window.visualViewport) {
           window.visualViewport.addEventListener('resize', fitCanvas);
-        }
-        if (!isMobilePhone()) {
-          setInterval(fitCanvas, 1000);
         }
         fitCanvas();
 

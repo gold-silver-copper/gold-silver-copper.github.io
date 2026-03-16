@@ -3,7 +3,6 @@ use std::rc::Rc;
 
 use grift::Lisp;
 use ratzilla::backend::canvas::CanvasBackendOptions;
-use ratzilla::backend::webgl2::WebGl2BackendOptions;
 use ratzilla::event::{KeyCode, KeyEvent, MouseButton, MouseEvent, MouseEventKind};
 use ratzilla::ratatui::layout::{Alignment, Constraint, Layout, Position, Rect};
 use ratzilla::ratatui::style::{Color, Modifier, Style, Stylize};
@@ -11,7 +10,6 @@ use ratzilla::ratatui::text::{Line, Span, Text};
 use ratzilla::ratatui::widgets::{Block, BorderType, Paragraph, Wrap};
 use ratzilla::ratatui::Frame;
 use ratzilla::CanvasBackend;
-use ratzilla::WebGl2Backend;
 use ratzilla::WebRenderer;
 use unicode_width::UnicodeWidthChar;
 
@@ -6008,29 +6006,6 @@ fn keycode_to_virtual_key(code: &KeyCode) -> Option<VirtualKey> {
     }
 }
 
-fn is_mobile_phone() -> bool {
-    let Some(window) = web_sys::window() else {
-        return false;
-    };
-
-    let user_agent = window
-        .navigator()
-        .user_agent()
-        .unwrap_or_default()
-        .to_ascii_lowercase();
-
-    let is_phone_ua = user_agent.contains("iphone")
-        || user_agent.contains("ipod")
-        || user_agent.contains("windows phone")
-        || user_agent.contains("iemobile")
-        || user_agent.contains("opera mini")
-        || user_agent.contains("blackberry")
-        || user_agent.contains("bb10")
-        || (user_agent.contains("android") && user_agent.contains("mobile"));
-
-    is_phone_ua && !user_agent.contains("ipad") && !user_agent.contains("tablet")
-}
-
 fn setup_terminal<T>(
     mut terminal: ratzilla::ratatui::Terminal<T>,
     app: Rc<RefCell<App>>,
@@ -6068,20 +6043,11 @@ fn main() -> std::io::Result<()> {
     std::panic::set_hook(Box::new(console_error_panic_hook::hook));
 
     let app = Rc::new(RefCell::new(App::new()));
-
-    if is_mobile_phone() {
-        let backend = CanvasBackend::new_with_options(CanvasBackendOptions::new())
+    let backend =
+        CanvasBackend::new_with_options(CanvasBackendOptions::new().enable_mouse_selection())
             .expect("failed to create canvas backend");
-        let terminal = ratzilla::ratatui::Terminal::new(backend)?;
-        setup_terminal(terminal, app)?;
-    } else {
-        let options =
-            WebGl2BackendOptions::new().enable_mouse_selection_with_mode(Default::default());
-        let backend =
-            WebGl2Backend::new_with_options(options).expect("failed to create WebGL2 backend");
-        let terminal = ratzilla::ratatui::Terminal::new(backend)?;
-        setup_terminal(terminal, app)?;
-    }
+    let terminal = ratzilla::ratatui::Terminal::new(backend)?;
+    setup_terminal(terminal, app)?;
 
     Ok(())
 }

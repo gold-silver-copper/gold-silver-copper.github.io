@@ -1,5 +1,9 @@
 use ratatui::{backend::ClearType, layout::Rect};
-use std::io::{Error as IoError, Result as IoResult};
+use std::{
+    cell::RefCell,
+    io::{Error as IoError, Result as IoResult},
+    rc::Rc,
+};
 
 use crate::{
     backend::{
@@ -35,6 +39,16 @@ const DEFAULT_CELL_HEIGHT: f64 = 19.0;
 /// Padding offset used by the canvas backend.
 const CANVAS_PADDING: f64 = 0.0;
 
+/// Mouse selection mode for the canvas backend.
+#[derive(Debug, Clone, Copy, Default, Eq, PartialEq)]
+pub enum SelectionMode {
+    /// Select text linearly, following text flow.
+    #[default]
+    Linear,
+    /// Select a rectangular block of cells.
+    Block,
+}
+
 /// Options for the [`CanvasBackend`].
 #[derive(Debug, Default)]
 pub struct CanvasBackendOptions {
@@ -47,6 +61,8 @@ pub struct CanvasBackendOptions {
     /// this option may cause some performance issues when dealing with large
     /// numbers of simultaneous changes.
     always_clip_cells: bool,
+    /// Optional mouse selection mode.
+    selection_mode: Option<SelectionMode>,
 }
 
 impl CanvasBackendOptions {
@@ -71,6 +87,80 @@ impl CanvasBackendOptions {
     pub fn always_clip_cells(mut self, always_clip_cells: bool) -> Self {
         self.always_clip_cells = always_clip_cells;
         self
+    }
+
+    /// Enable mouse selection with the default mode.
+    pub fn enable_mouse_selection(self) -> Self {
+        self.enable_mouse_selection_with_mode(SelectionMode::default())
+    }
+
+    /// Enable mouse selection with the provided mode.
+    pub fn enable_mouse_selection_with_mode(mut self, mode: SelectionMode) -> Self {
+        self.selection_mode = Some(mode);
+        self
+    }
+}
+
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+struct SelectionPoint {
+    col: u16,
+    row: u16,
+}
+
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+struct SelectionRange {
+    anchor: SelectionPoint,
+    focus: SelectionPoint,
+}
+
+#[derive(Debug, Default)]
+struct SelectionState {
+    active: Option<SelectionRange>,
+    drag_anchor: Option<SelectionPoint>,
+    dragging: bool,
+    pending_copy: bool,
+    revision: u64,
+}
+
+impl SelectionState {
+    fn bump(&mut self) {
+        self.revision = self.revision.wrapping_add(1);
+    }
+
+    fn begin(&mut self, point: SelectionPoint) {
+        self.drag_anchor = Some(point);
+        self.dragging = true;
+        self.pending_copy = false;
+        if self.active.take().is_some() {
+            self.bump();
+        }
+    }
+
+    fn update(&mut self, point: SelectionPoint) {
+        let Some(anchor) = self.drag_anchor else {
+            return;
+        };
+
+        let next = if anchor == point {
+            None
+        } else {
+            Some(SelectionRange {
+                anchor,
+                focus: point,
+            })
+        };
+
+        if self.active != next {
+            self.active = next;
+            self.bump();
+        }
+    }
+
+    fn finish(&mut self, point: SelectionPoint) {
+        self.update(point);
+        self.dragging = false;
+        self.drag_anchor = None;
+        self.pending_copy = self.active.is_some();
     }
 }
 
@@ -170,6 +260,12 @@ pub struct CanvasBackend {
     cursor_shape: CursorShape,
     /// Draw cell boundaries with specified color.
     debug_mode: Option<String>,
+    /// Mouse selection mode.
+    selection_mode: Option<SelectionMode>,
+    /// Mouse selection state shared with event handlers.
+    selection_state: Rc<RefCell<SelectionState>>,
+    /// Last observed selection state revision.
+    selection_revision: u64,
     /// Mouse event callback handler.
     mouse_callback: Option<MouseCallbackState>,
     /// Key event callback handler.
@@ -205,6 +301,105 @@ impl CanvasBackend {
     fn symbol_position(&self, x: usize, y: usize) -> (f64, f64) {
         let (left, top, _, _) = self.cell_rect(x, y);
         (left, top + self.text_baseline_offset)
+    }
+
+    fn selection_range(&self) -> Option<SelectionRange> {
+        self.selection_state.borrow().active
+    }
+
+    fn selection_revision(&self) -> u64 {
+        self.selection_state.borrow().revision
+    }
+
+    fn selection_row_bounds(
+        mode: SelectionMode,
+        range: SelectionRange,
+        row: usize,
+        width: usize,
+    ) -> Option<(usize, usize)> {
+        if width == 0 {
+            return None;
+        }
+
+        match mode {
+            SelectionMode::Linear => {
+                let (start, end) = if (range.anchor.row, range.anchor.col)
+                    <= (range.focus.row, range.focus.col)
+                {
+                    (range.anchor, range.focus)
+                } else {
+                    (range.focus, range.anchor)
+                };
+
+                if row < start.row as usize || row > end.row as usize {
+                    return None;
+                }
+
+                let start_col = if row == start.row as usize {
+                    start.col as usize
+                } else {
+                    0
+                };
+                let end_col = if row == end.row as usize {
+                    end.col as usize
+                } else {
+                    width.saturating_sub(1)
+                };
+
+                Some((start_col.min(width), end_col.saturating_add(1).min(width)))
+            }
+            SelectionMode::Block => {
+                let min_col = range.anchor.col.min(range.focus.col) as usize;
+                let max_col = range.anchor.col.max(range.focus.col) as usize;
+                let min_row = range.anchor.row.min(range.focus.row) as usize;
+                let max_row = range.anchor.row.max(range.focus.row) as usize;
+
+                if row < min_row || row > max_row {
+                    return None;
+                }
+
+                Some((min_col.min(width), max_col.saturating_add(1).min(width)))
+            }
+        }
+    }
+
+    fn selected_text(&self, range: SelectionRange) -> String {
+        let Some(mode) = self.selection_mode else {
+            return String::new();
+        };
+
+        let mut lines = Vec::new();
+        for (row_idx, row) in self.buffer.iter().enumerate() {
+            let Some((start, end)) = Self::selection_row_bounds(mode, range, row_idx, row.len()) else {
+                continue;
+            };
+
+            let mut line = String::new();
+            for cell in &row[start..end] {
+                line.push_str(cell.symbol());
+            }
+            while line.ends_with(' ') {
+                line.pop();
+            }
+            lines.push(line);
+        }
+
+        lines.join("\n")
+    }
+
+    fn copy_selection_to_clipboard(&self) {
+        let Some(range) = self.selection_range() else {
+            return;
+        };
+        let text = self.selected_text(range);
+        if text.is_empty() {
+            return;
+        }
+
+        if let Some(window) = web_sys::window() {
+            let clipboard = window.navigator().clipboard();
+            let _ = clipboard.write_text(&text);
+        }
     }
 
     fn measure_text_baseline(
@@ -413,6 +608,9 @@ impl CanvasBackend {
             cursor_position: None,
             cursor_shape: CursorShape::SteadyBlock,
             debug_mode: None,
+            selection_mode: options.selection_mode,
+            selection_state: Rc::new(RefCell::new(SelectionState::default())),
+            selection_revision: 0,
             mouse_callback: None,
             key_callback: None,
         })
@@ -469,6 +667,7 @@ impl CanvasBackend {
             .translate(CANVAS_PADDING, CANVAS_PADDING)?;
 
         self.draw_background()?;
+        self.draw_selection()?;
         self.draw_symbols()?;
         self.draw_cursor()?;
         if self.debug_mode.is_some() {
@@ -479,6 +678,40 @@ impl CanvasBackend {
             .frame_context
             .translate(-CANVAS_PADDING, -CANVAS_PADDING)?;
         self.present()?;
+        Ok(())
+    }
+
+    fn draw_selection(&mut self) -> Result<(), Error> {
+        let Some(mode) = self.selection_mode else {
+            return Ok(());
+        };
+        let Some(range) = self.selection_range() else {
+            return Ok(());
+        };
+
+        self.canvas.frame_context.save();
+        self.canvas
+            .frame_context
+            .set_fill_style_str("rgba(170, 190, 230, 0.24)");
+
+        for (row_idx, row) in self.buffer.iter().enumerate() {
+            let Some((start, end)) = Self::selection_row_bounds(mode, range, row_idx, row.len()) else {
+                continue;
+            };
+            if start >= end {
+                continue;
+            }
+
+            let start_x = (start as f64 * self.cell_width).floor();
+            let start_y = (row_idx as f64 * self.cell_height).floor();
+            let end_x = (end as f64 * self.cell_width).ceil();
+            let end_y = ((row_idx + 1) as f64 * self.cell_height).ceil();
+            self.canvas
+                .frame_context
+                .fill_rect(start_x, start_y, end_x - start_x, end_y - start_y);
+        }
+
+        self.canvas.frame_context.restore();
         Ok(())
     }
 
@@ -682,11 +915,26 @@ impl Backend for CanvasBackend {
     /// actually render the content to the screen.
     fn flush(&mut self) -> IoResult<()> {
         self.sync_canvas_size();
+        let selection_revision = self.selection_revision();
 
-        if !self.initialized || self.buffer != self.prev_buffer {
+        if !self.initialized
+            || self.buffer != self.prev_buffer
+            || self.selection_revision != selection_revision
+        {
             self.render_frame()?;
             self.prev_buffer = self.buffer.clone();
             self.initialized = true;
+            self.selection_revision = selection_revision;
+        }
+
+        let should_copy = {
+            let mut selection_state = self.selection_state.borrow_mut();
+            let should_copy = selection_state.pending_copy;
+            selection_state.pending_copy = false;
+            should_copy
+        };
+        if should_copy {
+            self.copy_selection_to_clipboard();
         }
 
         Ok(())
@@ -785,6 +1033,8 @@ impl WebEventHandler for CanvasBackend {
 
         let element: web_sys::Element = self.canvas.inner.clone().into();
         let element_for_closure = element.clone();
+        let selection_state = self.selection_state.clone();
+        let selection_mode = self.selection_mode;
 
         // Create mouse event callback
         let mouse_callback = EventCallback::new(
@@ -792,6 +1042,22 @@ impl WebEventHandler for CanvasBackend {
             MOUSE_EVENT_TYPES,
             move |event: web_sys::MouseEvent| {
                 let mouse_event = create_mouse_event(&event, &element_for_closure, &config);
+                if selection_mode.is_some() {
+                    let point = SelectionPoint {
+                        col: mouse_event.col,
+                        row: mouse_event.row,
+                    };
+                    let mut selection_state = selection_state.borrow_mut();
+                    match event.type_().as_str() {
+                        "mousedown" if event.button() == 0 => selection_state.begin(point),
+                        "mousemove" if selection_state.dragging => selection_state.update(point),
+                        "mouseup" if event.button() == 0 && selection_state.dragging => {
+                            selection_state.finish(point)
+                        }
+                        "mouseleave" if selection_state.dragging => selection_state.finish(point),
+                        _ => {}
+                    }
+                }
                 callback(mouse_event);
             },
         )?;
@@ -821,10 +1087,19 @@ impl WebEventHandler for CanvasBackend {
             .set_attribute("tabindex", "0")
             .map_err(Error::from)?;
 
+        let selection_state = self.selection_state.clone();
         self.key_callback = Some(EventCallback::new(
             element,
             KEY_EVENT_TYPES,
             move |event: web_sys::KeyboardEvent| {
+                let is_copy = (event.ctrl_key() || event.meta_key())
+                    && matches!(event.key().as_str(), "c" | "C");
+                if is_copy && selection_state.borrow().active.is_some() {
+                    event.prevent_default();
+                    let mut selection_state = selection_state.borrow_mut();
+                    selection_state.pending_copy = true;
+                    return;
+                }
                 callback(event.into());
             },
         )?);
