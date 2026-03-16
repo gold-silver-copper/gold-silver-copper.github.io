@@ -33,7 +33,7 @@ const DEFAULT_CELL_WIDTH: f64 = 10.0;
 const DEFAULT_CELL_HEIGHT: f64 = 19.0;
 
 /// Padding offset used by the canvas backend.
-const CANVAS_PADDING: f64 = 5.0;
+const CANVAS_PADDING: f64 = 0.0;
 
 /// Options for the [`CanvasBackend`].
 #[derive(Debug, Default)]
@@ -729,10 +729,7 @@ impl Backend for CanvasBackend {
 
     fn size(&self) -> IoResult<Size> {
         let (width, height) = self.canvas_grid_size();
-        Ok(Size::new(
-            width.saturating_sub(1) as u16,
-            height.saturating_sub(1) as u16,
-        ))
+        Ok(Size::new(width as u16, height as u16))
     }
 
     fn window_size(&mut self) -> IoResult<WindowSize> {
