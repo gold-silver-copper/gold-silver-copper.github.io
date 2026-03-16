@@ -1,0 +1,18 @@
+[package]
+name = "examples-shared"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+ratzilla.workspace = true
+web-sys = { workspace = true, features = [
+    "Window",
+    "Document",
+    "Element",
+    "HtmlElement",
+    "Location",
+    "Url",
+    "UrlSearchParams",
+] }
+wasm-bindgen.workspace = true
+web-time.workspace = true 

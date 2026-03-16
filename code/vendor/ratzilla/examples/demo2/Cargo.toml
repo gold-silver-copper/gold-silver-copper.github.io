@@ -1,0 +1,17 @@
+[package]
+name = "demo2"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+console_error_panic_hook.workspace = true
+indoc = "2.0.6"
+itertools = "0.14.0"
+palette.workspace = true
+rand = { workspace = true, features = ["small_rng"] }
+ratzilla.workspace = true
+strum = { version = "0.27.2", features = ["derive"] }
+time = "0.3.44"
+unicode-width = "0.2.0"
+examples-shared.workspace = true

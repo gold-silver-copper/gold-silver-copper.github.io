@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>🌊</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 0;
+        width: 100vw;
+        height: 100vh;
+        display: flex;
+        flex-direction: column;
+        background-color: #121212;
+        overflow: hidden; /* Prevent scrollbars */
+      }
+
+      h2 {
+        color: aqua;
+        align-self: center;
+        margin: 10px;
+        flex-shrink: 0; /* Prevent header from shrinking */
+      }
+
+      pre {
+        font-family: "Fira Code", monospace;
+        font-size: 16px;
+        margin: 0px;
+      }
+
+      #container {
+        flex: 1; /* Take all remaining space */
+        width: 100%;
+        position: relative; /* For absolute positioning of canvas if needed */
+        overflow: hidden; /* Prevent any overflow */
+      }
+
+      /* Ensure canvas fills the container */
+      #container canvas {
+        width: 100%;
+        height: 100%;
+        display: block; /* Remove any inline spacing */
+      }
+    </style>
+
+    <link
+        rel="rust"
+        href="Cargo.toml"
+        data-trunk
+        data-wasm-opt = "4"/>
+
+  </head>
+  <body>
+    <h2 style="color: aqua">Squeak that effect in a canvas container</h2>
+    <div id="container"></div>
+  </body>
+</html>
