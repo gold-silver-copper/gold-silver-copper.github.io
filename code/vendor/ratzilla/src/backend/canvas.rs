@@ -271,9 +271,13 @@ impl CanvasBackend {
 
     fn content_offset(&self) -> (f64, f64) {
         let (content_width, content_height) = self.content_draw_size();
-        let offset_x = ((self.canvas.inner.client_width() as f64 - content_width) / 2.0).max(0.0);
-        let offset_y =
-            ((self.canvas.inner.client_height() as f64 - content_height) / 2.0).max(0.0);
+        // Snap the centered origin to whole pixels so adjacent cell backgrounds
+        // share exact edges instead of landing on half-pixel seams.
+        let offset_x =
+            (((self.canvas.inner.client_width() as f64 - content_width) / 2.0).max(0.0)).round();
+        let offset_y = (((self.canvas.inner.client_height() as f64 - content_height) / 2.0)
+            .max(0.0))
+        .round();
         (offset_x, offset_y)
     }
 
