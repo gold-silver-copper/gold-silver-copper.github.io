@@ -427,8 +427,10 @@ impl CanvasBackend {
         let thick_stroke = (stroke * 1.6).round().max(stroke);
         let mid_x = left + ((width - stroke) / 2.0).floor();
         let mid_y = top + ((height - stroke) / 2.0).floor();
-        let half_w = (width / 2.0).ceil();
-        let half_h = (height / 2.0).ceil();
+        let left_w = (mid_x + stroke - left).max(1.0);
+        let right_w = (left + width - mid_x).max(1.0);
+        let up_h = (mid_y + stroke - top).max(1.0);
+        let down_h = (top + height - mid_y).max(1.0);
 
         let draw_h = |ctx: &web_sys::CanvasRenderingContext2d, x: f64, y: f64, w: f64, s: f64| {
             ctx.fill_rect(x, y, w.max(1.0), s.max(1.0));
@@ -446,45 +448,45 @@ impl CanvasBackend {
             '│' => draw_v(&self.canvas.frame_context, mid_x, top, height, stroke),
             '┃' => draw_v(&self.canvas.frame_context, mid_x, top, height, thick_stroke),
             '┌' | '╭' => {
-                draw_h(&self.canvas.frame_context, mid_x, mid_y, half_w, stroke);
-                draw_v(&self.canvas.frame_context, mid_x, mid_y, half_h, stroke);
+                draw_h(&self.canvas.frame_context, mid_x, mid_y, right_w, stroke);
+                draw_v(&self.canvas.frame_context, mid_x, mid_y, down_h, stroke);
             }
             '┐' | '╮' => {
-                draw_h(&self.canvas.frame_context, left, mid_y, half_w, stroke);
-                draw_v(&self.canvas.frame_context, mid_x, mid_y, half_h, stroke);
+                draw_h(&self.canvas.frame_context, left, mid_y, left_w, stroke);
+                draw_v(&self.canvas.frame_context, mid_x, mid_y, down_h, stroke);
             }
             '└' | '╰' => {
-                draw_h(&self.canvas.frame_context, mid_x, mid_y, half_w, stroke);
-                draw_v(&self.canvas.frame_context, mid_x, top, half_h, stroke);
+                draw_h(&self.canvas.frame_context, mid_x, mid_y, right_w, stroke);
+                draw_v(&self.canvas.frame_context, mid_x, top, up_h, stroke);
             }
             '┘' | '╯' => {
-                draw_h(&self.canvas.frame_context, left, mid_y, half_w, stroke);
-                draw_v(&self.canvas.frame_context, mid_x, top, half_h, stroke);
+                draw_h(&self.canvas.frame_context, left, mid_y, left_w, stroke);
+                draw_v(&self.canvas.frame_context, mid_x, top, up_h, stroke);
             }
             '├' => {
-                draw_h(&self.canvas.frame_context, mid_x, mid_y, half_w, stroke);
+                draw_h(&self.canvas.frame_context, mid_x, mid_y, right_w, stroke);
                 draw_v(&self.canvas.frame_context, mid_x, top, height, stroke);
             }
             '┤' => {
-                draw_h(&self.canvas.frame_context, left, mid_y, half_w, stroke);
+                draw_h(&self.canvas.frame_context, left, mid_y, left_w, stroke);
                 draw_v(&self.canvas.frame_context, mid_x, top, height, stroke);
             }
             '┬' => {
                 draw_h(&self.canvas.frame_context, left, mid_y, width, stroke);
-                draw_v(&self.canvas.frame_context, mid_x, mid_y, half_h, stroke);
+                draw_v(&self.canvas.frame_context, mid_x, mid_y, down_h, stroke);
             }
             '┴' => {
                 draw_h(&self.canvas.frame_context, left, mid_y, width, stroke);
-                draw_v(&self.canvas.frame_context, mid_x, top, half_h, stroke);
+                draw_v(&self.canvas.frame_context, mid_x, top, up_h, stroke);
             }
             '┼' => {
                 draw_h(&self.canvas.frame_context, left, mid_y, width, stroke);
                 draw_v(&self.canvas.frame_context, mid_x, top, height, stroke);
             }
-            '╴' => draw_h(&self.canvas.frame_context, left + half_w, mid_y, half_w, stroke),
-            '╶' => draw_h(&self.canvas.frame_context, left, mid_y, half_w, stroke),
-            '╵' => draw_v(&self.canvas.frame_context, mid_x, top + half_h, half_h, stroke),
-            '╷' => draw_v(&self.canvas.frame_context, mid_x, top, half_h, stroke),
+            '╴' => draw_h(&self.canvas.frame_context, mid_x, mid_y, right_w, stroke),
+            '╶' => draw_h(&self.canvas.frame_context, left, mid_y, left_w, stroke),
+            '╵' => draw_v(&self.canvas.frame_context, mid_x, mid_y, down_h, stroke),
+            '╷' => draw_v(&self.canvas.frame_context, mid_x, top, up_h, stroke),
             _ => {}
         }
     }
