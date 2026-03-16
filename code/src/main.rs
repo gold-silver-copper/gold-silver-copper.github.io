@@ -4808,6 +4808,13 @@ impl App {
         push_blank_line(&mut lines);
         let features = "• Interactive REPL with full Grift interpreter\n• Animated background and page transitions\n• Clickable tabs, links, and buttons\n• Mobile-first touch gesture support\n• Momentum scrolling and swipe navigation\n• Zero JavaScript frameworks — pure Rust + WASM";
         push_styled_multiline(&mut lines, features, Style::default().fg(BODY_TEXT_COLOR));
+        push_blank_line(&mut lines);
+        push_section(
+            &mut lines,
+            "── Unicode Sample ──",
+            "日本語: 端末でも自然に読めます。\n中文: 这一行用来测试 CJK 渲染。\n한국어: 캔버스에서도 또렷하게 보입니다.\nEmoji: 😀 🦀 ✨ 🚀 🌙",
+            SectionStyle::new(SILVER, BODY_TEXT_COLOR),
+        );
 
         let home_hint = if self.focus_mode == FocusMode::Focused {
             "Esc: unfocus │ ↑↓: scroll │ ←→: tabs"
