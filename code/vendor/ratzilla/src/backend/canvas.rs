@@ -25,7 +25,6 @@ use ratatui::{
     prelude::Backend,
     style::{Color, Modifier},
 };
-use unicode_width::UnicodeWidthStr;
 use web_sys::{
     js_sys::{Boolean, Map},
     wasm_bindgen::{JsCast, JsValue},
@@ -57,11 +56,6 @@ pub struct CanvasBackendOptions {
     grid_id: Option<String>,
     /// Override the automatically detected size.
     size: Option<(u32, u32)>,
-    /// Always clip foreground drawing to the cell rectangle. Helpful when
-    /// dealing with out-of-bounds rendering from problematic fonts. Enabling
-    /// this option may cause some performance issues when dealing with large
-    /// numbers of simultaneous changes.
-    always_clip_cells: bool,
     /// Optional mouse selection mode.
     selection_mode: Option<SelectionMode>,
 }
@@ -81,12 +75,6 @@ impl CanvasBackendOptions {
     /// Sets the size of the canvas, in pixels.
     pub fn size(mut self, size: (u32, u32)) -> Self {
         self.size = Some(size);
-        self
-    }
-
-    /// Always clip foreground drawing to the cell rectangle.
-    pub fn always_clip_cells(mut self, always_clip_cells: bool) -> Self {
-        self.always_clip_cells = always_clip_cells;
         self
     }
 
@@ -238,11 +226,6 @@ impl Canvas {
 pub struct CanvasBackend {
     /// Whether the canvas has been initialized.
     initialized: bool,
-    /// Always clip foreground drawing to the cell rectangle. Helpful when
-    /// dealing with out-of-bounds rendering from problematic fonts. Enabling
-    /// this option may cause some performance issues when dealing with large
-    /// numbers of simultaneous changes.
-    always_clip_cells: bool,
     /// Current buffer.
     buffer: Vec<Vec<Cell>>,
     /// Previous buffer.
@@ -288,27 +271,6 @@ impl CanvasBackend {
     fn symbol_position(&self, x: usize, y: usize) -> (f64, f64) {
         let (left, top, _, _) = self.cell_rect(x, y);
         (left, top + self.text_baseline_offset)
-    }
-
-    fn needs_cell_clip(&self, symbol: &str) -> bool {
-        if self.always_clip_cells {
-            return true;
-        }
-
-        if symbol.is_ascii() {
-            return false;
-        }
-
-        if symbol.width() > 1 || symbol.chars().count() > 1 {
-            return true;
-        }
-
-        self.canvas
-            .frame_context
-            .measure_text(symbol)
-            .ok()
-            .map(|metrics| metrics.width() > self.cell_width + 0.25)
-            .unwrap_or(false)
     }
 
     fn selection_range(&self) -> Option<SelectionRange> {
@@ -538,7 +500,6 @@ impl CanvasBackend {
         let buffer = get_sized_buffer_from_canvas(&canvas.inner, cell_size.0, cell_size.1);
         Ok(Self {
             prev_buffer: buffer.clone(),
-            always_clip_cells: options.always_clip_cells,
             buffer,
             initialized: false,
             canvas,
@@ -665,9 +626,7 @@ impl CanvasBackend {
     /// Rather than saving/restoring the canvas context for every cell (which would be expensive),
     /// this implementation:
     ///
-    /// 1. Tracks the last foreground color used to avoid unnecessary style changes.
-    /// 2. Only creates clipping paths for potentially problematic glyphs (non-ASCII)
-    ///    or when `always_clip_cells` is enabled.
+    /// Tracks the last foreground color used to avoid unnecessary style changes.
     fn draw_symbols(&mut self) -> Result<(), Error> {
         self.canvas.frame_context.save();
         let mut last_color = None;
@@ -678,27 +637,7 @@ impl CanvasBackend {
                 }
                 let color = actual_fg_color(cell);
 
-                // We need to reset the canvas context state in two scenarios:
-                // 1. When we need to create a clipping path (for potentially problematic glyphs)
-                // 2. When the text color changes
-                if self.needs_cell_clip(cell.symbol()) {
-                    self.canvas.frame_context.restore();
-                    self.canvas.frame_context.save();
-
-                    let (left, top, width, height) = self.cell_rect(x, y);
-                    self.canvas.frame_context.begin_path();
-                    self.canvas.frame_context.rect(
-                        left - 0.25,
-                        top - 0.25,
-                        width + 0.5,
-                        height + 0.5,
-                    );
-                    self.canvas.frame_context.clip();
-
-                    last_color = None; // reset last color to avoid clipping
-                    let color = get_canvas_color(color, Color::White);
-                    self.canvas.frame_context.set_fill_style_str(&color);
-                } else if last_color != Some(color) {
+                if last_color != Some(color) {
                     self.canvas.frame_context.restore();
                     self.canvas.frame_context.save();
 
