@@ -173,7 +173,7 @@ impl Canvas {
         canvas: &web_sys::HtmlCanvasElement,
     ) -> Result<web_sys::CanvasRenderingContext2d, Error> {
         let context_options = Map::new();
-        context_options.set(&JsValue::from_str("alpha"), &Boolean::from(JsValue::TRUE));
+        context_options.set(&JsValue::from_str("alpha"), &Boolean::from(JsValue::FALSE));
 
         canvas
             .get_context_with_context_options("2d", &context_options)?
@@ -187,6 +187,8 @@ impl Canvas {
         context.set_text_align("left");
         context.set_text_baseline("alphabetic");
         context.set_image_smoothing_enabled(false);
+        context.set_shadow_blur(0.0);
+        context.set_global_alpha(1.0);
     }
 
     /// Constructs a new [`Canvas`].
@@ -271,19 +273,6 @@ impl CanvasBackend {
     fn symbol_position(&self, x: usize, y: usize) -> (f64, f64) {
         let (left, top, _, _) = self.cell_rect(x, y);
         (left, top + self.text_baseline_offset)
-    }
-
-    fn needs_cell_clip(&self, symbol: &str) -> bool {
-        let Ok(metrics) = self.canvas.frame_context.measure_text(symbol) else {
-            return false;
-        };
-
-        let glyph_width =
-            metrics.actual_bounding_box_left() + metrics.actual_bounding_box_right();
-        let glyph_height =
-            metrics.actual_bounding_box_ascent() + metrics.actual_bounding_box_descent();
-
-        glyph_width > self.cell_width + 0.25 || glyph_height > self.cell_height + 0.25
     }
 
     fn selection_range(&self) -> Option<SelectionRange> {
@@ -641,7 +630,6 @@ impl CanvasBackend {
     ///
     /// Tracks the last foreground color used to avoid unnecessary style changes.
     ///
-    /// Glyphs are only clipped when their measured width or height exceeds the current cell.
     fn draw_symbols(&mut self) -> Result<(), Error> {
         self.canvas.frame_context.save();
         let mut last_color = None;
@@ -663,26 +651,9 @@ impl CanvasBackend {
                 }
 
                 let (text_x, text_y) = self.symbol_position(x, y);
-                if self.needs_cell_clip(cell.symbol()) {
-                    let (left, top, width, height) = self.cell_rect(x, y);
-                    self.canvas.frame_context.save();
-                    self.canvas.frame_context.begin_path();
-                    self.canvas.frame_context.rect(
-                        left - 0.25,
-                        top - 0.25,
-                        width + 0.5,
-                        height + 0.5,
-                    );
-                    self.canvas.frame_context.clip();
-                    self.canvas
-                        .frame_context
-                        .fill_text(cell.symbol(), text_x, text_y)?;
-                    self.canvas.frame_context.restore();
-                } else {
-                    self.canvas
-                        .frame_context
-                        .fill_text(cell.symbol(), text_x, text_y)?;
-                }
+                self.canvas
+                    .frame_context
+                    .fill_text(cell.symbol(), text_x, text_y)?;
             }
         }
         self.canvas.frame_context.restore();

@@ -115,14 +115,6 @@ function __wbg_get_imports() {
             const ret = arg0.actualBoundingBoxDescent;
             return ret;
         },
-        __wbg_actualBoundingBoxLeft_ce3e970d2a13c270: function(arg0) {
-            const ret = arg0.actualBoundingBoxLeft;
-            return ret;
-        },
-        __wbg_actualBoundingBoxRight_700aad4a2967687c: function(arg0) {
-            const ret = arg0.actualBoundingBoxRight;
-            return ret;
-        },
         __wbg_addEventListener_2d985aa8a656f6dc: function() { return handleError(function (arg0, arg1, arg2, arg3) {
             arg0.addEventListener(getStringFromWasm0(arg1, arg2), arg3);
         }, arguments); },
@@ -138,9 +130,6 @@ function __wbg_get_imports() {
             const ret = arg0.appendChild(arg1);
             return ret;
         }, arguments); },
-        __wbg_beginPath_596efed55075dbc3: function(arg0) {
-            arg0.beginPath();
-        },
         __wbg_body_5eb99e7257e5ae34: function(arg0) {
             const ret = arg0.body;
             return isLikeNone(ret) ? 0 : addToExternrefTable0(ret);
@@ -164,9 +153,6 @@ function __wbg_get_imports() {
         __wbg_clientY_6293e127369957bf: function(arg0) {
             const ret = arg0.clientY;
             return ret;
-        },
-        __wbg_clip_3112b0bb495d0e08: function(arg0) {
-            arg0.clip();
         },
         __wbg_clipboard_0285d75eacda5282: function(arg0) {
             const ret = arg0.clipboard;
@@ -320,9 +306,6 @@ function __wbg_get_imports() {
             const ret = arg0.push(arg1);
             return ret;
         },
-        __wbg_rect_9fb7070ab71d27aa: function(arg0, arg1, arg2, arg3, arg4) {
-            arg0.rect(arg1, arg2, arg3, arg4);
-        },
         __wbg_removeChild_dfd4207a6ece49c1: function() { return handleError(function (arg0, arg1) {
             const ret = arg0.removeChild(arg1);
             return ret;
@@ -357,6 +340,9 @@ function __wbg_get_imports() {
         __wbg_set_font_b038797b3573ae5e: function(arg0, arg1, arg2) {
             arg0.font = getStringFromWasm0(arg1, arg2);
         },
+        __wbg_set_globalAlpha_d51aa11e10f40cfc: function(arg0, arg1) {
+            arg0.globalAlpha = arg1;
+        },
         __wbg_set_globalCompositeOperation_ba0da38482e6aa11: function() { return handleError(function (arg0, arg1, arg2) {
             arg0.globalCompositeOperation = getStringFromWasm0(arg1, arg2);
         }, arguments); },
@@ -368,6 +354,9 @@ function __wbg_get_imports() {
         },
         __wbg_set_innerHTML_97039584c4ab4c83: function(arg0, arg1, arg2) {
             arg0.innerHTML = getStringFromWasm0(arg1, arg2);
+        },
+        __wbg_set_shadowBlur_ceb33c8cba323df6: function(arg0, arg1) {
+            arg0.shadowBlur = arg1;
         },
         __wbg_set_strokeStyle_a5baa9565d8b6485: function(arg0, arg1, arg2) {
             arg0.strokeStyle = getStringFromWasm0(arg1, arg2);
@@ -478,7 +467,7 @@ function __wbg_get_imports() {
     };
     return {
         __proto__: null,
-        "./grift-site-6a943d15572af4e_bg.js": import0,
+        "./grift-site-e5a681e46f272152_bg.js": import0,
     };
 }
 
@@ -779,7 +768,7 @@ async function __wbg_init(module_or_path) {
     }
 
     if (module_or_path === undefined) {
-        module_or_path = new URL('grift-site-6a943d15572af4e_bg.wasm', import.meta.url);
+        module_or_path = new URL('grift-site-e5a681e46f272152_bg.wasm', import.meta.url);
     }
     const imports = __wbg_get_imports();
 

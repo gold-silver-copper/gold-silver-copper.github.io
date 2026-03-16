@@ -289,6 +289,10 @@ pub(crate) fn create_canvas_in_element(
         .expect("Unable to cast canvas element");
     canvas.set_width(width);
     canvas.set_height(height);
+    canvas.set_attribute(
+        "style",
+        "display: block; width: 100%; height: 100%; touch-action: none; image-rendering: pixelated; image-rendering: crisp-edges; image-rendering: -moz-crisp-edges;",
+    )?;
 
     parent.append_child(&element)?;
 
