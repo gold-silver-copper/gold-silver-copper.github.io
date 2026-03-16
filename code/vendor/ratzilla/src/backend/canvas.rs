@@ -25,6 +25,7 @@ use ratatui::{
     prelude::Backend,
     style::{Color, Modifier},
 };
+use unicode_width::UnicodeWidthStr;
 use web_sys::{
     js_sys::{Boolean, Map},
     wasm_bindgen::{JsCast, JsValue},
@@ -287,6 +288,27 @@ impl CanvasBackend {
     fn symbol_position(&self, x: usize, y: usize) -> (f64, f64) {
         let (left, top, _, _) = self.cell_rect(x, y);
         (left, top + self.text_baseline_offset)
+    }
+
+    fn needs_cell_clip(&self, symbol: &str) -> bool {
+        if self.always_clip_cells {
+            return true;
+        }
+
+        if symbol.is_ascii() {
+            return false;
+        }
+
+        if symbol.width() > 1 || symbol.chars().count() > 1 {
+            return true;
+        }
+
+        self.canvas
+            .frame_context
+            .measure_text(symbol)
+            .ok()
+            .map(|metrics| metrics.width() > self.cell_width + 0.25)
+            .unwrap_or(false)
     }
 
     fn selection_range(&self) -> Option<SelectionRange> {
@@ -659,7 +681,7 @@ impl CanvasBackend {
                 // We need to reset the canvas context state in two scenarios:
                 // 1. When we need to create a clipping path (for potentially problematic glyphs)
                 // 2. When the text color changes
-                if self.always_clip_cells || !cell.symbol().is_ascii() {
+                if self.needs_cell_clip(cell.symbol()) {
                     self.canvas.frame_context.restore();
                     self.canvas.frame_context.save();
 
