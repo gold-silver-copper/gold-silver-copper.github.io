@@ -262,6 +262,21 @@ pub struct CanvasBackend {
 type MouseCallbackState = EventCallback<web_sys::MouseEvent>;
 
 impl CanvasBackend {
+    fn content_draw_size(&self) -> (f64, f64) {
+        let (grid_width, grid_height) = self.canvas_grid_size();
+        let width = (grid_width as f64 * self.cell_width).ceil();
+        let height = (grid_height as f64 * self.cell_height).ceil();
+        (width, height)
+    }
+
+    fn content_offset(&self) -> (f64, f64) {
+        let (content_width, content_height) = self.content_draw_size();
+        let offset_x = ((self.canvas.inner.client_width() as f64 - content_width) / 2.0).max(0.0);
+        let offset_y =
+            ((self.canvas.inner.client_height() as f64 - content_height) / 2.0).max(0.0);
+        (offset_x, offset_y)
+    }
+
     fn cell_rect(&self, x: usize, y: usize) -> (f64, f64, f64, f64) {
         let left = (x as f64 * self.cell_width).floor();
         let top = (y as f64 * self.cell_height).floor();
@@ -565,9 +580,10 @@ impl CanvasBackend {
             self.canvas.frame.width() as f64,
             self.canvas.frame.height() as f64,
         );
+        let (offset_x, offset_y) = self.content_offset();
         self.canvas
             .frame_context
-            .translate(CANVAS_PADDING, CANVAS_PADDING)?;
+            .translate(CANVAS_PADDING + offset_x, CANVAS_PADDING + offset_y)?;
 
         self.draw_background()?;
         self.draw_selection()?;
@@ -579,7 +595,7 @@ impl CanvasBackend {
 
         self.canvas
             .frame_context
-            .translate(-CANVAS_PADDING, -CANVAS_PADDING)?;
+            .translate(-(CANVAS_PADDING + offset_x), -(CANVAS_PADDING + offset_y))?;
         self.present()?;
         Ok(())
     }
@@ -894,7 +910,10 @@ impl WebEventHandler for CanvasBackend {
 
         // Configure coordinate translation for canvas backend
         let config = MouseConfig::new(grid_width, grid_height)
-            .with_offset(CANVAS_PADDING)
+            .with_offsets(
+                CANVAS_PADDING + self.content_offset().0,
+                CANVAS_PADDING + self.content_offset().1,
+            )
             .with_cell_dimensions(self.cell_width, self.cell_height);
 
         let element: web_sys::Element = self.canvas.inner.clone().into();
