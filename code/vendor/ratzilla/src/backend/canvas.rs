@@ -276,20 +276,6 @@ pub struct CanvasBackend {
 type MouseCallbackState = EventCallback<web_sys::MouseEvent>;
 
 impl CanvasBackend {
-    fn box_symbol_char(symbol: &str) -> Option<char> {
-        let mut chars = symbol.chars();
-        let ch = chars.next()?;
-        if chars.next().is_some() {
-            return None;
-        }
-
-        match ch {
-            '─' | '━' | '│' | '┃' | '┌' | '┐' | '└' | '┘' | '╭' | '╮' | '╰' | '╯' | '├'
-            | '┤' | '┬' | '┴' | '┼' | '╴' | '╶' | '╵' | '╷' => Some(ch),
-            _ => None,
-        }
-    }
-
     fn cell_rect(&self, x: usize, y: usize) -> (f64, f64, f64, f64) {
         let left = (x as f64 * self.cell_width).floor();
         let top = (y as f64 * self.cell_height).floor();
@@ -419,76 +405,6 @@ impl CanvasBackend {
             .unwrap_or(cell_height * 0.2);
 
         (ascent + ((cell_height - (ascent + descent)).max(0.0) / 2.0)).round()
-    }
-
-    fn draw_box_symbol(&self, ch: char, x: usize, y: usize, color: Color) {
-        let (left, top, width, height) = self.cell_rect(x, y);
-        let stroke = (self.cell_width.min(self.cell_height) * 0.14).round().max(1.0);
-        let thick_stroke = (stroke * 1.6).round().max(stroke);
-        let mid_x = left + ((width - stroke) / 2.0).floor();
-        let mid_y = top + ((height - stroke) / 2.0).floor();
-        let left_w = (mid_x + stroke - left).max(1.0);
-        let right_w = (left + width - mid_x).max(1.0);
-        let up_h = (mid_y + stroke - top).max(1.0);
-        let down_h = (top + height - mid_y).max(1.0);
-
-        let draw_h = |ctx: &web_sys::CanvasRenderingContext2d, x: f64, y: f64, w: f64, s: f64| {
-            ctx.fill_rect(x, y, w.max(1.0), s.max(1.0));
-        };
-        let draw_v = |ctx: &web_sys::CanvasRenderingContext2d, x: f64, y: f64, h: f64, s: f64| {
-            ctx.fill_rect(x, y, s.max(1.0), h.max(1.0));
-        };
-
-        let line_color = get_canvas_color(color, Color::White);
-        self.canvas.frame_context.set_fill_style_str(&line_color);
-
-        match ch {
-            '─' => draw_h(&self.canvas.frame_context, left, mid_y, width, stroke),
-            '━' => draw_h(&self.canvas.frame_context, left, mid_y, width, thick_stroke),
-            '│' => draw_v(&self.canvas.frame_context, mid_x, top, height, stroke),
-            '┃' => draw_v(&self.canvas.frame_context, mid_x, top, height, thick_stroke),
-            '┌' | '╭' => {
-                draw_h(&self.canvas.frame_context, mid_x, mid_y, right_w, stroke);
-                draw_v(&self.canvas.frame_context, mid_x, mid_y, down_h, stroke);
-            }
-            '┐' | '╮' => {
-                draw_h(&self.canvas.frame_context, left, mid_y, left_w, stroke);
-                draw_v(&self.canvas.frame_context, mid_x, mid_y, down_h, stroke);
-            }
-            '└' | '╰' => {
-                draw_h(&self.canvas.frame_context, mid_x, mid_y, right_w, stroke);
-                draw_v(&self.canvas.frame_context, mid_x, top, up_h, stroke);
-            }
-            '┘' | '╯' => {
-                draw_h(&self.canvas.frame_context, left, mid_y, left_w, stroke);
-                draw_v(&self.canvas.frame_context, mid_x, top, up_h, stroke);
-            }
-            '├' => {
-                draw_h(&self.canvas.frame_context, mid_x, mid_y, right_w, stroke);
-                draw_v(&self.canvas.frame_context, mid_x, top, height, stroke);
-            }
-            '┤' => {
-                draw_h(&self.canvas.frame_context, left, mid_y, left_w, stroke);
-                draw_v(&self.canvas.frame_context, mid_x, top, height, stroke);
-            }
-            '┬' => {
-                draw_h(&self.canvas.frame_context, left, mid_y, width, stroke);
-                draw_v(&self.canvas.frame_context, mid_x, mid_y, down_h, stroke);
-            }
-            '┴' => {
-                draw_h(&self.canvas.frame_context, left, mid_y, width, stroke);
-                draw_v(&self.canvas.frame_context, mid_x, top, up_h, stroke);
-            }
-            '┼' => {
-                draw_h(&self.canvas.frame_context, left, mid_y, width, stroke);
-                draw_v(&self.canvas.frame_context, mid_x, top, height, stroke);
-            }
-            '╴' => draw_h(&self.canvas.frame_context, mid_x, mid_y, right_w, stroke),
-            '╶' => draw_h(&self.canvas.frame_context, left, mid_y, left_w, stroke),
-            '╵' => draw_v(&self.canvas.frame_context, mid_x, mid_y, down_h, stroke),
-            '╷' => draw_v(&self.canvas.frame_context, mid_x, top, up_h, stroke),
-            _ => {}
-        }
     }
 
     fn present(&self) -> Result<(), Error> {
@@ -739,20 +655,6 @@ impl CanvasBackend {
                     continue;
                 }
                 let color = actual_fg_color(cell);
-
-                if let Some(ch) = Self::box_symbol_char(cell.symbol()) {
-                    if last_color != Some(color) {
-                        self.canvas.frame_context.restore();
-                        self.canvas.frame_context.save();
-                        last_color = Some(color);
-
-                        let color = get_canvas_color(color, Color::White);
-                        self.canvas.frame_context.set_fill_style_str(&color);
-                    }
-
-                    self.draw_box_symbol(ch, x, y, color);
-                    continue;
-                }
 
                 // We need to reset the canvas context state in two scenarios:
                 // 1. When we need to create a clipping path (for potentially problematic glyphs)
