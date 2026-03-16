@@ -15,10 +15,10 @@
     <link rel="apple-touch-icon" href="./icon-192.png">
     <link rel="stylesheet" href="./fonts/jetbrainsmono.css">
     <title>GRIFT.RS – Personal Website &amp; Grift Demo</title>
-    <link rel="stylesheet" href="/./style-6c82bfe5aa731795.css">
+    <link rel="stylesheet" href="/./style-112455fa917ec4e7.css">
   
-<link rel="preload" href="/./grift-site-e12a31416995cd48_bg.wasm" as="fetch" type="application/wasm" crossorigin="">
-<link rel="modulepreload" href="/./grift-site-e12a31416995cd48.js"></head>
+<link rel="preload" href="/./grift-site-855600dd306b0366_bg.wasm" as="fetch" type="application/wasm" crossorigin="">
+<link rel="modulepreload" href="/./grift-site-855600dd306b0366.js"></head>
   <body>
 
     <script>
@@ -42,6 +42,20 @@
       document.addEventListener('contextmenu', function(e) { e.preventDefault(); });
 
       var GriftApp = (function() {
+        function isMobilePhone() {
+          var ua = (navigator.userAgent || '').toLowerCase();
+          var isPhoneUa =
+            ua.indexOf('iphone') !== -1 ||
+            ua.indexOf('ipod') !== -1 ||
+            ua.indexOf('windows phone') !== -1 ||
+            ua.indexOf('iemobile') !== -1 ||
+            ua.indexOf('opera mini') !== -1 ||
+            ua.indexOf('blackberry') !== -1 ||
+            ua.indexOf('bb10') !== -1 ||
+            (ua.indexOf('android') !== -1 && ua.indexOf('mobile') !== -1);
+
+          return isPhoneUa && ua.indexOf('ipad') === -1 && ua.indexOf('tablet') === -1;
+        }
 
         // ── Configuration ──────────────────────────────────────────────
         var CFG = {
@@ -57,12 +71,18 @@
         };
 
         // ── Canvas accessor (lazily cached, reset on resize) ───────────
-        var _canvas = null;
+        var _terminalElement = null;
         function canvas() {
-          if (!_canvas) _canvas = document.querySelector('canvas') || document.querySelector('.ratzilla');
-          return _canvas;
+          if (!_terminalElement) {
+            _terminalElement =
+              document.querySelector('canvas') ||
+              document.querySelector('.ratzilla') ||
+              document.getElementById('grid') ||
+              document.querySelector('[id$="_ratzilla_grid"]');
+          }
+          return _terminalElement;
         }
-        function resetCanvas() { _canvas = null; }
+        function resetCanvas() { _terminalElement = null; }
 
         // ── Dispatch helpers ───────────────────────────────────────────
         function dispatch(key) {
@@ -252,14 +272,18 @@
         function fitCanvas() {
           var c = canvas();
           if (!c) return;
+          if ((c.tagName || '').toUpperCase() !== 'CANVAS') return;
           var w = document.body.clientWidth;
           var h = document.body.clientHeight;
           if (w <= 0 || h <= 0) return;
-          var dpr = window.devicePixelRatio || 1;
           c.style.width  = w + 'px';
           c.style.height = h + 'px';
-          var bw = Math.round(w * dpr);
-          var bh = Math.round(h * dpr);
+
+          // CanvasBackend on phones should use CSS pixels for the backing
+          // store; the WebGL DPR path makes the terminal visually shrink.
+          var usesCanvasBackend = isMobilePhone();
+          var bw = usesCanvasBackend ? Math.round(w) : Math.round(w * (window.devicePixelRatio || 1));
+          var bh = usesCanvasBackend ? Math.round(h) : Math.round(h * (window.devicePixelRatio || 1));
           if (c.width !== bw || c.height !== bh) {
             c.width  = bw;
             c.height = bh;
@@ -267,7 +291,13 @@
         }
 
         window.addEventListener('resize', fitCanvas);
-        setInterval(fitCanvas, 1000);
+        if (window.visualViewport) {
+          window.visualViewport.addEventListener('resize', fitCanvas);
+        }
+        if (!isMobilePhone()) {
+          setInterval(fitCanvas, 1000);
+        }
+        fitCanvas();
 
         // ── Paste support (dispatches pasted text as key events) ───────
         document.addEventListener('paste', function(e) {
@@ -285,9 +315,20 @@
 
       // ── Service Worker registration ────────────────────────────────
       if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('./sw.js').catch(function() {});
+        var hostname = window.location.hostname || '';
+        var isProductionHost = hostname === 'grift.rs' || hostname === 'www.grift.rs';
+
+        if (isProductionHost) {
+          navigator.serviceWorker.register('./sw.js').catch(function() {});
+        } else {
+          navigator.serviceWorker.getRegistrations().then(function(registrations) {
+            registrations.forEach(function(registration) {
+              registration.unregister();
+            });
+          }).catch(function() {});
+        }
       }
     </script>
   
 
-<script type="module">import init from '/./grift-site-e12a31416995cd48.js';init('/./grift-site-e12a31416995cd48_bg.wasm');</script></body></html>
+<script type="module">import init from '/./grift-site-855600dd306b0366.js';init('/./grift-site-855600dd306b0366_bg.wasm');</script></body></html>
