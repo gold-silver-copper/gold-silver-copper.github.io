@@ -17,8 +17,8 @@
     <title>GRIFT.RS – Personal Website &amp; Grift Demo</title>
     <link rel="stylesheet" href="/./style-112455fa917ec4e7.css">
   
-<link rel="preload" href="/./grift-site-855600dd306b0366_bg.wasm" as="fetch" type="application/wasm" crossorigin="">
-<link rel="modulepreload" href="/./grift-site-855600dd306b0366.js"></head>
+<link rel="preload" href="/./grift-site-148a4225c27ff2ab_bg.wasm" as="fetch" type="application/wasm" crossorigin="">
+<link rel="modulepreload" href="/./grift-site-148a4225c27ff2ab.js"></head>
   <body>
 
     <script>
@@ -279,11 +279,8 @@
           c.style.width  = w + 'px';
           c.style.height = h + 'px';
 
-          // CanvasBackend on phones should use CSS pixels for the backing
-          // store; the WebGL DPR path makes the terminal visually shrink.
-          var usesCanvasBackend = isMobilePhone();
-          var bw = usesCanvasBackend ? Math.round(w) : Math.round(w * (window.devicePixelRatio || 1));
-          var bh = usesCanvasBackend ? Math.round(h) : Math.round(h * (window.devicePixelRatio || 1));
+          var bw = Math.round(w);
+          var bh = Math.round(h);
           if (c.width !== bw || c.height !== bh) {
             c.width  = bw;
             c.height = bh;
@@ -293,9 +290,6 @@
         window.addEventListener('resize', fitCanvas);
         if (window.visualViewport) {
           window.visualViewport.addEventListener('resize', fitCanvas);
-        }
-        if (!isMobilePhone()) {
-          setInterval(fitCanvas, 1000);
         }
         fitCanvas();
 
@@ -331,4 +325,4 @@
     </script>
   
 
-<script type="module">import init from '/./grift-site-855600dd306b0366.js';init('/./grift-site-855600dd306b0366_bg.wasm');</script></body></html>
+<script type="module">import init from '/./grift-site-148a4225c27ff2ab.js';init('/./grift-site-148a4225c27ff2ab_bg.wasm');</script></body></html>
