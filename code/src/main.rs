@@ -4759,6 +4759,11 @@ impl App {
     fn render_home(&mut self, frame: &mut Frame, area: Rect) {
         let mut lines: Vec<Line> = Vec::new();
 
+        lines.push(Line::styled(
+            "Version: v0.1",
+            Style::default().fg(SILVER).bold(),
+        ));
+        push_blank_line(&mut lines);
         push_section(
             &mut lines,
             "── Grift ──",
