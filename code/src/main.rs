@@ -4760,7 +4760,7 @@ impl App {
         let mut lines: Vec<Line> = Vec::new();
 
         lines.push(Line::styled(
-            "Version: v0.1",
+            "Version: v0.2",
             Style::default().fg(SILVER).bold(),
         ));
         push_blank_line(&mut lines);
