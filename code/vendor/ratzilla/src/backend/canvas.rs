@@ -4,7 +4,6 @@ use std::{
     io::{Error as IoError, Result as IoResult},
     rc::Rc,
 };
-use unicode_width::UnicodeWidthStr;
 
 use crate::{
     backend::{
@@ -27,7 +26,7 @@ use ratatui::{
     style::{Color, Modifier},
 };
 use web_sys::{
-    js_sys::{Boolean, Map, Reflect},
+    js_sys::{Boolean, Map},
     wasm_bindgen::{JsCast, JsValue},
 };
 
@@ -190,22 +189,6 @@ impl Canvas {
         context.set_image_smoothing_enabled(false);
         context.set_shadow_blur(0.0);
         context.set_global_alpha(1.0);
-        let context_js: &JsValue = context.as_ref();
-        let _ = Reflect::set(
-            context_js,
-            &JsValue::from_str("fontKerning"),
-            &JsValue::from_str("none"),
-        );
-        let _ = Reflect::set(
-            context_js,
-            &JsValue::from_str("textRendering"),
-            &JsValue::from_str("optimizeSpeed"),
-        );
-        let _ = Reflect::set(
-            context_js,
-            &JsValue::from_str("filter"),
-            &JsValue::from_str("none"),
-        );
     }
 
     /// Constructs a new [`Canvas`].
@@ -279,10 +262,6 @@ pub struct CanvasBackend {
 type MouseCallbackState = EventCallback<web_sys::MouseEvent>;
 
 impl CanvasBackend {
-    fn is_simple_text_symbol(symbol: &str) -> bool {
-        UnicodeWidthStr::width(symbol) == 1 && symbol.chars().count() == 1
-    }
-
     fn content_draw_size(&self) -> (f64, f64) {
         let (grid_width, grid_height) = self.canvas_grid_size();
         let width = (grid_width as f64 * self.cell_width).ceil();
@@ -433,18 +412,6 @@ impl CanvasBackend {
         (ascent + ((cell_height - (ascent + descent)).max(0.0) / 2.0)).round()
     }
 
-    fn measure_canvas_cell_width(
-        context: &web_sys::CanvasRenderingContext2d,
-        fallback_width: f64,
-    ) -> f64 {
-        context
-            .measure_text("M")
-            .ok()
-            .map(|metrics| metrics.width())
-            .filter(|width| *width > 0.0)
-            .unwrap_or(fallback_width)
-    }
-
     fn present(&self) -> Result<(), Error> {
         self.canvas.display_context.save();
         self.canvas
@@ -543,26 +510,22 @@ impl CanvasBackend {
     pub fn new_with_options(options: CanvasBackendOptions) -> Result<Self, Error> {
         // Parent element of canvas (uses <body> unless specified)
         let parent = get_element_by_id_or_body(options.grid_id.as_ref())?;
-        let measurement_parent = parent.clone();
 
         let (width, height) = options
             .size
             .unwrap_or_else(|| (parent.client_width() as u32, parent.client_height() as u32));
 
-        let fallback_cell_size = Self::measure_cell_size(&measurement_parent)?;
+        let cell_size = Self::measure_cell_size(&parent)?;
         let canvas = Canvas::new(parent, width, height, Color::Black)?;
-        let cell_width =
-            Self::measure_canvas_cell_width(&canvas.frame_context, fallback_cell_size.0);
-        let cell_height = fallback_cell_size.1;
-        let text_baseline_offset = Self::measure_text_baseline(&canvas.frame_context, cell_height);
-        let buffer = get_sized_buffer_from_canvas(&canvas.inner, cell_width, cell_height);
+        let text_baseline_offset = Self::measure_text_baseline(&canvas.frame_context, cell_size.1);
+        let buffer = get_sized_buffer_from_canvas(&canvas.inner, cell_size.0, cell_size.1);
         Ok(Self {
             prev_buffer: buffer.clone(),
             buffer,
             initialized: false,
             canvas,
-            cell_width,
-            cell_height,
+            cell_width: cell_size.0,
+            cell_height: cell_size.1,
             text_baseline_offset,
             cursor_position: None,
             cursor_shape: CursorShape::SteadyBlock,
@@ -691,11 +654,8 @@ impl CanvasBackend {
         self.canvas.frame_context.save();
         let mut last_color = None;
         for (y, line) in self.buffer.iter().enumerate() {
-            let mut x = 0;
-            while x < line.len() {
-                let cell = &line[x];
+            for (x, cell) in line.iter().enumerate() {
                 if cell.symbol() == " " {
-                    x += 1;
                     continue;
                 }
                 let color = actual_fg_color(cell);
@@ -711,31 +671,9 @@ impl CanvasBackend {
                 }
 
                 let (text_x, text_y) = self.symbol_position(x, y);
-                if Self::is_simple_text_symbol(cell.symbol()) {
-                    let mut run = String::new();
-                    run.push_str(cell.symbol());
-                    let mut next_x = x + 1;
-
-                    while next_x < line.len() {
-                        let next_cell = &line[next_x];
-                        if next_cell.symbol() == " "
-                            || actual_fg_color(next_cell) != color
-                            || !Self::is_simple_text_symbol(next_cell.symbol())
-                        {
-                            break;
-                        }
-                        run.push_str(next_cell.symbol());
-                        next_x += 1;
-                    }
-
-                    self.canvas.frame_context.fill_text(&run, text_x, text_y)?;
-                    x = next_x;
-                } else {
-                    self.canvas
-                        .frame_context
-                        .fill_text(cell.symbol(), text_x, text_y)?;
-                    x += 1;
-                }
+                self.canvas
+                    .frame_context
+                    .fill_text(cell.symbol(), text_x, text_y)?;
             }
         }
         self.canvas.frame_context.restore();
