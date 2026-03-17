@@ -112,6 +112,7 @@
           zone:       'content',
           startX:     0,  startY:     0,
           lastX:      0,  lastY:      0,
+          lastClientX: 0, lastClientY: 0,
           lastTime:   0,
           velocityY:  0,
           momentumId: null,
@@ -119,6 +120,13 @@
           lastTapX:      0,
           lastTapY:      0,
           isDoubleTap:   false,
+
+          updatePoint: function(touch) {
+            this.lastX = touch.screenX;
+            this.lastY = touch.screenY;
+            this.lastClientX = touch.clientX;
+            this.lastClientY = touch.clientY;
+          },
 
           begin: function(touch) {
             var now = Date.now();
@@ -131,8 +139,7 @@
             this.zone     = zone(touch.clientY);
             this.startX   = touch.screenX;
             this.startY   = touch.screenY;
-            this.lastX    = touch.screenX;
-            this.lastY    = touch.screenY;
+            this.updatePoint(touch);
             this.lastTime = now;
             this.velocityY = 0;
             this.cancelMomentum();
@@ -150,6 +157,7 @@
             var dt  = now - this.lastTime;
             var dx  = sx - this.lastX;
             var dy  = sy - this.lastY;
+            this.updatePoint(touch);
 
             if (this.state === 'TOUCHING') {
               var totalDx = sx - this.startX;
@@ -169,13 +177,11 @@
               if (this.zone === 'tabs') {
                 if (Math.abs(dx) > CFG.SCROLL_STEP) {
                   dispatch(dx > 0 ? 'ArrowLeft' : 'ArrowRight');
-                  this.lastX = sx;
                   this.lastTime = now;
                 }
               } else {
                 if (Math.abs(dy) > CFG.SCROLL_STEP) {
                   dispatch(dy > 0 ? 'ArrowUp' : 'ArrowDown');
-                  this.lastY = sy;
                   this.lastTime = now;
                 }
               }
@@ -184,14 +190,15 @@
 
           end: function(touch) {
             var wasTap = (this.state === 'TOUCHING');
+            this.updatePoint(touch);
 
             if (this.state === 'DOUBLE_TAP_DRAGGING') {
-              emitMouse('mouseup', touch.clientX, touch.clientY);
+              emitMouse('mouseup', this.lastClientX, this.lastClientY);
             } else if (wasTap && this.isDoubleTap) {
-              emitMouse('mouseup', touch.clientX, touch.clientY);
+              emitMouse('mouseup', this.lastClientX, this.lastClientY);
             } else if (wasTap) {
-              emitMouse('mousedown', touch.clientX, touch.clientY);
-              emitMouse('mouseup',   touch.clientX, touch.clientY);
+              emitMouse('mousedown', this.lastClientX, this.lastClientY);
+              emitMouse('mouseup',   this.lastClientX, this.lastClientY);
             } else if (this.zone === 'content') {
               var dx = touch.screenX - this.startX;
               var dy = touch.screenY - this.startY;
@@ -214,7 +221,7 @@
 
           cancel: function() {
             if (this.state === 'DOUBLE_TAP_DRAGGING' || (this.state === 'TOUCHING' && this.isDoubleTap)) {
-              emitMouse('mouseup', this.lastX, this.lastY);
+              emitMouse('mouseup', this.lastClientX, this.lastClientY);
             }
             this.state = 'IDLE';
             this.isDoubleTap = false;
