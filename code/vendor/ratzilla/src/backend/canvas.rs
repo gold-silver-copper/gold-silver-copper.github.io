@@ -7,6 +7,7 @@ use std::{
 
 use crate::{
     backend::{
+        cell_sized::CellSized,
         color::{actual_bg_color, actual_fg_color},
         event_callback::{
             create_mouse_event, EventCallback, MouseConfig, KEY_EVENT_TYPES, MOUSE_EVENT_TYPES,
@@ -760,6 +761,16 @@ impl CanvasBackend {
         self.canvas.frame_context.restore();
 
         Ok(())
+    }
+}
+
+impl CellSized for CanvasBackend {
+    fn cell_size_px(&self) -> (f32, f32) {
+        (self.cell_width as f32, self.cell_height as f32)
+    }
+
+    fn cell_size_css_px(&self) -> (f32, f32) {
+        (self.cell_width as f32, self.cell_height as f32)
     }
 }
 
