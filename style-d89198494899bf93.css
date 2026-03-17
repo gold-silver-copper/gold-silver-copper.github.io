@@ -26,47 +26,8 @@ body {
   top: 0;
   left: 0;
   right: 0;
-  bottom: calc(44px + env(safe-area-inset-bottom, 0px));
-  overflow: hidden;
-}
-
-#renderer-switcher {
-  position: fixed;
-  left: 0;
-  right: 0;
   bottom: 0;
-  height: 44px;
-  padding: 6px 10px calc(6px + env(safe-area-inset-bottom, 0px));
-  display: flex;
-  justify-content: center;
-  gap: 8px;
-  background: rgba(8, 9, 14, 0.92);
-  border-top: 1px solid rgba(110, 116, 133, 0.35);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  box-sizing: content-box;
-  z-index: 20;
-  touch-action: manipulation;
-}
-
-.renderer-btn {
-  appearance: none;
-  border: 1px solid rgba(110, 116, 133, 0.45);
-  background: #141821;
-  color: #cfd5e2;
-  font: 12px/1 'JetBrains Mono', monospace;
-  padding: 0 12px;
-  border-radius: 999px;
-  cursor: pointer;
-  min-width: 64px;
-  height: 32px;
-  touch-action: manipulation;
-}
-
-.renderer-btn[data-active="true"] {
-  background: #d0d4de;
-  color: #0b0d12;
-  border-color: #d0d4de;
+  overflow: hidden;
 }
 
 canvas,

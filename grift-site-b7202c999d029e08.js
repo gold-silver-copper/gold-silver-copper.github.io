@@ -166,6 +166,10 @@ function __wbg_get_imports() {
             const ret = arg0.appendChild(arg1);
             return ret;
         }, arguments); },
+        __wbg_apply_ac9afb97ca32f169: function() { return handleError(function (arg0, arg1, arg2) {
+            const ret = arg0.apply(arg1, arg2);
+            return ret;
+        }, arguments); },
         __wbg_attachShader_6426e8576a115345: function(arg0, arg1, arg2) {
             arg0.attachShader(arg1, arg2);
         },
@@ -503,6 +507,10 @@ function __wbg_get_imports() {
             const ret = arg0.getUniformLocation(arg1, getStringFromWasm0(arg2, arg3));
             return isLikeNone(ret) ? 0 : addToExternrefTable0(ret);
         },
+        __wbg_get_3ef1eba1850ade27: function() { return handleError(function (arg0, arg1) {
+            const ret = Reflect.get(arg0, arg1);
+            return ret;
+        }, arguments); },
         __wbg_get_unchecked_329cfe50afab7352: function(arg0, arg1) {
             const ret = arg0[arg1 >>> 0];
             return ret;
@@ -661,6 +669,10 @@ function __wbg_get_imports() {
             const ret = new OffscreenCanvas(arg0 >>> 0, arg1 >>> 0);
             return ret;
         }, arguments); },
+        __wbg_new_typed_bccac67128ed885a: function() {
+            const ret = new Array();
+            return ret;
+        },
         __wbg_now_16f0c993d5dd6c27: function() {
             const ret = Date.now();
             return ret;
@@ -944,12 +956,12 @@ function __wbg_get_imports() {
             return ret;
         },
         __wbindgen_cast_0000000000000002: function(arg0, arg1) {
-            // Cast intrinsic for `Closure(Closure { dtor_idx: 1596, function: Function { arguments: [NamedExternref("MouseEvent")], shim_idx: 1597, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
+            // Cast intrinsic for `Closure(Closure { dtor_idx: 1577, function: Function { arguments: [NamedExternref("MouseEvent")], shim_idx: 1578, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
             const ret = makeMutClosure(arg0, arg1, wasm.wasm_bindgen_8ee012737bf01801___closure__destroy___dyn_core_bb45b5b7376bf36e___ops__function__FnMut__web_sys_c76e56c378a7e919___features__gen_MouseEvent__MouseEvent____Output_______, wasm_bindgen_8ee012737bf01801___convert__closures_____invoke___web_sys_c76e56c378a7e919___features__gen_MouseEvent__MouseEvent______true_);
             return ret;
         },
         __wbindgen_cast_0000000000000003: function(arg0, arg1) {
-            // Cast intrinsic for `Closure(Closure { dtor_idx: 1596, function: Function { arguments: [NamedExternref("WebGLContextEvent")], shim_idx: 1597, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
+            // Cast intrinsic for `Closure(Closure { dtor_idx: 1577, function: Function { arguments: [NamedExternref("WebGLContextEvent")], shim_idx: 1578, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
             const ret = makeMutClosure(arg0, arg1, wasm.wasm_bindgen_8ee012737bf01801___closure__destroy___dyn_core_bb45b5b7376bf36e___ops__function__FnMut__web_sys_c76e56c378a7e919___features__gen_MouseEvent__MouseEvent____Output_______, wasm_bindgen_8ee012737bf01801___convert__closures_____invoke___web_sys_c76e56c378a7e919___features__gen_MouseEvent__MouseEvent______true__2);
             return ret;
         },
@@ -959,12 +971,12 @@ function __wbg_get_imports() {
             return ret;
         },
         __wbindgen_cast_0000000000000005: function(arg0, arg1) {
-            // Cast intrinsic for `Closure(Closure { dtor_idx: 306, function: Function { arguments: [NamedExternref("KeyboardEvent")], shim_idx: 307, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
+            // Cast intrinsic for `Closure(Closure { dtor_idx: 93, function: Function { arguments: [NamedExternref("KeyboardEvent")], shim_idx: 94, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
             const ret = makeMutClosure(arg0, arg1, wasm.wasm_bindgen_8ee012737bf01801___closure__destroy___dyn_core_bb45b5b7376bf36e___ops__function__FnMut__web_sys_c76e56c378a7e919___features__gen_KeyboardEvent__KeyboardEvent____Output_______, wasm_bindgen_8ee012737bf01801___convert__closures_____invoke___web_sys_c76e56c378a7e919___features__gen_KeyboardEvent__KeyboardEvent______true_);
             return ret;
         },
         __wbindgen_cast_0000000000000006: function(arg0, arg1) {
-            // Cast intrinsic for `Closure(Closure { dtor_idx: 306, function: Function { arguments: [], shim_idx: 309, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
+            // Cast intrinsic for `Closure(Closure { dtor_idx: 93, function: Function { arguments: [], shim_idx: 96, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
             const ret = makeMutClosure(arg0, arg1, wasm.wasm_bindgen_8ee012737bf01801___closure__destroy___dyn_core_bb45b5b7376bf36e___ops__function__FnMut__web_sys_c76e56c378a7e919___features__gen_KeyboardEvent__KeyboardEvent____Output_______, wasm_bindgen_8ee012737bf01801___convert__closures_____invoke_______true_);
             return ret;
         },
@@ -1025,7 +1037,7 @@ function __wbg_get_imports() {
     };
     return {
         __proto__: null,
-        "./grift-site-8ab891a6bce86fb2_bg.js": import0,
+        "./grift-site-b7202c999d029e08_bg.js": import0,
     };
 }
 
@@ -1443,7 +1455,7 @@ async function __wbg_init(module_or_path) {
     }
 
     if (module_or_path === undefined) {
-        module_or_path = new URL('grift-site-8ab891a6bce86fb2_bg.wasm', import.meta.url);
+        module_or_path = new URL('grift-site-b7202c999d029e08_bg.wasm', import.meta.url);
     }
     const imports = __wbg_get_imports();
 

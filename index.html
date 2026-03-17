@@ -15,17 +15,12 @@
     <link rel="apple-touch-icon" href="./icon-192.png">
     <link rel="stylesheet" href="./fonts/jetbrainsmono.css">
     <title>GRIFT.RS – Personal Website &amp; Grift Demo</title>
-    <link rel="stylesheet" href="/./style-7c87e8deddfb9d4d.css">
+    <link rel="stylesheet" href="/./style-d89198494899bf93.css">
   
-<link rel="preload" href="/./grift-site-8ab891a6bce86fb2_bg.wasm" as="fetch" type="application/wasm" crossorigin="">
-<link rel="modulepreload" href="/./grift-site-8ab891a6bce86fb2.js"></head>
+<link rel="preload" href="/./grift-site-b7202c999d029e08_bg.wasm" as="fetch" type="application/wasm" crossorigin="">
+<link rel="modulepreload" href="/./grift-site-b7202c999d029e08.js"></head>
   <body>
     <div id="app-root"></div>
-    <div id="renderer-switcher" aria-label="Renderer switcher">
-      <button class="renderer-btn" data-renderer="dom" type="button">DOM</button>
-      <button class="renderer-btn" data-renderer="canvas" type="button">Canvas</button>
-      <button class="renderer-btn" data-renderer="webgl" type="button">WebGL</button>
-    </div>
 
     <script>
       // ═══════════════════════════════════════════════════════════════════
@@ -54,10 +49,6 @@
           return document.getElementById('app-root') || document.body;
         }
 
-        function rendererSwitcher() {
-          return document.getElementById('renderer-switcher');
-        }
-
         function getRendererPreference() {
           try {
             var value = window.localStorage.getItem(STORAGE_KEY);
@@ -74,17 +65,9 @@
           } catch (_) {}
         }
 
-        function syncRendererButtons() {
-          var active = getRendererPreference();
-          var buttons = document.querySelectorAll('.renderer-btn[data-renderer]');
-          for (var i = 0; i < buttons.length; i++) {
-            buttons[i].setAttribute('data-active', buttons[i].getAttribute('data-renderer') === active ? 'true' : 'false');
-          }
-        }
-
-        function isControlTarget(target) {
-          var switcher = rendererSwitcher();
-          return !!(switcher && target && switcher.contains(target));
+        function setRendererAndReload(renderer) {
+          setRendererPreference(renderer);
+          window.location.reload();
         }
 
         // ── Configuration ──────────────────────────────────────────────
@@ -278,17 +261,14 @@
 
         // ── Touch event wiring ─────────────────────────────────────────
         document.addEventListener('touchstart', function(e) {
-          if (isControlTarget(e.target)) return;
           gesture.begin(e.changedTouches[0]);
         }, { passive: true });
 
         document.addEventListener('touchmove', function(e) {
-          if (isControlTarget(e.target)) return;
           gesture.move(e.changedTouches[0]);
         }, { passive: true });
 
         document.addEventListener('touchend', function(e) {
-          if (isControlTarget(e.target)) return;
           gesture.end(e.changedTouches[0]);
           var now = Date.now();
           if (now - gesture.lastTapTime < CFG.DOUBLE_TAP_MS) e.preventDefault();
@@ -333,18 +313,6 @@
         }
         fitCanvas();
 
-        document.addEventListener('click', function(e) {
-          var button = e.target && e.target.closest ? e.target.closest('.renderer-btn[data-renderer]') : null;
-          if (!button) return;
-          var renderer = button.getAttribute('data-renderer');
-          if (!renderer) return;
-          setRendererPreference(renderer);
-          syncRendererButtons();
-          window.location.reload();
-        });
-
-        syncRendererButtons();
-
         // ── Paste support (dispatches pasted text as key events) ───────
         document.addEventListener('paste', function(e) {
           e.preventDefault();
@@ -365,9 +333,13 @@
           CFG: CFG,
           getRendererPreference: getRendererPreference,
           setRendererPreference: setRendererPreference,
-          syncRendererButtons: syncRendererButtons
+          setRendererAndReload: setRendererAndReload
         };
       })();
+
+      window.griftSetRendererAndReload = function(renderer) {
+        GriftApp.setRendererAndReload(renderer);
+      };
 
       // ── Service Worker registration ────────────────────────────────
       if ('serviceWorker' in navigator) {
@@ -387,4 +359,4 @@
     </script>
   
 
-<script type="module">import init from '/./grift-site-8ab891a6bce86fb2.js';init('/./grift-site-8ab891a6bce86fb2_bg.wasm');</script></body></html>
+<script type="module">import init from '/./grift-site-b7202c999d029e08.js';init('/./grift-site-b7202c999d029e08_bg.wasm');</script></body></html>
