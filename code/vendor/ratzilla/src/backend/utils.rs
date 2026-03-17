@@ -291,7 +291,7 @@ pub(crate) fn create_canvas_in_element(
     canvas.set_height(height);
     canvas.set_attribute(
         "style",
-        "display: block; width: 100%; height: 100%; touch-action: none; image-rendering: pixelated; image-rendering: crisp-edges; image-rendering: -moz-crisp-edges;",
+        "display: block; width: 100%; height: 100%; touch-action: none; image-rendering: pixelated; image-rendering: crisp-edges; image-rendering: -moz-crisp-edges; text-rendering: optimizeSpeed; font-smooth: never; backface-visibility: hidden; transform: translateZ(0);",
     )?;
 
     parent.append_child(&element)?;
