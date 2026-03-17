@@ -3,7 +3,7 @@
 // from network in the background. Navigation requests use network-first.
 // Hashed assets (JS, WASM, CSS) are immutable and cached on first fetch.
 
-var CACHE_NAME = 'grift-v4';
+var CACHE_NAME = 'grift-v5';
 
 var PRECACHE_URLS = [
   './',
@@ -12,11 +12,7 @@ var PRECACHE_URLS = [
   './icon-192.png',
   './icon-512.png',
   './fonts/jetbrainsmono.css',
-  './fonts/JetBrainsMono-Regular.woff2',
-  './fonts/JetBrainsMono-Bold.woff2',
-  './fonts/JetBrainsMono-Light.woff2',
-  './fonts/JetBrainsMono-Medium.woff2',
-  './fonts/JetBrainsMono-SemiBold.woff2'
+  './fonts/Iosevka-Regular.ttf'
 ];
 
 self.addEventListener('install', function (event) {

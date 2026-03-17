@@ -6226,7 +6226,7 @@ fn main() -> std::io::Result<()> {
             let backend = WebGl2Backend::new_with_options(
                 WebGl2BackendOptions::new()
                     .grid_id("app-root")
-                    .font_atlas_config(FontAtlasConfig::dynamic(&["JetBrains Mono"], 16.0))
+                    .font_atlas_config(FontAtlasConfig::dynamic(&["Iosevka"], 16.0))
                     .enable_mouse_selection_with_mode(
                         ratzilla::backend::webgl2::SelectionMode::Linear,
                     )
