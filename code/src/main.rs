@@ -3,15 +3,19 @@ use std::rc::Rc;
 
 use grift::Lisp;
 use ratzilla::backend::canvas::CanvasBackendOptions;
+use ratzilla::backend::dom::DomBackendOptions;
+use ratzilla::backend::webgl2::{FontAtlasConfig, WebGl2BackendOptions};
 use ratzilla::event::{KeyCode, KeyEvent, MouseButton, MouseEvent, MouseEventKind};
 use ratzilla::ratatui::layout::{Alignment, Constraint, Layout, Position, Rect};
 use ratzilla::ratatui::style::{Color, Modifier, Style, Stylize};
 use ratzilla::ratatui::text::{Line, Span, Text};
 use ratzilla::ratatui::widgets::{Block, BorderType, Paragraph, Wrap};
 use ratzilla::ratatui::Frame;
-use ratzilla::CanvasBackend;
+use ratzilla::utils::call_js_function;
 use ratzilla::WebRenderer;
+use ratzilla::{CanvasBackend, DomBackend, WebGl2Backend};
 use unicode_width::UnicodeWidthChar;
+use web_sys::window;
 
 use std::collections::HashSet;
 use tvk::layout::lisp_keyboard_layout;
@@ -43,7 +47,7 @@ const FIRST_CLASS_INFO: &str = "\
 Environments, continuations, operatives, and combiners are all first-class values. Operatives close over their static environment and capture the caller's dynamic environment at each call site. This enables reflective towers, hygienic binding constructs, and arbitrary evaluation strategies — without special-casing. First-class environments mean you can pass, return, and inspect environments just like any other value in the language.";
 
 const IMPL_INFO: &str = "\
-Written in pure Rust: arena-allocated with const-generic capacity, tail-call optimized, mark-and-sweep GC, zero unsafe code. Runs on bare-metal embedded targets and compiles to WebAssembly. This entire site is a Rust TUI rendered to canvas via WASM. The arena allocator uses a fixed-size array with const generics so the capacity is determined at compile time with no runtime overhead.";
+Written in pure Rust: arena-allocated with const-generic capacity, tail-call optimized, mark-and-sweep GC, zero unsafe code. Runs on bare-metal embedded targets and compiles to WebAssembly. This entire site is a Rust TUI rendered in the browser via WASM. The arena allocator uses a fixed-size array with const generics so the capacity is determined at compile time with no runtime overhead.";
 
 const LINKS: &[(&str, &str, &str)] = &[
     (
@@ -59,12 +63,12 @@ const LINKS: &[(&str, &str, &str)] = &[
     (
         "GitHub (grift-site)",
         "https://github.com/skyfskyf/grift-site",
-        "Source code for this very website — a terminal UI compiled to WASM and rendered to canvas.",
+        "Source code for this very website — a terminal UI compiled to WASM and rendered in the browser.",
     ),
     (
         "Ratzilla – Terminal web apps with Rust + WASM",
         "https://github.com/ratatui/ratzilla",
-        "The framework that renders this terminal UI in your browser via WebGL2 — built on top of ratatui.",
+        "The framework that renders this terminal UI in your browser — built on top of ratatui.",
     ),
     (
         "Ratatui – Terminal UI framework",
@@ -3343,6 +3347,7 @@ fn md_word_to_span(word: &md_tui::nodes::word::Word, heading_level: u8) -> Span<
 }
 
 struct App {
+    renderer: RendererKind,
     page: Page,
     focus_mode: FocusMode,
     // REPL state
@@ -3395,6 +3400,8 @@ struct App {
     link_areas: Vec<Rect>,
     blog_item_areas: Vec<Rect>,
     blog_back_area: Rect,
+    footer_area: Rect,
+    renderer_button_areas: Vec<(RendererKind, Rect)>,
     // Zone detection areas
     content_area: Rect,
     blog_list_area: Rect,
@@ -3431,9 +3438,10 @@ struct App {
 }
 
 impl App {
-    fn new() -> Self {
+    fn new(renderer: RendererKind) -> Self {
         let lisp: Box<Lisp<2000>> = Box::new(Lisp::new());
         Self {
+            renderer,
             page: Page::Home,
             focus_mode: FocusMode::Outer,
             repl_input: String::new(),
@@ -3476,6 +3484,8 @@ impl App {
             link_areas: Vec::new(),
             blog_item_areas: Vec::new(),
             blog_back_area: Rect::default(),
+            footer_area: Rect::default(),
+            renderer_button_areas: Vec::new(),
             content_area: Rect::default(),
             blog_list_area: Rect::default(),
             blog_content_area: Rect::default(),
@@ -3546,10 +3556,20 @@ impl App {
         self.link_areas.clear();
         self.blog_item_areas.clear();
         self.blog_back_area = Rect::default();
+        self.footer_area = Rect::default();
+        self.renderer_button_areas.clear();
         self.scroll_up_area = Rect::default();
         self.scroll_down_area = Rect::default();
         self.blog_list_area = Rect::default();
         self.blog_content_area = Rect::default();
+    }
+
+    fn switch_renderer(&mut self, renderer: RendererKind) {
+        if renderer == self.renderer {
+            return;
+        }
+
+        let _ = call_js_function("griftSetRendererAndReload", [renderer.storage_value()]);
     }
 
     fn carousel_transition_effect() -> Effect {
@@ -3774,6 +3794,13 @@ impl App {
         }
 
         if event.kind == MouseEventKind::ButtonDown(MouseButton::Left) {
+            for (renderer, area) in &self.renderer_button_areas {
+                if col >= area.x && col < area.right() && row >= area.y && row < area.bottom() {
+                    self.switch_renderer(*renderer);
+                    return;
+                }
+            }
+
             // Check tab clicks using individual tab areas
             if row >= self.tab_area.y && row < self.tab_area.bottom() {
                 for (i, tab_rect) in self.tab_rects.iter().enumerate() {
@@ -4297,10 +4324,10 @@ impl App {
         };
         let v_margin = (full_area.height / MARGIN_DIVISOR).min(1);
 
-        let [_, center_v, _] = Layout::vertical([
+        let [_, center_v, footer_area] = Layout::vertical([
             Constraint::Length(v_margin),
             Constraint::Min(10),
-            Constraint::Length(v_margin),
+            Constraint::Length(1),
         ])
         .areas(full_area);
 
@@ -4315,6 +4342,7 @@ impl App {
             Layout::vertical([Constraint::Length(3), Constraint::Min(1)]).areas(main_area);
 
         self.content_area = content_area;
+        self.render_footer(frame, footer_area);
 
         self.render_tabs(frame, tab_area);
 
@@ -4601,6 +4629,77 @@ impl App {
         }
     }
 
+    fn render_footer(&mut self, frame: &mut Frame, area: Rect) {
+        self.footer_area = area;
+        self.renderer_button_areas.clear();
+
+        if area.width == 0 || area.height == 0 {
+            return;
+        }
+
+        let base_style = Style::default().fg(Color::Rgb(95, 100, 112));
+        let label = "renderer ";
+        frame.render_widget(
+            Paragraph::new(label)
+                .alignment(Alignment::Left)
+                .style(base_style),
+            area,
+        );
+
+        let mut cursor_x = area.right();
+        let button_gap: u16 = 1;
+        let row = area.y;
+        let buf = frame.buffer_mut();
+
+        for renderer in RendererKind::all().into_iter().rev() {
+            let title = format!(" {} ", renderer.title());
+            let width = title.chars().count() as u16;
+            if cursor_x < area.x.saturating_add(width) {
+                break;
+            }
+
+            cursor_x = cursor_x.saturating_sub(width);
+            let button_area = Rect::new(cursor_x, row, width, 1);
+            self.renderer_button_areas.push((renderer, button_area));
+
+            let hovered = self.is_hovered(button_area);
+            let style = if renderer == self.renderer {
+                Style::default()
+                    .fg(Color::Rgb(8, 9, 14))
+                    .bg(Color::Rgb(210, 214, 224))
+                    .bold()
+            } else if hovered {
+                Style::default()
+                    .fg(Color::Rgb(245, 247, 252))
+                    .bg(Color::Rgb(45, 50, 60))
+                    .bold()
+            } else {
+                Style::default()
+                    .fg(Color::Rgb(145, 150, 164))
+                    .bg(Color::Rgb(22, 25, 33))
+            };
+
+            for (idx, ch) in title.chars().enumerate() {
+                let pos = Position::new(cursor_x + idx as u16, row);
+                if let Some(cell) = buf.cell_mut(pos) {
+                    cell.set_char(ch);
+                    cell.set_style(style);
+                }
+            }
+
+            if cursor_x > area.x.saturating_add(button_gap) {
+                cursor_x = cursor_x.saturating_sub(button_gap);
+                let pos = Position::new(cursor_x, row);
+                if let Some(cell) = buf.cell_mut(pos) {
+                    cell.set_char(' ');
+                    cell.set_style(base_style);
+                }
+            }
+        }
+
+        self.renderer_button_areas.reverse();
+    }
+
     fn render_tabs(&mut self, frame: &mut Frame, area: Rect) {
         self.tab_area = area;
 
@@ -4797,7 +4896,7 @@ impl App {
         push_section(
             &mut lines,
             "── This Site ──",
-            "Everything you see is a Rust terminal UI compiled to WebAssembly and rendered to an HTML canvas via Ratzilla. TachyonFX provides the animated background, page transitions, and hover effects. There is no HTML layout, no CSS styling, and no JavaScript framework — just a Rust application drawing characters to a terminal grid. The same layout works on every device and screen size.",
+            "Everything you see is a Rust terminal UI compiled to WebAssembly and rendered in the browser via Ratzilla. TachyonFX provides the animated background, page transitions, and hover effects. There is no JavaScript framework here — just a Rust application drawing characters to a terminal grid. The same layout works on every device and screen size.",
             SectionStyle::new(GOLD, BODY_TEXT_COLOR),
         );
         push_section(
@@ -5379,13 +5478,13 @@ impl App {
         push_section(
             &mut lines,
             "── This Website ──",
-            "Everything you see is a Rust terminal UI compiled to WebAssembly and rendered to an HTML canvas via Ratzilla. TachyonFX provides the animated background, page transitions, and hover effects. There is no HTML layout, no CSS styling, and no JavaScript framework — just a Rust application drawing characters to a terminal grid.",
+            "Everything you see is a Rust terminal UI compiled to WebAssembly and rendered in the browser via Ratzilla. TachyonFX provides the animated background, page transitions, and hover effects. There is no JavaScript framework here — just a Rust application drawing characters to a terminal grid.",
             SectionStyle::new(GOLD, BODY_TEXT_COLOR),
         );
         push_section(
             &mut lines,
             "── How It Works ──",
-            "Traditional web apps use HTML/CSS/JavaScript to render DOM elements. This site takes a different approach: the entire UI is a Rust application compiled to WASM, rendering a terminal grid to an HTML canvas. There is no DOM manipulation, no CSS layout engine, and no JavaScript framework involved.",
+            "Traditional web apps use HTML/CSS/JavaScript to render DOM elements. This site takes a different approach: the entire UI is a Rust application compiled to WASM and rendered as a terminal grid in the browser. There is no JavaScript framework involved.",
             SectionStyle::new(COPPER, BODY_TEXT_COLOR),
         );
 
@@ -5401,7 +5500,7 @@ impl App {
                 "  • Ratatui — terminal UI framework for Rust",
                 "  • TachyonFX — shader-like effects for terminal UIs",
                 "  • Grift — minimalistic Lisp with vau calculus",
-                "  • WebGL2 rendering at 60fps on modern devices",
+                "  • Browser-rendered terminal UI powered by Rust + WASM",
             ],
             BODY_TEXT_COLOR,
         );
@@ -6051,15 +6150,93 @@ where
     Ok(())
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum RendererKind {
+    Dom,
+    Canvas,
+    WebGl,
+}
+
+impl RendererKind {
+    fn storage_value(self) -> &'static str {
+        match self {
+            Self::Dom => "dom",
+            Self::Canvas => "canvas",
+            Self::WebGl => "webgl",
+        }
+    }
+
+    fn title(self) -> &'static str {
+        match self {
+            Self::Dom => "DOM",
+            Self::Canvas => "Canvas",
+            Self::WebGl => "WebGL",
+        }
+    }
+
+    fn all() -> [Self; 3] {
+        [Self::Dom, Self::Canvas, Self::WebGl]
+    }
+
+    fn from_storage_value(value: &str) -> Option<Self> {
+        match value {
+            "dom" => Some(Self::Dom),
+            "canvas" => Some(Self::Canvas),
+            "webgl" => Some(Self::WebGl),
+            _ => None,
+        }
+    }
+}
+
+fn preferred_renderer() -> RendererKind {
+    window()
+        .and_then(|w| w.local_storage().ok().flatten())
+        .and_then(|storage| storage.get_item("grift-renderer").ok().flatten())
+        .as_deref()
+        .and_then(RendererKind::from_storage_value)
+        .unwrap_or(RendererKind::Dom)
+}
+
 fn main() -> std::io::Result<()> {
     std::panic::set_hook(Box::new(console_error_panic_hook::hook));
 
-    let app = Rc::new(RefCell::new(App::new()));
-    let backend =
-        CanvasBackend::new_with_options(CanvasBackendOptions::new().enable_mouse_selection())
+    let renderer = preferred_renderer();
+    let app = Rc::new(RefCell::new(App::new(renderer)));
+    match renderer {
+        RendererKind::Dom => {
+            let backend = DomBackend::new_with_options(DomBackendOptions::new(
+                Some("app-root".to_string()),
+                ratzilla::CursorShape::default(),
+            ))
+            .expect("failed to create DOM backend");
+            let terminal = ratzilla::ratatui::Terminal::new(backend)?;
+            setup_terminal(terminal, app)?;
+        }
+        RendererKind::Canvas => {
+            let backend = CanvasBackend::new_with_options(
+                CanvasBackendOptions::new()
+                    .grid_id("app-root")
+                    .enable_mouse_selection(),
+            )
             .expect("failed to create canvas backend");
-    let terminal = ratzilla::ratatui::Terminal::new(backend)?;
-    setup_terminal(terminal, app)?;
+            let terminal = ratzilla::ratatui::Terminal::new(backend)?;
+            setup_terminal(terminal, app)?;
+        }
+        RendererKind::WebGl => {
+            let backend = WebGl2Backend::new_with_options(
+                WebGl2BackendOptions::new()
+                    .grid_id("app-root")
+                    .font_atlas_config(FontAtlasConfig::dynamic(&["JetBrains Mono"], 16.0))
+                    .enable_mouse_selection_with_mode(
+                        ratzilla::backend::webgl2::SelectionMode::Linear,
+                    )
+                    .disable_auto_css_resize(),
+            )
+            .expect("failed to create WebGL backend");
+            let terminal = ratzilla::ratatui::Terminal::new(backend)?;
+            setup_terminal(terminal, app)?;
+        }
+    }
 
     Ok(())
 }

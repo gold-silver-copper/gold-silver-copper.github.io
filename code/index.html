@@ -23,6 +23,7 @@
     <link data-trunk rel="css" href="assets/style.css" />
   </head>
   <body>
+    <div id="app-root"></div>
 
     <script>
       // ═══════════════════════════════════════════════════════════════════
@@ -45,19 +46,31 @@
       document.addEventListener('contextmenu', function(e) { e.preventDefault(); });
 
       var GriftApp = (function() {
-        function isMobilePhone() {
-          var ua = (navigator.userAgent || '').toLowerCase();
-          var isPhoneUa =
-            ua.indexOf('iphone') !== -1 ||
-            ua.indexOf('ipod') !== -1 ||
-            ua.indexOf('windows phone') !== -1 ||
-            ua.indexOf('iemobile') !== -1 ||
-            ua.indexOf('opera mini') !== -1 ||
-            ua.indexOf('blackberry') !== -1 ||
-            ua.indexOf('bb10') !== -1 ||
-            (ua.indexOf('android') !== -1 && ua.indexOf('mobile') !== -1);
+        var STORAGE_KEY = 'grift-renderer';
 
-          return isPhoneUa && ua.indexOf('ipad') === -1 && ua.indexOf('tablet') === -1;
+        function appRoot() {
+          return document.getElementById('app-root') || document.body;
+        }
+
+        function getRendererPreference() {
+          try {
+            var value = window.localStorage.getItem(STORAGE_KEY);
+            if (value === 'dom' || value === 'canvas' || value === 'webgl') {
+              return value;
+            }
+          } catch (_) {}
+          return 'dom';
+        }
+
+        function setRendererPreference(renderer) {
+          try {
+            window.localStorage.setItem(STORAGE_KEY, renderer);
+          } catch (_) {}
+        }
+
+        function setRendererAndReload(renderer) {
+          setRendererPreference(renderer);
+          window.location.reload();
         }
 
         // ── Configuration ──────────────────────────────────────────────
@@ -278,13 +291,13 @@
         }, { passive: false });
 
         // ── Viewport / resize handling ─────────────────────────────────
-        // Minimal approach: resize listener + 1-second polling backup.
         function fitCanvas() {
           var c = canvas();
           if (!c) return;
           if ((c.tagName || '').toUpperCase() !== 'CANVAS') return;
-          var w = document.body.clientWidth;
-          var h = document.body.clientHeight;
+          var root = appRoot();
+          var w = root.clientWidth;
+          var h = root.clientHeight;
           if (w <= 0 || h <= 0) return;
           c.style.width  = w + 'px';
           c.style.height = h + 'px';
@@ -314,8 +327,22 @@
         });
 
         // ── Public API ─────────────────────────────────────────────────
-        return { dispatch: dispatch, canvas: canvas, zone: zone, gesture: gesture, CFG: CFG };
+        return {
+          appRoot: appRoot,
+          dispatch: dispatch,
+          canvas: canvas,
+          zone: zone,
+          gesture: gesture,
+          CFG: CFG,
+          getRendererPreference: getRendererPreference,
+          setRendererPreference: setRendererPreference,
+          setRendererAndReload: setRendererAndReload
+        };
       })();
+
+      window.griftSetRendererAndReload = function(renderer) {
+        GriftApp.setRendererAndReload(renderer);
+      };
 
       // ── Service Worker registration ────────────────────────────────
       if ('serviceWorker' in navigator) {

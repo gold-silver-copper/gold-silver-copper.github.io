@@ -15,11 +15,17 @@
     <link rel="apple-touch-icon" href="./icon-192.png">
     <link rel="stylesheet" href="./fonts/jetbrainsmono.css">
     <title>GRIFT.RS – Personal Website &amp; Grift Demo</title>
-    <link rel="stylesheet" href="/./style-23d7df3e3b2cce0d.css">
+    <link rel="stylesheet" href="/./style-7c87e8deddfb9d4d.css">
   
-<link rel="preload" href="/./grift-site-52f76681ec31b6f_bg.wasm" as="fetch" type="application/wasm" crossorigin="">
-<link rel="modulepreload" href="/./grift-site-52f76681ec31b6f.js"></head>
+<link rel="preload" href="/./grift-site-8ab891a6bce86fb2_bg.wasm" as="fetch" type="application/wasm" crossorigin="">
+<link rel="modulepreload" href="/./grift-site-8ab891a6bce86fb2.js"></head>
   <body>
+    <div id="app-root"></div>
+    <div id="renderer-switcher" aria-label="Renderer switcher">
+      <button class="renderer-btn" data-renderer="dom" type="button">DOM</button>
+      <button class="renderer-btn" data-renderer="canvas" type="button">Canvas</button>
+      <button class="renderer-btn" data-renderer="webgl" type="button">WebGL</button>
+    </div>
 
     <script>
       // ═══════════════════════════════════════════════════════════════════
@@ -42,19 +48,43 @@
       document.addEventListener('contextmenu', function(e) { e.preventDefault(); });
 
       var GriftApp = (function() {
-        function isMobilePhone() {
-          var ua = (navigator.userAgent || '').toLowerCase();
-          var isPhoneUa =
-            ua.indexOf('iphone') !== -1 ||
-            ua.indexOf('ipod') !== -1 ||
-            ua.indexOf('windows phone') !== -1 ||
-            ua.indexOf('iemobile') !== -1 ||
-            ua.indexOf('opera mini') !== -1 ||
-            ua.indexOf('blackberry') !== -1 ||
-            ua.indexOf('bb10') !== -1 ||
-            (ua.indexOf('android') !== -1 && ua.indexOf('mobile') !== -1);
+        var STORAGE_KEY = 'grift-renderer';
 
-          return isPhoneUa && ua.indexOf('ipad') === -1 && ua.indexOf('tablet') === -1;
+        function appRoot() {
+          return document.getElementById('app-root') || document.body;
+        }
+
+        function rendererSwitcher() {
+          return document.getElementById('renderer-switcher');
+        }
+
+        function getRendererPreference() {
+          try {
+            var value = window.localStorage.getItem(STORAGE_KEY);
+            if (value === 'dom' || value === 'canvas' || value === 'webgl') {
+              return value;
+            }
+          } catch (_) {}
+          return 'dom';
+        }
+
+        function setRendererPreference(renderer) {
+          try {
+            window.localStorage.setItem(STORAGE_KEY, renderer);
+          } catch (_) {}
+        }
+
+        function syncRendererButtons() {
+          var active = getRendererPreference();
+          var buttons = document.querySelectorAll('.renderer-btn[data-renderer]');
+          for (var i = 0; i < buttons.length; i++) {
+            buttons[i].setAttribute('data-active', buttons[i].getAttribute('data-renderer') === active ? 'true' : 'false');
+          }
+        }
+
+        function isControlTarget(target) {
+          var switcher = rendererSwitcher();
+          return !!(switcher && target && switcher.contains(target));
         }
 
         // ── Configuration ──────────────────────────────────────────────
@@ -248,14 +278,17 @@
 
         // ── Touch event wiring ─────────────────────────────────────────
         document.addEventListener('touchstart', function(e) {
+          if (isControlTarget(e.target)) return;
           gesture.begin(e.changedTouches[0]);
         }, { passive: true });
 
         document.addEventListener('touchmove', function(e) {
+          if (isControlTarget(e.target)) return;
           gesture.move(e.changedTouches[0]);
         }, { passive: true });
 
         document.addEventListener('touchend', function(e) {
+          if (isControlTarget(e.target)) return;
           gesture.end(e.changedTouches[0]);
           var now = Date.now();
           if (now - gesture.lastTapTime < CFG.DOUBLE_TAP_MS) e.preventDefault();
@@ -275,13 +308,13 @@
         }, { passive: false });
 
         // ── Viewport / resize handling ─────────────────────────────────
-        // Minimal approach: resize listener + 1-second polling backup.
         function fitCanvas() {
           var c = canvas();
           if (!c) return;
           if ((c.tagName || '').toUpperCase() !== 'CANVAS') return;
-          var w = document.body.clientWidth;
-          var h = document.body.clientHeight;
+          var root = appRoot();
+          var w = root.clientWidth;
+          var h = root.clientHeight;
           if (w <= 0 || h <= 0) return;
           c.style.width  = w + 'px';
           c.style.height = h + 'px';
@@ -300,6 +333,18 @@
         }
         fitCanvas();
 
+        document.addEventListener('click', function(e) {
+          var button = e.target && e.target.closest ? e.target.closest('.renderer-btn[data-renderer]') : null;
+          if (!button) return;
+          var renderer = button.getAttribute('data-renderer');
+          if (!renderer) return;
+          setRendererPreference(renderer);
+          syncRendererButtons();
+          window.location.reload();
+        });
+
+        syncRendererButtons();
+
         // ── Paste support (dispatches pasted text as key events) ───────
         document.addEventListener('paste', function(e) {
           e.preventDefault();
@@ -311,7 +356,17 @@
         });
 
         // ── Public API ─────────────────────────────────────────────────
-        return { dispatch: dispatch, canvas: canvas, zone: zone, gesture: gesture, CFG: CFG };
+        return {
+          appRoot: appRoot,
+          dispatch: dispatch,
+          canvas: canvas,
+          zone: zone,
+          gesture: gesture,
+          CFG: CFG,
+          getRendererPreference: getRendererPreference,
+          setRendererPreference: setRendererPreference,
+          syncRendererButtons: syncRendererButtons
+        };
       })();
 
       // ── Service Worker registration ────────────────────────────────
@@ -332,4 +387,4 @@
     </script>
   
 
-<script type="module">import init from '/./grift-site-52f76681ec31b6f.js';init('/./grift-site-52f76681ec31b6f_bg.wasm');</script></body></html>
+<script type="module">import init from '/./grift-site-8ab891a6bce86fb2.js';init('/./grift-site-8ab891a6bce86fb2_bg.wasm');</script></body></html>
