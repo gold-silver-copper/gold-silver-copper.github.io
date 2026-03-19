@@ -6204,10 +6204,13 @@ fn main() -> std::io::Result<()> {
     let app = Rc::new(RefCell::new(App::new(renderer)));
     match renderer {
         RendererKind::Dom => {
-            let backend = DomBackend::new_with_options(DomBackendOptions::new(
-                Some("app-root".to_string()),
-                ratzilla::CursorShape::default(),
-            ))
+            let backend = DomBackend::new_with_options(
+                DomBackendOptions::new(
+                    Some("app-root".to_string()),
+                    ratzilla::CursorShape::default(),
+                )
+                .enable_mouse_selection(),
+            )
             .expect("failed to create DOM backend");
             let terminal = ratzilla::ratatui::Terminal::new(backend)?;
             setup_terminal(terminal, app)?;

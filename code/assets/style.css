@@ -87,6 +87,18 @@ canvas,
   font-feature-settings: 'liga' 0, 'calt' 0;
 }
 
+#grid.ratzilla-dom-selection-enabled,
+[id$="_ratzilla_grid"].ratzilla-dom-selection-enabled,
+#grid.ratzilla-dom-selection-enabled .ratzilla-dom-row,
+[id$="_ratzilla_grid"].ratzilla-dom-selection-enabled .ratzilla-dom-row,
+#grid.ratzilla-dom-selection-enabled .ratzilla-dom-cell,
+[id$="_ratzilla_grid"].ratzilla-dom-selection-enabled .ratzilla-dom-cell {
+  user-select: text;
+  -webkit-user-select: text;
+  cursor: text;
+  touch-action: auto;
+}
+
 /* Hidden REPL keyboard input - off-screen but focusable */
 #repl-keyboard-input {
   position: fixed;
