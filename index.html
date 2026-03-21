@@ -15,10 +15,10 @@
     <link rel="apple-touch-icon" href="./icon-192.png">
     <link rel="stylesheet" href="./fonts/jetbrainsmono.css">
     <title>GRIFT.RS – Personal Website &amp; Grift Demo</title>
-    <link rel="stylesheet" href="/./style-72fbf9d98a249347.css">
+    <link rel="stylesheet" href="/./style-8a65fba8aee221e8.css">
   
-<link rel="preload" href="/./grift-site-e8cacae94e6e6c77_bg.wasm" as="fetch" type="application/wasm" crossorigin="">
-<link rel="modulepreload" href="/./grift-site-e8cacae94e6e6c77.js"></head>
+<link rel="preload" href="/./grift-site-1269079bf245b1c4_bg.wasm" as="fetch" type="application/wasm" crossorigin="">
+<link rel="modulepreload" href="/./grift-site-1269079bf245b1c4.js"></head>
   <body>
     <div id="app-root"></div>
 
@@ -96,6 +96,19 @@
           return _terminalElement;
         }
         function resetCanvas() { _terminalElement = null; }
+
+        function scheduleViewportSync() {
+          resetCanvas();
+
+          var syncSteps = [0, 1, 2, 4, 8, 12];
+          syncSteps.forEach(function(step) {
+            window.setTimeout(function() {
+              window.requestAnimationFrame(function() {
+                fitCanvas();
+              });
+            }, step * 50);
+          });
+        }
 
         // ── Dispatch helpers ───────────────────────────────────────────
         function dispatch(key) {
@@ -289,29 +302,37 @@
 
         // ── Viewport / resize handling ─────────────────────────────────
         function fitCanvas() {
+          var root = appRoot();
+          var rect = root.getBoundingClientRect();
+          var renderer = getRendererPreference();
           var c = canvas();
           if (!c) return;
           if ((c.tagName || '').toUpperCase() !== 'CANVAS') return;
-          var root = appRoot();
-          var w = root.clientWidth;
-          var h = root.clientHeight;
+          var w = Math.max(0, Math.round(rect.width));
+          var h = Math.max(0, Math.round(rect.height));
           if (w <= 0 || h <= 0) return;
           c.style.width  = w + 'px';
           c.style.height = h + 'px';
 
-          var bw = Math.round(w);
-          var bh = Math.round(h);
-          if (c.width !== bw || c.height !== bh) {
-            c.width  = bw;
-            c.height = bh;
+          if (renderer === 'canvas') {
+            var bw = Math.round(w);
+            var bh = Math.round(h);
+            if (c.width !== bw || c.height !== bh) {
+              c.width  = bw;
+              c.height = bh;
+            }
           }
         }
 
-        window.addEventListener('resize', fitCanvas);
+        window.addEventListener('resize', scheduleViewportSync);
+        window.addEventListener('orientationchange', scheduleViewportSync);
+        window.addEventListener('pageshow', scheduleViewportSync);
+        window.addEventListener('load', scheduleViewportSync);
         if (window.visualViewport) {
-          window.visualViewport.addEventListener('resize', fitCanvas);
+          window.visualViewport.addEventListener('resize', scheduleViewportSync);
+          window.visualViewport.addEventListener('scroll', scheduleViewportSync);
         }
-        fitCanvas();
+        scheduleViewportSync();
 
         // ── Paste support (dispatches pasted text as key events) ───────
         document.addEventListener('paste', function(e) {
@@ -359,4 +380,4 @@
     </script>
   
 
-<script type="module">import init from '/./grift-site-e8cacae94e6e6c77.js';init('/./grift-site-e8cacae94e6e6c77_bg.wasm');</script></body></html>
+<script type="module">import init from '/./grift-site-1269079bf245b1c4.js';init('/./grift-site-1269079bf245b1c4_bg.wasm');</script></body></html>

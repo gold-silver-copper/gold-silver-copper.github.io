@@ -6232,8 +6232,7 @@ fn main() -> std::io::Result<()> {
                     .font_atlas_config(FontAtlasConfig::dynamic(&["Iosevka"], 16.0))
                     .enable_mouse_selection_with_mode(
                         ratzilla::backend::webgl2::SelectionMode::Linear,
-                    )
-                    .disable_auto_css_resize(),
+                    ),
             )
             .expect("failed to create WebGL backend");
             let terminal = ratzilla::ratatui::Terminal::new(backend)?;
