@@ -1058,7 +1058,7 @@ function __wbg_get_imports() {
     };
     return {
         __proto__: null,
-        "./grift-site-7a6cfd710d626637_bg.js": import0,
+        "./grift-site-e8cacae94e6e6c77_bg.js": import0,
     };
 }
 
@@ -1476,7 +1476,7 @@ async function __wbg_init(module_or_path) {
     }
 
     if (module_or_path === undefined) {
-        module_or_path = new URL('grift-site-7a6cfd710d626637_bg.wasm', import.meta.url);
+        module_or_path = new URL('grift-site-e8cacae94e6e6c77_bg.wasm', import.meta.url);
     }
     const imports = __wbg_get_imports();
 

@@ -6194,7 +6194,7 @@ fn preferred_renderer() -> RendererKind {
         .and_then(|storage| storage.get_item("grift-renderer").ok().flatten())
         .as_deref()
         .and_then(RendererKind::from_storage_value)
-        .unwrap_or(RendererKind::Dom)
+        .unwrap_or(RendererKind::WebGl)
 }
 
 fn main() -> std::io::Result<()> {
